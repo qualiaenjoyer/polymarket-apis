@@ -1,14 +1,16 @@
-import httpx
-from urllib.parse import urljoin
+from datetime import datetime
 from typing import List, Literal, Optional, Union
-from polymarket_apis.types.data_types import (
-    Position,
-    Trade,
+from urllib.parse import urljoin
+
+import httpx
+
+from ..types.data_types import (
     Activity,
     HolderResponse,
+    Position,
+    Trade,
     ValueResponse,
 )
-from datetime import datetime
 
 
 class PolymarketDataClient:

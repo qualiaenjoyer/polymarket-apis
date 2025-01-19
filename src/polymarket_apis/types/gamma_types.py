@@ -1,8 +1,11 @@
 from __future__ import annotations
-from typing import Optional
-from pydantic import BaseModel, Json
+
 from datetime import datetime
-from polymarket_apis.types.common import EthAddress, Keccak256, TimestampWithTZ
+from typing import Optional
+
+from pydantic import BaseModel, Json
+
+from .common import EthAddress, Keccak256, TimestampWithTZ
 
 
 class Event(BaseModel):
@@ -77,7 +80,7 @@ class Market(BaseModel):
     updatedAt: Optional[datetime] = None
     new: Optional[bool] = None
     featured: Optional[bool] = None
-    submitted_by: Optional[EthAddress] = None
+    submitted_by: Optional[str] = None
     archived: bool
     resolvedBy: Optional[EthAddress] = None
     restricted: bool

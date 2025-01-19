@@ -1,8 +1,10 @@
-import httpx
-from urllib.parse import urljoin
-from typing import List, Optional
-from polymarket_apis.types.gamma_types import Event, Market
 from datetime import datetime
+from typing import List, Optional
+from urllib.parse import urljoin
+
+import httpx
+
+from ..types.gamma_types import Event, Market
 
 
 class PolymarketGammaClient:

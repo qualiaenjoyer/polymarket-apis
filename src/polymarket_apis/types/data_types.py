@@ -1,7 +1,9 @@
-from typing import Optional, List, Literal
-from pydantic import BaseModel
 from datetime import datetime
-from polymarket_apis.types.common import EthAddress, Keccak256
+from typing import List, Literal, Optional
+
+from pydantic import BaseModel
+
+from .common import EthAddress, Keccak256
 
 
 class Position(BaseModel):

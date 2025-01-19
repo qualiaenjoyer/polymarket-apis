@@ -1,15 +1,13 @@
-from typing import Annotated
-from pydantic import Field, BeforeValidator
 from datetime import datetime
+from typing import Annotated
+
+from pydantic import BeforeValidator, Field
 
 
 def parse_timestamp(v: str) -> datetime:
     if isinstance(v, str):
         # Handle the timezone offset by padding it to 4 digits
-        if v.endswith("+00"):
-            v = v.replace("+00", "+0000")
-        return datetime.strptime(v, "%Y-%m-%d %H:%M:%S.%f%z")
-    return v
+        return datetime.strptime(v + "00", "%Y-%m-%d %H:%M:%S.%f%z")
 
 
 TimestampWithTZ = Annotated[datetime, BeforeValidator(parse_timestamp)]
