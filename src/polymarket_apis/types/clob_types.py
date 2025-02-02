@@ -1,9 +1,20 @@
 from enum import Enum
-from typing import Any, List, Literal, Optional
+from typing import Any, Literal, Optional, Dict, TypeVar, Generic
 
-from pydantic import BaseModel
-
+from pydantic import (
+    BaseModel,
+    RootModel,
+    Field,
+    field_validator,
+    ValidationInfo,
+    ValidatorFunctionWrapHandler,
+    field_serializer,
+)
 from ..utilities.constants import ZERO_ADDRESS
+from ..types.common import Keccak256
+
+
+from datetime import datetime
 
 # TODO check types
 
@@ -20,9 +31,172 @@ class RequestArgs(BaseModel):
     body: Optional[Any] = None
 
 
+class TokenValue(BaseModel):
+    token_id: str
+    value: float
+
+
+class Midpoint(TokenValue):
+    pass
+
+
+class Spread(TokenValue):
+    pass
+
+
+class TokenValueDict(RootModel):
+    root: Dict[str, float]
+
+
 class BookParams(BaseModel):
     token_id: str
     side: Literal["BUY", "SELL"]
+
+
+class Price(BookParams):
+    price: float
+
+
+class BidAsk(BaseModel):
+    BUY: Optional[float] = None  # Price buyers are willing to pay
+    SELL: Optional[float] = None  # Price sellers are willing to accept
+
+
+class TokenBidAsk(BidAsk):
+    token_id: str
+
+
+class TokenBidAskDict(RootModel):
+    root: Dict[str, BidAsk]
+
+
+class TimeseriesPoint(BaseModel):
+    t: datetime
+    p: float
+
+
+class PriceHistory(BaseModel):
+    token_id: str
+    history: list[TimeseriesPoint]
+
+
+T = TypeVar("T")
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    data: list[T]
+    next_cursor: str
+    limit: int
+    count: int
+
+
+class RewardRate(BaseModel):
+    asset_address: str
+    rewards_daily_rate: float
+
+
+class Rewards(BaseModel):
+    rates: Optional[list[RewardRate]]
+    min_size: int
+    max_spread: float
+
+
+class Token(BaseModel):
+    token_id: str
+    outcome: str
+    price: float
+    winner: bool
+
+
+class ClobMarket(BaseModel):
+    # Order book settings
+    enable_order_book: bool
+    accepting_orders: bool
+    accepting_order_timestamp: Optional[datetime]
+    minimum_order_size: float
+    minimum_tick_size: float
+
+    # Core market information
+    condition_id: Keccak256
+    question_id: Keccak256
+    question: str
+    description: str
+    market_slug: str
+    end_date_iso: Optional[datetime]
+    game_start_time: Optional[datetime] = None
+    seconds_delay: int
+
+    # Status flags
+    active: bool
+    closed: bool
+    archived: bool
+
+    # Fee structure
+    fpmm: str
+    maker_base_fee: float
+    taker_base_fee: float
+
+    # Features
+    notifications_enabled: bool
+    is_50_50_outcome: bool
+
+    # Negative risk settings
+    neg_risk: bool
+    neg_risk_market_id: Keccak256
+    neg_risk_request_id: Keccak256
+
+    # Visual representation
+    icon: str
+    image: str
+
+    # Rewards configuration
+    rewards: Optional[Rewards]
+
+    # Token information
+    tokens: list[Token]
+
+    # Tags
+    tags: Optional[list[str]]
+
+    @field_validator("neg_risk_market_id", "neg_risk_request_id", mode="wrap")
+    @classmethod
+    def validate_neg_risk_fields(
+        cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+    ) -> str:
+        try:
+            # First attempt standard validation
+            return handler(value)
+        except ValueError as original_error:
+            neg_risk = info.data.get("neg_risk", False)
+
+            # Allow empty string only when neg_risk is False
+            if not neg_risk and value == "":
+                return value
+
+            # Re-raise original error for other cases
+            raise original_error
+
+    @field_validator(
+        "condition_id",
+        "question_id",
+        "neg_risk_market_id",
+        "neg_risk_request_id",
+        mode="wrap",
+    )
+    @classmethod
+    def validate_condition_and_question_fields(
+        cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+    ) -> str:
+        try:
+            # First attempt standard validation
+            return handler(value)
+        except ValueError as original_error:
+            active = info.data.get("active", False)
+            # Allow empty string only when active is False
+            if not active:
+                return value
+            # Re-raise original error for other cases
+            raise original_error
 
 
 class OrderArgs(BaseModel):
@@ -115,50 +289,38 @@ class OpenOrderParams(BaseModel):
 
 
 class DropNotificationParams(BaseModel):
-    ids: Optional[List[str]] = None
+    ids: Optional[list[str]] = None
 
 
 class OrderSummary(BaseModel):
-    price: Optional[str] = None
-    size: Optional[str] = None
-
-    @property
-    def __dict__(self):
-        return self.model_dump()
-
-    @property
-    def json(self):
-        return self.json()
-
-
-class OrderSummary(BaseModel):
-    price: Optional[str] = None
-    size: Optional[str] = None
-
-    @property
-    def dict(self):
-        return self.model_dump()
-
-    @property
-    def json(self):
-        return self.json()
+    price: Optional[float] = None
+    size: Optional[float] = None
 
 
 class OrderBookSummary(BaseModel):
-    market: Optional[str] = None
-    asset_id: Optional[str] = None
-    timestamp: Optional[str] = None
-    bids: Optional[List[OrderSummary]] = None
-    asks: Optional[List[OrderSummary]] = None
+    market: Optional[Keccak256] = None
+    token_id: Optional[str] = Field(None, alias="asset_id")
+    timestamp: Optional[datetime] = None
     hash: Optional[str] = None
+    bids: Optional[list[OrderSummary]] = None
+    asks: Optional[list[OrderSummary]] = None
 
-    @property
-    def dict(self):
-        return self.model_dump()
+    @field_serializer("bids", "asks")
+    def serialize_sizes(self, orders: list[OrderSummary]) -> list[dict]:
+        return [
+            {
+                "price": f"{order.price:.3f}".rstrip("0").rstrip("."),
+                "size": f"{order.size:.2f}".rstrip("0").rstrip("."),
+            }
+            for order in orders
+        ]
 
-    @property
-    def json(self):
-        return self.json(separators=(",", ":"))
+    @field_serializer("timestamp")
+    def serialize_timestamp(self, ts: Optional[datetime]) -> Optional[str]:
+        if ts is None:
+            return None
+        # Convert to millisecond timestamp string without decimal places
+        return str(int(ts.timestamp() * 1000))
 
 
 class AssetType(str, Enum):
@@ -183,7 +345,7 @@ class OrderScoringParams(BaseModel):
 
 
 class OrdersScoringParams(BaseModel):
-    orderIds: List[str]
+    orderIds: list[str]
 
 
 TickSize = Literal["0.1", "0.01", "0.001", "0.0001"]
@@ -210,17 +372,17 @@ class ContractConfig(BaseModel):
     Contract Configuration
     """
 
-    exchange: str
+    exchange: Keccak256
     """
     The exchange contract responsible for matching orders.
     """
 
-    collateral: str
+    collateral: Keccak256
     """
     The ERC20 token used as collateral for the exchange's markets.
     """
 
-    conditional_tokens: str
+    conditional_tokens: Keccak256
     """
     The ERC1155 conditional tokens contract.
     """

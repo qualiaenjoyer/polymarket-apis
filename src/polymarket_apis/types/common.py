@@ -19,3 +19,4 @@ Keccak256 = Annotated[
         description="A Keccak-256 hash (64-character hexadecimal string)",
     ),
 ]
+EmptyString = Annotated[str, Field(pattern=r"^$", description="An empty string")]

@@ -197,6 +197,7 @@ packaging==24.2
     # via jupyterlab
     # via jupyterlab-server
     # via nbconvert
+    # via plotly
     # via pytest
 pandocfilters==1.5.1
     # via nbconvert
@@ -208,6 +209,7 @@ pexpect==4.9.0
     # via ipython
 platformdirs==4.3.6
     # via jupyter-core
+plotly==5.24.1
 pluggy==1.5.0
     # via pytest
 poly-eip712-structs==0.0.1
@@ -288,6 +290,8 @@ soupsieve==2.6
     # via beautifulsoup4
 stack-data==0.6.3
     # via ipython
+tenacity==9.0.0
+    # via plotly
 terminado==0.18.1
     # via jupyter-server
     # via jupyter-server-terminals

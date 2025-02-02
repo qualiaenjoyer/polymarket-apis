@@ -3,174 +3,270 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Json
+from pydantic import (
+    BaseModel,
+    Json,
+    Field,
+    field_validator,
+    ValidationInfo,
+    ValidatorFunctionWrapHandler,
+)
 
 from .common import EthAddress, Keccak256, TimestampWithTZ
 
 
 class Event(BaseModel):
-    id: str  # "11421"
-    ticker: Optional[str] = None
+    # Basic identification
+    id: str
     slug: str
+    ticker: Optional[str] = None
+
+    # Core event information
     title: str
     description: Optional[str] = None
-    resolutionSource: Optional[str] = None
-    startDate: Optional[datetime] = None
-    creationDate: Optional[datetime] = (
-        None  # fine in market event but missing from events response
-    )
-    endDate: Optional[datetime] = None
+    resolution_source: Optional[str] = Field(None, alias="resolutionSource")
+    category: Optional[str] = None
+
+    # Visual representation
     image: str
     icon: str
+
+    # Temporal information
+    start_date: Optional[datetime] = Field(None, alias="startDate")
+    end_date: Optional[datetime] = Field(None, alias="endDate")
+    creation_date: Optional[datetime] = Field(None, alias="creationDate")
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: Optional[datetime] = Field(None, alias="updatedAt")
+    published_at: Optional[TimestampWithTZ] = None
+    closed_time: Optional[datetime] = Field(None, alias="closedTime")
+
+    # Status flags
     active: bool
     closed: bool
     archived: Optional[bool] = None
     new: Optional[bool] = None
     featured: Optional[bool] = None
     restricted: Optional[bool] = None
+    cyom: bool
+    automatically_active: Optional[bool] = Field(None, alias="automaticallyActive")
+
+    # Financial metrics
     liquidity: Optional[float] = None
     volume: Optional[float] = None
-    openInterest: Optional[int] = None
-    sortBy: Optional[str] = None
-    category: Optional[str] = None
-    published_at: Optional[TimestampWithTZ] = None
-    createdAt: datetime  # 2024-07-08T01:06:23.982796Z,
-    updatedAt: Optional[datetime] = None  # 2024-07-15T17:12:48.601056Z,
+    open_interest: Optional[int] = Field(None, alias="openInterest")
     competitive: Optional[float] = None
-    volume24hr: Optional[float] = None
-    liquidityAmm: Optional[float] = None
-    liquidityClob: Optional[float] = None
-    commentCount: Optional[int] = None
-    markets: Optional[list[Market]] = None
-    # markets: list[str, 'Market'] # forward reference Market defined below - TODO: double check this works as intended
+    volume_24hr: Optional[float] = Field(None, alias="volume24hr")
+    liquidity_amm: Optional[float] = Field(None, alias="liquidityAmm")
+    liquidity_clob: Optional[float] = Field(None, alias="liquidityClob")
+
+    # Related data
+    markets: Optional[list[GammaMarket]] = None
     series: Optional[list[Series]] = None
     tags: Optional[list[Tag]] = None
-    cyom: bool
-    closedTime: Optional[datetime] = None
-    showAllOutcomes: bool
-    showMarketImages: bool
-    enableNegRisk: bool
-    enableOrderBook: Optional[bool] = None
-    negRisk: Optional[bool] = None
-    negRiskMarketID: Optional[str] = None
-    automaticallyActive: Optional[bool] = None
-    negRiskAugmented: Optional[bool] = None
-    gmpChartMode: Optional[str] = None
+
+    # User interaction
+    comment_count: Optional[int] = Field(None, alias="commentCount")
+
+    # Display and functionality settings
+    sort_by: Optional[str] = Field(None, alias="sortBy")
+    show_all_outcomes: bool = Field(alias="showAllOutcomes")
+    show_market_images: bool = Field(alias="showMarketImages")
+    gmp_chart_mode: Optional[str] = Field(None, alias="gmpChartMode")
+
+    # Negative risk settings
+    enable_neg_risk: bool = Field(alias="enableNegRisk")
+    neg_risk: Optional[bool] = Field(None, alias="negRisk")
+    neg_risk_market_id: Optional[str] = Field(None, alias="negRiskMarketID")
+    neg_risk_augmented: Optional[bool] = Field(None, alias="negRiskAugmented")
+
+    # Order book settings
+    enable_order_book: Optional[bool] = Field(None, alias="enableOrderBook")
 
 
-class Market(BaseModel):
+class GammaMarket(BaseModel):
+    # Basic identification
     id: int
-    question: str
-    conditionId: Keccak256
     slug: str
-    resolutionSource: Optional[str] = None
-    endDate: Optional[datetime] = None
-    liquidity: Optional[float] = None
-    startDate: Optional[datetime] = None
+    condition_id: Keccak256 = Field(alias="conditionId")
+    question_id: Optional[Keccak256] = Field(None, alias="questionID")
+
+    # Core market information
+    question: str
+    description: str
+    resolution_source: Optional[str] = Field(None, alias="resolutionSource")
+    outcome: Optional[list] = None
+    outcome_prices: Optional[Json[list]] = Field(None, alias="outcomePrices")
+
+    # Visual representation
     image: Optional[str] = None
     icon: Optional[str] = None
-    description: str
-    outcome: Optional[list] = None
-    outcomePrices: Optional[Json[list]] = None
-    volume: Optional[float] = None
+
+    # Temporal information
+    start_date: Optional[datetime] = Field(None, alias="startDate")
+    end_date: Optional[datetime] = Field(None, alias="endDate")
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: Optional[datetime] = Field(None, alias="updatedAt")
+    start_date_iso: Optional[datetime] = Field(None, alias="startDateIso")
+    end_date_iso: Optional[datetime] = Field(None, alias="endDateIso")
+    deployed_timestamp: Optional[datetime] = Field(None, alias="deployedTimestamp")
+    accepting_orders_timestamp: Optional[datetime] = Field(
+        None, alias="acceptingOrdersTimestamp"
+    )
+
+    # Status flags
     active: bool
     closed: bool
-    marketMakerAddress: str
-    createdAt: datetime  # date type worth enforcing for dates?
-    updatedAt: Optional[datetime] = None
+    archived: bool
     new: Optional[bool] = None
     featured: Optional[bool] = None
-    submitted_by: Optional[str] = None
-    archived: bool
-    resolvedBy: Optional[EthAddress] = None
     restricted: bool
-    groupItemTitle: Optional[str] = None
-    groupItemThreshold: Optional[int] = None
-    questionID: Optional[Keccak256] = None
-    enableOrderBook: Optional[bool] = None
-    orderPriceMinTickSize: Optional[float] = None
-    orderMinSize: Optional[float] = None
-    volumeNum: Optional[float] = None
-    liquidityNum: Optional[float] = None
-    endDateIso: Optional[datetime] = None  # iso format date
-    startDateIso: Optional[datetime] = None
-    hasReviewedDates: Optional[bool] = None
-    volume24hr: Optional[float] = None
-    clobTokenIds: Optional[Json[list[str]]] = None
-    umaBond: Optional[int] = None  # returned as string from api?
-    umaReward: Optional[float] = None  # returned as string from api?
-    volume24hrClob: Optional[float] = None
-    volumeClob: Optional[float] = None
-    liquidityClob: Optional[float] = None
-    acceptingOrders: Optional[bool] = None
-    negRisk: Optional[bool] = None
-    commentCount: Optional[int] = None
-    _sync: bool
-    events: Optional[list[Event]] = None
     ready: bool
     deployed: Optional[bool] = None
     funded: bool
-    deployedTimestamp: Optional[datetime] = None  # utc z datetime string
-    acceptingOrdersTimestamp: Optional[datetime] = None  # utc z datetime string,
     cyom: bool
-    competitive: Optional[float] = None
-    pagerDutyNotificationEnabled: bool
-    reviewStatus: Optional[str] = None  # deployed, draft, etc.
     approved: bool
-    clobRewards: Optional[list[ClobReward]] = None
-    rewardsMinSize: int  # would make sense to allow float but we'll see
-    rewardsMaxSpread: float
+
+    # Financial metrics
+    liquidity: Optional[float] = None
+    volume: Optional[float] = None
+    volume_num: Optional[float] = Field(None, alias="volumeNum")
+    liquidity_num: Optional[float] = Field(None, alias="liquidityNum")
+    volume_24hr: Optional[float] = Field(None, alias="volume24hr")
+    volume_24hr_clob: Optional[float] = Field(None, alias="volume24hrClob")
+    volume_clob: Optional[float] = Field(None, alias="volumeClob")
+    liquidity_clob: Optional[float] = Field(None, alias="liquidityClob")
+    competitive: Optional[float] = None
     spread: float
+
+    # Order book settings
+    enable_order_book: Optional[bool] = Field(None, alias="enableOrderBook")
+    order_price_min_tick_size: Optional[float] = Field(
+        None, alias="orderPriceMinTickSize"
+    )
+    order_min_size: Optional[float] = Field(None, alias="orderMinSize")
+    accepting_orders: Optional[bool] = Field(None, alias="acceptingOrders")
+
+    # Related data
+    events: Optional[list[Event]] = None
+    clob_rewards: Optional[list[ClobReward]] = Field(None, alias="clobRewards")
+
+    # User interaction
+    comment_count: Optional[int] = Field(None, alias="commentCount")
+
+    # Market maker information
+    market_maker_address: str = Field(alias="marketMakerAddress")
+
+    # Additional settings
+    group_item_title: Optional[str] = Field(None, alias="groupItemTitle")
+    group_item_threshold: Optional[int] = Field(None, alias="groupItemThreshold")
+    token_ids: Optional[Json[list[str]]] = Field(None, alias="clobTokenIds")
+    uma_bond: Optional[int] = Field(None, alias="umaBond")
+    uma_reward: Optional[float] = Field(None, alias="umaReward")
+    neg_risk: Optional[bool] = Field(None, alias="negRisk")
+    pager_duty_notification_enabled: bool = Field(alias="pagerDutyNotificationEnabled")
+    review_status: Optional[str] = Field(None, alias="reviewStatus")
+    rewards_min_size: int = Field(alias="rewardsMinSize")
+    rewards_max_spread: float = Field(alias="rewardsMaxSpread")
+
+    # Resolution information
+    submitted_by: Optional[str] = None
+    resolved_by: Optional[EthAddress] = Field(None, alias="resolvedBy")
+    has_reviewed_dates: Optional[bool] = Field(None, alias="hasReviewedDates")
+
+    @field_validator("condition_id", mode="wrap")
+    @classmethod
+    def validate_condition_id(
+        cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+    ) -> str:
+        try:
+            # First attempt standard Keccak256 validation
+            return handler(value)
+        except ValueError as original_error:
+            active = info.data.get("active", False)
+
+            # Only allow empty string when inactive
+            if not active and value == "":
+                return value
+
+            # Re-raise original error for other cases
+            raise original_error
 
 
 class ClobReward(BaseModel):
-    id: str  # returned as string in api but really an int?
-    conditionId: Keccak256
-    assetAddress: str
-    rewardsAmount: float  # only seen 0 but could be float?
-    rewardsDailyRate: Optional[float] = None  # only seen ints but could be float?
-    startDate: datetime  # yyyy-mm-dd formatted date string
-    endDate: datetime  # yyyy-mm-dd formatted date string
+    # Basic identification
+    id: str
+    condition_id: Keccak256 = Field(alias="conditionId")
+
+    # Reward information
+    asset_address: str = Field(alias="assetAddress")
+    rewards_amount: float = Field(alias="rewardsAmount")
+    rewards_daily_rate: Optional[float] = Field(None, alias="rewardsDailyRate")
+
+    # Temporal information
+    start_date: datetime = Field(alias="startDate")
+    end_date: datetime = Field(alias="endDate")
 
 
 class Tag(BaseModel):
+    # Basic identification
     id: str
     label: str
     slug: str
-    forceShow: Optional[bool] = None
-    publishedAt: Optional[TimestampWithTZ] = None
-    createdBy: Optional[int] = None
-    createdAt: Optional[datetime] = None
-    updatedBy: Optional[int] = None
-    updatedAt: Optional[datetime] = None
-    forceHide: Optional[bool] = None
+
+    # Display settings
+    force_show: Optional[bool] = Field(None, alias="forceShow")
+    force_hide: Optional[bool] = Field(None, alias="forceHide")
+
+    # Temporal information
+    published_at: Optional[TimestampWithTZ] = Field(None, alias="publishedAt")
+    created_at: Optional[datetime] = Field(None, alias="createdAt")
+    updated_at: Optional[datetime] = Field(None, alias="updatedAt")
+
+    # User information
+    created_by: Optional[int] = Field(None, alias="createdBy")
+    updated_by: Optional[int] = Field(None, alias="updatedBy")
 
 
 class Series(BaseModel):
+    # Basic identification
+    id: str
+    slug: str
+    ticker: str
+    title: str
+
+    # Series characteristics
+    series_type: str = Field(alias="seriesType")
+    recurrence: str
+    layout: Optional[str] = None
+
+    # Visual representation
+    icon: Optional[str] = None
+    image: Optional[str] = None
+
+    # Temporal information
+    start_date: Optional[datetime] = Field(None, alias="startDate")
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+    published_at: Optional[TimestampWithTZ] = Field(None, alias="publishedAt")
+
+    # Status flags
     active: bool
     archived: bool
     closed: bool
-    commentCount: int
-    commentsEnabled: Optional[bool] = None
-    competitive: Optional[str] = None
-    createdAt: datetime
-    createdBy: Optional[str] = None
     featured: bool
-    icon: Optional[str] = None
-    id: str
-    image: Optional[str] = None
-    layout: Optional[str] = None
-    liquidity: Optional[float] = None
     new: Optional[bool] = None
-    publishedAt: Optional[TimestampWithTZ] = None
-    recurrence: str
     restricted: bool
-    seriesType: str
-    slug: str
-    startDate: Optional[datetime] = None
-    ticker: str
-    title: str
-    updatedAt: datetime
-    updatedBy: Optional[str] = None
+
+    # Financial metrics
+    liquidity: Optional[float] = None
     volume: Optional[float] = None
-    volume24hr: Optional[float] = None
+    volume_24hr: Optional[float] = Field(None, alias="volume24hr")
+    competitive: Optional[str] = None
+
+    # User interaction
+    comment_count: int = Field(alias="commentCount")
+    comments_enabled: Optional[bool] = Field(None, alias="commentsEnabled")
+
+    # User information
+    created_by: Optional[str] = Field(None, alias="createdBy")
+    updated_by: Optional[str] = Field(None, alias="updatedBy")

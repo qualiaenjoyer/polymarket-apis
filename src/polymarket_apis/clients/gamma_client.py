@@ -2,9 +2,10 @@ from datetime import datetime
 from typing import List, Optional
 from urllib.parse import urljoin
 
+
 import httpx
 
-from ..types.gamma_types import Event, Market
+from ..types.gamma_types import Event, GammaMarket
 
 
 class PolymarketGammaClient:
@@ -38,7 +39,7 @@ class PolymarketGammaClient:
         end_date_max: Optional[datetime] = None,
         tag_id: Optional[int] = None,
         related_tags: bool = False,
-    ) -> List[Market]:
+    ) -> List[GammaMarket]:
         params = {}
         if limit:
             params["limit"] = limit
@@ -84,12 +85,15 @@ class PolymarketGammaClient:
 
         response = self.client.get(self._build_url("/markets"), params=params)
         response.raise_for_status()
-        return [Market(**market) for market in response.json()]
+        return [GammaMarket(**market) for market in response.json()]
 
-    def get_market(self, market_id: int) -> Market:
+    def get_market(self, market_id: int) -> GammaMarket:
+        """
+        Get a GammaMarket by market_id
+        """
         response = self.client.get(self._build_url(f"/markets/{market_id}"))
         response.raise_for_status()
-        return Market(**response.json())
+        return GammaMarket(**response.json())
 
     def get_events(
         self,
