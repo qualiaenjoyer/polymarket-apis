@@ -45,6 +45,7 @@ from ..utilities.endpoints import (
 )
 from ..utilities.headers import create_level_1_headers, create_level_2_headers
 from ..utilities.order_builder.builder import OrderBuilder
+from ..utilities.order_builder.helpers import is_tick_size_smaller
 from ..utilities.signing.signer import Signer
 
 
@@ -61,7 +62,9 @@ class PolymarketClobClient:
         self.signature_type = 2
         self.signer = Signer(private_key=private_key, chain_id=chain_id)
         self.builder = OrderBuilder(
-            signer=self.signer, sig_type=self.signature_type, funder=proxy_address
+            signer=self.signer,
+            sig_type=self.signature_type,
+            funder=proxy_address,
         )
         self.creds = creds if creds else self.derive_api_key()
 
@@ -72,7 +75,7 @@ class PolymarketClobClient:
     def _build_url(self, endpoint: str) -> str:
         return urljoin(self.base_url, endpoint)
 
-    def get_ok(self):
+    def get_ok(self) -> str:
         response = self.client.get(self.base_url)
         return response.json()
 
@@ -245,7 +248,7 @@ class PolymarketClobClient:
         response = self.client.get(self._build_url(GET_MARKETS), params=params)
         return PaginatedResponse[ClobMarket](**response.json())
 
-    def get_all_markets(self, next_cursor="MA=="):
+    def get_all_markets(self, next_cursor="MA==") -> list[ClobMarket]:
         """
         Recursively fetch all ClobMarkets using pagination.
         """

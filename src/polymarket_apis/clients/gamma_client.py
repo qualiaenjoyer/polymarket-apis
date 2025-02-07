@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 from urllib.parse import urljoin
 
 
@@ -22,13 +22,13 @@ class PolymarketGammaClient:
         offset: Optional[int] = None,
         order: Optional[str] = None,
         ascending: bool = True,
-        ids: Optional[List[int]] = None,
-        slugs: Optional[List[str]] = None,
+        ids: Optional[list[int]] = None,
+        slugs: Optional[list[str]] = None,
         archived: Optional[bool] = None,
         active: Optional[bool] = None,
         closed: Optional[bool] = None,
-        clob_token_ids: Optional[List[str]] = None,
-        condition_ids: Optional[List[str]] = None,
+        clob_token_ids: Optional[list[str]] = None,
+        condition_ids: Optional[list[str]] = None,
         liquidity_num_min: Optional[float] = None,
         liquidity_num_max: Optional[float] = None,
         volume_num_min: Optional[float] = None,
@@ -39,7 +39,7 @@ class PolymarketGammaClient:
         end_date_max: Optional[datetime] = None,
         tag_id: Optional[int] = None,
         related_tags: bool = False,
-    ) -> List[GammaMarket]:
+    ) -> list[GammaMarket]:
         params = {}
         if limit:
             params["limit"] = limit
@@ -101,8 +101,8 @@ class PolymarketGammaClient:
         offset: Optional[int] = None,
         order: Optional[str] = None,
         ascending: bool = True,
-        ids: Optional[List[int]] = None,
-        slugs: Optional[List[str]] = None,
+        ids: Optional[list[int]] = None,
+        slugs: Optional[list[str]] = None,
         archived: Optional[bool] = None,
         active: Optional[bool] = None,
         closed: Optional[bool] = None,
@@ -118,7 +118,7 @@ class PolymarketGammaClient:
         tag_id: Optional[int] = None,
         tag_slug: Optional[str] = None,
         related_tags: bool = False,
-    ) -> List[Event]:
+    ) -> list[Event]:
         params = {}
         if limit:
             params["limit"] = limit

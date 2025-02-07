@@ -11,7 +11,7 @@ from pydantic import (
     field_serializer,
 )
 from ..utilities.constants import ZERO_ADDRESS
-from ..types.common import Keccak256
+from ..types.common import Keccak256, EthAddress
 
 
 from datetime import datetime
@@ -372,17 +372,17 @@ class ContractConfig(BaseModel):
     Contract Configuration
     """
 
-    exchange: Keccak256
+    exchange: EthAddress
     """
     The exchange contract responsible for matching orders.
     """
 
-    collateral: Keccak256
+    collateral: EthAddress
     """
     The ERC20 token used as collateral for the exchange's markets.
     """
 
-    conditional_tokens: Keccak256
+    conditional_tokens: EthAddress
     """
     The ERC1155 conditional tokens contract.
     """

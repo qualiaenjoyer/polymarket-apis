@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Literal, Optional, Union
+from typing import Literal, Optional, Union
 from urllib.parse import urljoin
 
 import httpx
@@ -42,7 +42,7 @@ class PolymarketDataClient:
             "PRICE",
         ] = "TOKENS",
         sortDirection: Literal["ASC", "DESC"] = "DESC",
-    ) -> List[Position]:
+    ) -> list[Position]:
         params = {
             "user": user,
             "sizeThreshold": sizeThreshold,
@@ -78,8 +78,12 @@ class PolymarketDataClient:
         market: Optional[str] = None,
         user: Optional[str] = None,
         side: Optional[Literal["BUY", "SELL"]] = None,
-    ) -> List[Trade]:
-        params = {"limit": min(limit, 500), "offset": offset, "takerOnly": takerOnly}
+    ) -> list[Trade]:
+        params = {
+            "limit": min(limit, 500),
+            "offset": offset,
+            "takerOnly": takerOnly,
+        }
         if filterType:
             params["filterType"] = filterType
         if filterAmount:
@@ -103,9 +107,18 @@ class PolymarketDataClient:
         market: Optional[Union[str, list[str]]] = None,
         type: Optional[
             Union[
-                Literal["TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION"],
-                List[
-                    Literal["TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION"]
+                Literal[
+                    "TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION"
+                ],
+                list[
+                    Literal[
+                        "TRADE",
+                        "SPLIT",
+                        "MERGE",
+                        "REDEEM",
+                        "REWARD",
+                        "CONVERSION",
+                    ]
                 ],
             ]
         ] = None,
@@ -114,7 +127,7 @@ class PolymarketDataClient:
         side: Optional[Literal["BUY", "SELL"]] = None,
         sortBy: Literal["TIMESTAMP", "TOKENS", "CASH"] = "TIMESTAMP",
         sortDirection: Literal["ASC", "DESC"] = "DESC",
-    ) -> List[Activity]:
+    ) -> list[Activity]:
         params = {"user": user, "limit": min(limit, 500), "offset": offset}
         if market:
             params["market"] = market
@@ -137,14 +150,18 @@ class PolymarketDataClient:
         response.raise_for_status()
         return [Activity(**activity) for activity in response.json()]
 
-    def get_holders(self, market: str, limit: int = 100) -> List[HolderResponse]:
+    def get_holders(
+        self, market: str, limit: int = 100
+    ) -> list[HolderResponse]:
         """
         returns a list of the top 20 holders for each token corresponding to a market (conditionId)
         """
         params = {"market": market, "limit": limit}
         response = self.client.get(self._build_url("/holders"), params=params)
         response.raise_for_status()
-        return [HolderResponse(**holder_data) for holder_data in response.json()]
+        return [
+            HolderResponse(**holder_data) for holder_data in response.json()
+        ]
 
     def get_value(
         self, user: str, market: Optional[Union[str, list[str]]] = None
