@@ -17,7 +17,7 @@ from .common import EthAddress, Keccak256, TimestampWithTZ
 
 class Event(BaseModel):
     # Basic identification
-    id: str
+    event_id: str = Field(alias="id")
     slug: str
     ticker: Optional[str] = None
 
@@ -85,7 +85,7 @@ class Event(BaseModel):
 
 class GammaMarket(BaseModel):
     # Basic identification
-    id: int
+    market_id: str = Field(alias="id")
     slug: str
     condition_id: Keccak256 = Field(alias="conditionId")
     question_id: Optional[Keccak256] = Field(None, alias="questionID")
@@ -95,7 +95,7 @@ class GammaMarket(BaseModel):
     description: str
     resolution_source: Optional[str] = Field(None, alias="resolutionSource")
     outcome: Optional[list] = None
-    outcome_prices: Optional[Json[list]] = Field(None, alias="outcomePrices")
+    outcome_prices: Optional[Json[list[float]] | list[float]] = Field(None, alias="outcomePrices")
 
     # Visual representation
     image: Optional[str] = None
@@ -159,7 +159,7 @@ class GammaMarket(BaseModel):
     # Additional settings
     group_item_title: Optional[str] = Field(None, alias="groupItemTitle")
     group_item_threshold: Optional[int] = Field(None, alias="groupItemThreshold")
-    token_ids: Optional[Json[list[str]]] = Field(None, alias="clobTokenIds")
+    token_ids: Optional[Json[list[str]] | list[str]] = Field(None, alias="clobTokenIds")
     uma_bond: Optional[int] = Field(None, alias="umaBond")
     uma_reward: Optional[float] = Field(None, alias="umaReward")
     neg_risk: Optional[bool] = Field(None, alias="negRisk")
@@ -176,7 +176,7 @@ class GammaMarket(BaseModel):
     @field_validator("condition_id", mode="wrap")
     @classmethod
     def validate_condition_id(
-        cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+            cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
     ) -> str:
         try:
             # First attempt standard Keccak256 validation
@@ -218,7 +218,7 @@ class Tag(BaseModel):
     force_hide: Optional[bool] = Field(None, alias="forceHide")
 
     # Temporal information
-    published_at: Optional[TimestampWithTZ] = Field(None, alias="publishedAt")
+    published_at: Optional[TimestampWithTZ | datetime] = Field(None, alias="publishedAt")
     created_at: Optional[datetime] = Field(None, alias="createdAt")
     updated_at: Optional[datetime] = Field(None, alias="updatedAt")
 
@@ -247,7 +247,7 @@ class Series(BaseModel):
     start_date: Optional[datetime] = Field(None, alias="startDate")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
-    published_at: Optional[TimestampWithTZ] = Field(None, alias="publishedAt")
+    published_at: Optional[TimestampWithTZ | datetime] = Field(None, alias="publishedAt")
 
     # Status flags
     active: bool

@@ -1,8 +1,14 @@
 from datetime import datetime
 from typing import Annotated
+import re
 
-from pydantic import BeforeValidator, Field
+from pydantic import BeforeValidator, Field, AfterValidator
 
+
+def validate_keccak256(v: str) -> str:
+    if not re.match(r"^0x[a-fA-F0-9]{64}$", v):
+        raise ValueError("Invalid Keccak256 hash format")
+    return v
 
 def parse_timestamp(v: str) -> datetime:
     if isinstance(v, str):
@@ -12,11 +18,5 @@ def parse_timestamp(v: str) -> datetime:
 
 TimestampWithTZ = Annotated[datetime, BeforeValidator(parse_timestamp)]
 EthAddress = Annotated[str, Field(pattern=r"^0x[A-Fa-f0-9]{40}$")]
-Keccak256 = Annotated[
-    str,
-    Field(
-        pattern=r"^0x[a-fA-F0-9]{64}$",  # Matches a 64-character hexadecimal string
-        description="A Keccak-256 hash (64-character hexadecimal string)",
-    ),
-]
+Keccak256 = Annotated[str, AfterValidator(validate_keccak256)]
 EmptyString = Annotated[str, Field(pattern=r"^$", description="An empty string")]

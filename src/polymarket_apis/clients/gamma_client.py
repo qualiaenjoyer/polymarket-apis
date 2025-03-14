@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 from urllib.parse import urljoin
 
 
@@ -17,28 +17,28 @@ class PolymarketGammaClient:
         return urljoin(self.base_url, endpoint)
 
     def get_markets(
-        self,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-        order: Optional[str] = None,
-        ascending: bool = True,
-        ids: Optional[list[int]] = None,
-        slugs: Optional[list[str]] = None,
-        archived: Optional[bool] = None,
-        active: Optional[bool] = None,
-        closed: Optional[bool] = None,
-        clob_token_ids: Optional[list[str]] = None,
-        condition_ids: Optional[list[str]] = None,
-        liquidity_num_min: Optional[float] = None,
-        liquidity_num_max: Optional[float] = None,
-        volume_num_min: Optional[float] = None,
-        volume_num_max: Optional[float] = None,
-        start_date_min: Optional[datetime] = None,
-        start_date_max: Optional[datetime] = None,
-        end_date_min: Optional[datetime] = None,
-        end_date_max: Optional[datetime] = None,
-        tag_id: Optional[int] = None,
-        related_tags: bool = False,
+            self,
+            limit: Optional[int] = None,
+            offset: Optional[int] = None,
+            order: Optional[str] = None,
+            ascending: bool = True,
+            ids: Optional[list[int]] = None,
+            slugs: Optional[list[str]] = None,
+            archived: Optional[bool] = None,
+            active: Optional[bool] = None,
+            closed: Optional[bool] = None,
+            clob_token_ids: Optional[list[str]] = None,
+            condition_ids: Optional[list[str]] = None,
+            liquidity_num_min: Optional[float] = None,
+            liquidity_num_max: Optional[float] = None,
+            volume_num_min: Optional[float] = None,
+            volume_num_max: Optional[float] = None,
+            start_date_min: Optional[datetime] = None,
+            start_date_max: Optional[datetime] = None,
+            end_date_min: Optional[datetime] = None,
+            end_date_max: Optional[datetime] = None,
+            tag_id: Optional[int] = None,
+            related_tags: bool = False,
     ) -> list[GammaMarket]:
         params = {}
         if limit:
@@ -87,7 +87,7 @@ class PolymarketGammaClient:
         response.raise_for_status()
         return [GammaMarket(**market) for market in response.json()]
 
-    def get_market(self, market_id: int) -> GammaMarket:
+    def get_market(self, market_id: str) -> GammaMarket:
         """
         Get a GammaMarket by market_id
         """
@@ -96,28 +96,28 @@ class PolymarketGammaClient:
         return GammaMarket(**response.json())
 
     def get_events(
-        self,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-        order: Optional[str] = None,
-        ascending: bool = True,
-        ids: Optional[list[int]] = None,
-        slugs: Optional[list[str]] = None,
-        archived: Optional[bool] = None,
-        active: Optional[bool] = None,
-        closed: Optional[bool] = None,
-        liquidity_min: Optional[float] = None,
-        liquidity_max: Optional[float] = None,
-        volume_min: Optional[float] = None,
-        volume_max: Optional[float] = None,
-        start_date_min: Optional[datetime] = None,
-        start_date_max: Optional[datetime] = None,
-        end_date_min: Optional[datetime] = None,
-        end_date_max: Optional[datetime] = None,
-        tag: Optional[str] = None,
-        tag_id: Optional[int] = None,
-        tag_slug: Optional[str] = None,
-        related_tags: bool = False,
+            self,
+            limit: Optional[int] = None,
+            offset: Optional[int] = None,
+            order: Optional[str] = None,
+            ascending: bool = True,
+            event_ids: Optional[Union[str, list[str]]] = None,
+            slugs: Optional[list[str]] = None,
+            archived: Optional[bool] = None,
+            active: Optional[bool] = None,
+            closed: Optional[bool] = None,
+            liquidity_min: Optional[float] = None,
+            liquidity_max: Optional[float] = None,
+            volume_min: Optional[float] = None,
+            volume_max: Optional[float] = None,
+            start_date_min: Optional[datetime] = None,
+            start_date_max: Optional[datetime] = None,
+            end_date_min: Optional[datetime] = None,
+            end_date_max: Optional[datetime] = None,
+            tag: Optional[str] = None,
+            tag_id: Optional[int] = None,
+            tag_slug: Optional[str] = None,
+            related_tags: bool = False,
     ) -> list[Event]:
         params = {}
         if limit:
@@ -127,8 +127,8 @@ class PolymarketGammaClient:
         if order:
             params["order"] = order
             params["ascending"] = ascending
-        if ids:
-            params["id"] = ids
+        if event_ids:
+            params["id"] = event_ids
         if slugs:
             params["slug"] = slugs
         if archived is not None:
@@ -170,6 +170,64 @@ class PolymarketGammaClient:
         response = self.client.get(self._build_url(f"/events/{event_id}"))
         response.raise_for_status()
         return Event(**response.json())
+
+    def get_all_events(
+            self,
+            order: Optional[str] = None,
+            ascending: bool = True,
+            event_ids: Optional[Union[str, list[str]]] = None,
+            slugs: Optional[list[str]] = None,
+            archived: Optional[bool] = None,
+            active: Optional[bool] = None,
+            closed: Optional[bool] = None,
+            liquidity_min: Optional[float] = None,
+            liquidity_max: Optional[float] = None,
+            volume_min: Optional[float] = None,
+            volume_max: Optional[float] = None,
+            start_date_min: Optional[datetime] = None,
+            start_date_max: Optional[datetime] = None,
+            end_date_min: Optional[datetime] = None,
+            end_date_max: Optional[datetime] = None,
+            tag: Optional[str] = None,
+            tag_id: Optional[int] = None,
+            tag_slug: Optional[str] = None,
+            related_tags: bool = False,
+    ) -> list[Event]:
+        offset = 0
+        events = []
+
+        while True:
+            part = self.get_events(
+                limit=500,
+                offset=offset,
+                order=order,
+                ascending=ascending,
+                event_ids=event_ids,
+                slugs=slugs,
+                archived=archived,
+                active=active,
+                closed=closed,
+                liquidity_min=liquidity_min,
+                liquidity_max=liquidity_max,
+                volume_min=volume_min,
+                volume_max=volume_max,
+                start_date_min=start_date_min,
+                start_date_max=start_date_max,
+                end_date_min=end_date_min,
+                end_date_max=end_date_max,
+                tag=tag,
+                tag_id=tag_id,
+                tag_slug=tag_slug,
+                related_tags=related_tags,
+            )
+            events.extend(part)
+
+            if len(part) < 500:
+                break
+
+            offset += 500
+
+        return events
 
     def __enter__(self):
         return self

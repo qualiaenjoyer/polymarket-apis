@@ -6,9 +6,10 @@ from pydantic import (
     RootModel,
     Field,
     field_validator,
+    field_serializer,
     ValidationInfo,
     ValidatorFunctionWrapHandler,
-    field_serializer,
+
 )
 from ..utilities.constants import ZERO_ADDRESS
 from ..types.common import Keccak256, EthAddress
@@ -20,7 +21,7 @@ from datetime import datetime
 
 
 class ApiCreds(BaseModel):
-    apiKey: str
+    api_key: str = Field(alias="apiKey")
     secret: str
     passphrase: str
 
@@ -70,6 +71,13 @@ class TokenBidAskDict(RootModel):
     root: Dict[str, BidAsk]
 
 
+class Token(BaseModel):
+    token_id: str
+    outcome: str
+    price: float
+    winner: Optional[bool] = None
+
+
 class TimeseriesPoint(BaseModel):
     t: datetime
     p: float
@@ -95,18 +103,71 @@ class RewardRate(BaseModel):
     rewards_daily_rate: float
 
 
+class RewardConfig(BaseModel):
+    asset_address: str
+    rewards_daily_rate: float = Field(alias="rate_per_day")
+
+    start_date: datetime
+    end_date: datetime
+
+    reward_id: Optional[str] = Field(None, alias="id")
+    total_rewards: float
+    total_days: Optional[int] = None
+
+    @field_validator('reward_id', mode='before')
+    def convert_id_to_str(cls, v):
+        if isinstance(v, int):
+            return str(v)
+        return v
+
+
 class Rewards(BaseModel):
     rates: Optional[list[RewardRate]]
-    min_size: int
-    max_spread: float
+    rewards_min_size: int = Field(alias="min_size")
+    rewards_max_spread: float = Field(alias="max_spread")
+
+class EarnedReward(BaseModel):
+    asset_address: EthAddress
+    earnings: float
+    asset_rate: float
+
+class DailyEarnedReward(BaseModel):
+    date: datetime
+    asset_address: EthAddress
+    maker_address: EthAddress
+    earnings: float
+    asset_rate: float
+
+class PolymarketRewardItem(BaseModel):
+    market_id: str
+    condition_id: Keccak256
+    question: str
+    market_slug: str
+    market_description: str
+    event_slug: str
+    image: str
+    maker_address: EthAddress
+    tokens: list[Token]
+    rewards_config: list[RewardConfig]
+    earnings: list[EarnedReward]
+    rewards_max_spread: float
+    rewards_min_size: float
+    earning_percentage: float
+    spread: float
+    market_competitiveness: float
 
 
-class Token(BaseModel):
-    token_id: str
-    outcome: str
-    price: float
-    winner: bool
-
+class RewardsMarket(BaseModel):
+    condition_id: Keccak256
+    question: str
+    market_slug: str
+    event_slug: str
+    image: str
+    tokens: list[Token]
+    rewards_config: list[RewardConfig]
+    rewards_max_spread: float
+    rewards_min_size: int
+    market_competitiveness: float
 
 class ClobMarket(BaseModel):
     # Order book settings
@@ -161,7 +222,7 @@ class ClobMarket(BaseModel):
     @field_validator("neg_risk_market_id", "neg_risk_request_id", mode="wrap")
     @classmethod
     def validate_neg_risk_fields(
-        cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+            cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
     ) -> str:
         try:
             # First attempt standard validation
@@ -185,7 +246,7 @@ class ClobMarket(BaseModel):
     )
     @classmethod
     def validate_condition_and_question_fields(
-        cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+            cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
     ) -> str:
         try:
             # First attempt standard validation
@@ -197,6 +258,54 @@ class ClobMarket(BaseModel):
                 return value
             # Re-raise original error for other cases
             raise original_error
+
+
+class OpenOrder(BaseModel):
+    order_id: Keccak256 = Field(alias="id")
+    status: str
+    owner: str
+    maker_address: str
+    condition_id: str = Field(alias="market")
+    token_id: str = Field(alias="asset_id")
+    side: Literal["BUY", "SELL"]
+    original_size: float
+    size_matched: float
+    price: float
+    outcome: str
+    expiration: datetime
+    order_type: Literal["GTC", "FOK", "GTD"]
+    associate_trades: list[str]
+    created_at: datetime
+
+class Order(BaseModel):
+    order_id: Keccak256
+    owner: str
+    maker_address: EthAddress
+    matched_amount: float
+    price: float
+    fee_rate_bps: float
+    token_id: str = Field(alias="asset_id")
+    outcome: str
+
+class PolygonTrade(BaseModel):
+    trade_id: str = Field(alias="id")
+    taker_order_id: Keccak256
+    condition_id: Keccak256 = Field(alias="market")
+    trade_id: str = Field(alias="id")
+    side: Literal["BUY", "SELL"]
+    size: float
+    fee_rate_bps: float
+    price: float
+    status: str # change to literals MINED, CONFIRMED
+    match_time: datetime
+    last_update: datetime
+    outcome: str
+    bucket_index: int
+    owner: str
+    maker_address: EthAddress
+    transaction_hash: Keccak256
+    maker_orders: list[Order]
+    trader_side: Literal["TAKER", "MAKER"]
 
 
 class OrderArgs(BaseModel):
@@ -283,9 +392,9 @@ class TradeParams(BaseModel):
 
 
 class OpenOrderParams(BaseModel):
-    id: Optional[str] = None
-    market: Optional[str] = None
-    asset_id: Optional[str] = None
+    order_id: Optional[str] = None
+    condition_id: Optional[str] = None
+    token_id: Optional[str] = None
 
 
 class DropNotificationParams(BaseModel):
@@ -386,3 +495,31 @@ class ContractConfig(BaseModel):
     """
     The ERC1155 conditional tokens contract.
     """
+
+class User(BaseModel):
+    address: EthAddress = Field(alias="proxyWallet")
+    name: str
+    bio: str
+    profile_image: str = Field(alias="profileImage")
+    profile_image_optimized: str = Field(alias="profileImageOptimized")
+
+class UserProfit(User):
+    amount: float
+    pseudonym: str
+
+class UserRank(User):
+    amount: float
+    rank: int
+
+class OrderPostResponse(BaseModel):
+    error_msg: str = Field(alias="errorMsg")
+    order_id: Keccak256 = Field(alias="orderID")
+    taking_amount: str = Field(alias="takingAmount")
+    making_amount: str = Field(alias="makingAmount")
+    status: str = Literal["live"]
+    transaction_hashes: Optional[list[str]] = Field(alias="transactionsHashes")
+    success: bool
+
+class OrderCancelResponse(BaseModel):
+    not_canceled: Optional[dict[Keccak256, str]]
+    canceled: Optional[list[Keccak256]]

@@ -8,43 +8,43 @@ from .common import EthAddress, Keccak256, EmptyString
 
 class Position(BaseModel):
     # User identification
-    proxyWallet: EthAddress
+    proxy_wallet: EthAddress = Field(alias="proxyWallet")
 
     # Asset information
     token_id: str = Field(alias="asset")
     condition_id: Keccak256 = Field(alias="conditionId")
     outcome: str
-    outcomeIndex: int
-    oppositeOutcome: str
-    oppositeAsset: str
+    outcome_index: int = Field(alias="outcomeIndex")
+    opposite_outcome: str = Field(alias="oppositeOutcome")
+    opposite_asset: str = Field(alias="oppositeAsset")
 
     # Position details
     size: float
-    avgPrice: float
-    curPrice: float
+    avg_price: float = Field(alias="avgPrice")
+    current_price: float = Field(alias="curPrice")
     redeemable: bool
 
     # Financial metrics
-    initialValue: float
-    currentValue: float
-    cashPnl: float
-    percentPnl: float
-    totalBought: float
-    realizedPnl: float
-    percentRealizedPnl: float
+    initial_value: float = Field(alias="initialValue")
+    current_value: float = Field(alias="currentValue")
+    cash_pnl: float = Field(alias="cashPnl")
+    percent_pnl: float = Field(alias="percentPnl")
+    total_bought: float = Field(alias="totalBought")
+    realized_pnl: float = Field(alias="realizedPnl")
+    percent_realized_pnl: float = Field(alias="percentRealizedPnl")
 
     # Event information
     title: str
     slug: str
     icon: str
-    eventSlug: str
-    endDate: datetime
-    negativeRisk: bool
+    event_slug: str = Field(alias="eventSlug")
+    end_date: datetime = Field(alias="endDate")
+    negative_risk: bool = Field(alias="negativeRisk")
 
 
 class Trade(BaseModel):
     # User identification
-    proxyWallet: EthAddress
+    proxy_wallet: EthAddress = Field(alias="proxyWallet")
 
     # Trade details
     side: Literal["BUY", "SELL"]
@@ -58,24 +58,24 @@ class Trade(BaseModel):
     title: str
     slug: str
     icon: str
-    eventSlug: str
+    event_slug: str = Field(alias="eventSlug")
     outcome: str
-    outcomeIndex: int
+    outcome_index: int = Field(alias="outcomeIndex")
 
     # User profile
     name: str
     pseudonym: str
     bio: str
-    profileImage: str
-    profileImageOptimized: str
+    profile_image: str = Field(alias="profileImage")
+    profile_image_iptimized: str = Field(alias="profileImageOptimized")
 
     # Transaction information
-    transactionHash: Keccak256
+    transaction_hash: Keccak256 = Field(alias="transactionHash")
 
 
 class Activity(BaseModel):
     # User identification
-    proxyWallet: EthAddress
+    proxy_wallet: EthAddress = Field(alias="proxyWallet")
 
     # Activity details
     timestamp: datetime
@@ -86,42 +86,42 @@ class Activity(BaseModel):
     price: float
     asset: str
     side: Optional[str]
-    outcomeIndex: int
+    outcome_index: int = Field(alias="outcomeIndex")
 
     # Event information
     title: str
     slug: str
     icon: str
-    eventSlug: str
+    event_slug: str = Field(alias="eventSlug")
     outcome: str
 
     # User profile
     name: str
     pseudonym: str
     bio: str
-    profileImage: str
-    profileImageOptimized: str
+    profile_image: str = Field(alias="profileImage")
+    profile_image_optimized: str = Field(alias="profileImageOptimized")
 
     # Transaction information
-    transactionHash: Keccak256
+    transaction_hash: Keccak256 = Field(alias="transactionHash")
 
 
 class Holder(BaseModel):
     # User identification
-    proxyWallet: EthAddress
+    proxy_wallet: EthAddress = Field(alias="proxyWallet")
 
     # Holder details
     token_id: str = Field(alias="asset")
     amount: float
-    outcomeIndex: int
+    outcome_index: int = Field(alias="outcomeIndex")
 
     # User profile
     name: str
     pseudonym: str
     bio: str
-    profileImage: str
-    profileImageOptimized: str
-    displayUsernamePublic: bool
+    profile_image: str = Field(alias="profileImage")
+    profile_image_optimized: str = Field(alias="profileImageOptimized")
+    display_username_public: bool = Field(alias="displayUsernamePublic")
 
 
 class HolderResponse(BaseModel):

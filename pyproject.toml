@@ -1,16 +1,16 @@
 [project]
 name = "polymarket-apis"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.1.1"
+description = "WIP - Unified Polymarket apis - clob, gamma, data, web3"
 authors = [
     { name = "Razvan Gheorghe", email = "razvan@gheorghe.me" }
 ]
 dependencies = [
-    "httpx[http2]>=0.28.1",
+    "httpx[http2]>=0.25.1",
     "pydantic>=2.10.5",
     "poly-eip712-structs>=0.0.1",
     "py-order-utils>=0.3.2",
-    "web3<7.0",
+    "web3>=7.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"

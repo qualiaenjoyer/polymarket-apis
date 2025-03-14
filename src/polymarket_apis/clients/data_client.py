@@ -4,6 +4,7 @@ from urllib.parse import urljoin
 
 import httpx
 
+
 from ..types.data_types import (
     Activity,
     HolderResponse,
@@ -24,14 +25,14 @@ class PolymarketDataClient:
     def get_positions(
         self,
         user: str,
-        market: Optional[Union[str, list[str]]] = None,
-        sizeThreshold: float = 1.0,
+        token_id: Optional[Union[str, list[str]]] = None,
+        size_threshold: float = 1.0,
         redeemable: Optional[bool] = None,
         mergeable: Optional[bool] = None,
         title: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
-        sortBy: Literal[
+        sort_by: Literal[
             "TOKENS",
             "CURRENT",
             "INITIAL",
@@ -41,28 +42,28 @@ class PolymarketDataClient:
             "RESOLVING",
             "PRICE",
         ] = "TOKENS",
-        sortDirection: Literal["ASC", "DESC"] = "DESC",
+        sort_direction: Literal["ASC", "DESC"] = "DESC",
     ) -> list[Position]:
         params = {
             "user": user,
-            "sizeThreshold": sizeThreshold,
+            "sizeThreshold": size_threshold,
             "limit": min(limit, 500),
             "offset": offset,
         }
-        if isinstance(market, str):
-            params["market"] = market
-        if isinstance(market, list):
-            params["market"] = ",".join(market)
+        if isinstance(token_id, str):
+            params["market"] = token_id
+        if isinstance(token_id, list):
+            params["market"] = ",".join(token_id)
         if redeemable is not None:
             params["redeemable"] = redeemable
         if mergeable is not None:
             params["mergeable"] = mergeable
         if title:
             params["title"] = title
-        if sortBy:
-            params["sortBy"] = sortBy
-        if sortDirection:
-            params["sortDirection"] = sortDirection
+        if sort_by:
+            params["sortBy"] = sort_by
+        if sort_direction:
+            params["sortDirection"] = sort_direction
 
         response = self.client.get(self._build_url("/positions"), params=params)
         response.raise_for_status()
@@ -72,24 +73,24 @@ class PolymarketDataClient:
         self,
         limit: int = 100,
         offset: int = 0,
-        takerOnly: bool = True,
-        filterType: Optional[Literal["CASH", "TOKENS"]] = None,
-        filterAmount: float = None,
-        market: Optional[str] = None,
+        taker_only: bool = True,
+        filter_type: Optional[Literal["CASH", "TOKENS"]] = None,
+        filter_amount: float = None,
+        condition_id: Optional[str] = None,
         user: Optional[str] = None,
         side: Optional[Literal["BUY", "SELL"]] = None,
     ) -> list[Trade]:
         params = {
             "limit": min(limit, 500),
             "offset": offset,
-            "takerOnly": takerOnly,
+            "takerOnly": taker_only,
         }
-        if filterType:
-            params["filterType"] = filterType
-        if filterAmount:
-            params["filterAmount"] = filterAmount
-        if market:
-            params["market"] = market
+        if filter_type:
+            params["filterType"] = filter_type
+        if filter_amount:
+            params["filterAmount"] = filter_amount
+        if condition_id:
+            params["market"] = condition_id
         if user:
             params["user"] = user
         if side:
@@ -104,7 +105,7 @@ class PolymarketDataClient:
         user: str,
         limit: int = 100,
         offset: int = 0,
-        market: Optional[Union[str, list[str]]] = None,
+        token_id: Optional[Union[str, list[str]]] = None,
         type: Optional[
             Union[
                 Literal[
@@ -125,12 +126,14 @@ class PolymarketDataClient:
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         side: Optional[Literal["BUY", "SELL"]] = None,
-        sortBy: Literal["TIMESTAMP", "TOKENS", "CASH"] = "TIMESTAMP",
-        sortDirection: Literal["ASC", "DESC"] = "DESC",
+        sort_by: Literal["TIMESTAMP", "TOKENS", "CASH"] = "TIMESTAMP",
+        sort_direction: Literal["ASC", "DESC"] = "DESC",
     ) -> list[Activity]:
         params = {"user": user, "limit": min(limit, 500), "offset": offset}
-        if market:
-            params["market"] = market
+        if isinstance(token_id, str):
+            params["market"] = token_id
+        if isinstance(token_id, list):
+            params["market"] = ",".join(token_id)
         if isinstance(type, str):
             params["type"] = type
         if isinstance(type, list):
@@ -141,22 +144,22 @@ class PolymarketDataClient:
             params["end"] = int(end.timestamp())
         if side:
             params["side"] = side
-        if sortBy:
-            params["sortBy"] = sortBy
-        if sortDirection:
-            params["sortDirection"] = sortDirection
+        if sort_by:
+            params["sortBy"] = sort_by
+        if sort_direction:
+            params["sortDirection"] = sort_direction
 
         response = self.client.get(self._build_url("/activity"), params=params)
         response.raise_for_status()
         return [Activity(**activity) for activity in response.json()]
 
     def get_holders(
-        self, market: str, limit: int = 100
+        self, condition_id: str, limit: int = 20
     ) -> list[HolderResponse]:
         """
-        returns a list of the top 20 holders for each token corresponding to a market (conditionId)
+        takes in a condition_id and returns a list of at most 20 top holders for each corresponding token_id
         """
-        params = {"market": market, "limit": limit}
+        params = {"market": condition_id, "limit": limit}
         response = self.client.get(self._build_url("/holders"), params=params)
         response.raise_for_status()
         return [
@@ -164,18 +167,23 @@ class PolymarketDataClient:
         ]
 
     def get_value(
-        self, user: str, market: Optional[Union[str, list[str]]] = None
+        self, user: str, condition_id: Optional[Union[str, list[str]]] = None
     ) -> ValueResponse:
         """
-        returns the current value of the user's position(s) in a set of markets (conditionIds)
-        takes in individual conditionId str, list[str] or None (all)
+        takes in condition_id as:
+        takes in condition_id as:
+            - None      --> total value of positions
+            - str       --> value of position
+            - list[str] --> sum of the values of positions
+
+        returns the current value of the user's position in a set of markets (condition_isds)
         """
         params = {"user": user}
-        if isinstance(market, str):
-            params["market"] = market
-        if isinstance(market, list):
-            params["market"] = ",".join(market)
-
+        if isinstance(condition_id, str):
+            params["market"] = condition_id
+        if isinstance(condition_id, list):
+            params["market"] = ",".join(condition_id)
+            
         response = self.client.get(self._build_url("/value"), params=params)
         response.raise_for_status()
         return ValueResponse(**response.json()[0])

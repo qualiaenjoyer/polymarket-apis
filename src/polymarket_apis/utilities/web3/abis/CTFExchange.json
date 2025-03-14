@@ -26,87 +26,87 @@
     "type": "constructor"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "AlreadyRegistered",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "FeeTooHigh",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "InvalidComplement",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "InvalidNonce",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "InvalidSignature",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "InvalidTokenId",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "MakingGtRemaining",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "MismatchedTokenIds",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "NotAdmin",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "NotCrossing",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "NotOperator",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "NotOwner",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "NotTaker",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "OrderExpired",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "OrderFilledOrCancelled",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "Paused",
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "TooLittleTokensReceived",
     "type": "error"
   },
@@ -420,7 +420,7 @@
       }
     ],
     "name": "addAdmin",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -433,7 +433,7 @@
       }
     ],
     "name": "addOperator",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -532,7 +532,7 @@
       }
     ],
     "name": "cancelOrder",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -612,12 +612,12 @@
       }
     ],
     "name": "cancelOrders",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "domainSeparator",
     "outputs": [
       {
@@ -710,7 +710,7 @@
       }
     ],
     "name": "fillOrder",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -795,12 +795,12 @@
       }
     ],
     "name": "fillOrders",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "getCollateral",
     "outputs": [
       {
@@ -851,7 +851,7 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "getCtf",
     "outputs": [
       {
@@ -864,7 +864,7 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "getMaxFeeRate",
     "outputs": [
       {
@@ -908,7 +908,7 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "getPolyProxyFactoryImplementation",
     "outputs": [
       {
@@ -940,7 +940,7 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "getProxyFactory",
     "outputs": [
       {
@@ -972,7 +972,7 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "getSafeFactory",
     "outputs": [
       {
@@ -985,7 +985,7 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "getSafeFactoryImplementation",
     "outputs": [
       {
@@ -1084,9 +1084,9 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "incrementNonce",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -1310,7 +1310,7 @@
       }
     ],
     "name": "matchOrders",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -1455,7 +1455,7 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "parentCollectionId",
     "outputs": [
       {
@@ -1468,14 +1468,14 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "pauseTrading",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "paused",
     "outputs": [
       {
@@ -1488,7 +1488,7 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "proxyFactory",
     "outputs": [
       {
@@ -1519,7 +1519,7 @@
       }
     ],
     "name": "registerToken",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -1556,7 +1556,7 @@
       }
     ],
     "name": "removeAdmin",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -1569,26 +1569,26 @@
       }
     ],
     "name": "removeOperator",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "renounceAdminRole",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "renounceOperatorRole",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "safeFactory",
     "outputs": [
       {
@@ -1609,7 +1609,7 @@
       }
     ],
     "name": "setProxyFactory",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -1622,7 +1622,7 @@
       }
     ],
     "name": "setSafeFactory",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -1646,9 +1646,9 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [ ],
     "name": "unpauseTrading",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -1666,7 +1666,7 @@
       }
     ],
     "name": "validateComplement",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "view",
     "type": "function"
   },
@@ -1746,7 +1746,7 @@
       }
     ],
     "name": "validateOrder",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "view",
     "type": "function"
   },
@@ -1831,7 +1831,7 @@
       }
     ],
     "name": "validateOrderSignature",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "view",
     "type": "function"
   },
@@ -1844,7 +1844,7 @@
       }
     ],
     "name": "validateTokenId",
-    "outputs": [],
+    "outputs": [ ],
     "stateMutability": "view",
     "type": "function"
   }

@@ -37,7 +37,7 @@ def create_level_2_headers(signer: Signer, creds: ApiCreds, request_args: Reques
     """
     Creates Level 2 Poly headers for a request
     """
-    timestamp = int(datetime.now().timestamp())
+    timestamp = str(int(datetime.now().timestamp()))
 
     hmac_sig = build_hmac_signature(
         creds.secret,
@@ -50,7 +50,7 @@ def create_level_2_headers(signer: Signer, creds: ApiCreds, request_args: Reques
     return {
         POLY_ADDRESS: signer.address(),
         POLY_SIGNATURE: hmac_sig,
-        POLY_TIMESTAMP: str(timestamp),
-        POLY_API_KEY: creds.apiKey,
+        POLY_TIMESTAMP: timestamp,
+        POLY_API_KEY: creds.api_key,
         POLY_PASSPHRASE: creds.passphrase,
     }
