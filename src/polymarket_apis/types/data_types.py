@@ -67,7 +67,7 @@ class Trade(BaseModel):
     pseudonym: str
     bio: str
     profile_image: str = Field(alias="profileImage")
-    profile_image_iptimized: str = Field(alias="profileImageOptimized")
+    profile_image_optimized: str = Field(alias="profileImageOptimized")
 
     # Transaction information
     transaction_hash: Keccak256 = Field(alias="transactionHash")

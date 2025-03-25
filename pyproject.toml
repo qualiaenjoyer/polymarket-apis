@@ -11,6 +11,9 @@ dependencies = [
     "poly-eip712-structs>=0.0.1",
     "py-order-utils>=0.3.2",
     "web3>=7.0",
+    "gql>=3.5.2",
+    "lomond>=0.3.3",
+    "wsaccel>=0.6.7",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"

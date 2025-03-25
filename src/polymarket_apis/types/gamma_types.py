@@ -235,8 +235,8 @@ class Series(BaseModel):
     title: str
 
     # Series characteristics
-    series_type: str = Field(alias="seriesType")
-    recurrence: str
+    series_type: Optional[str] = Field(None,  alias="seriesType")
+    recurrence: Optional[str] = None
     layout: Optional[str] = None
 
     # Visual representation
@@ -246,16 +246,16 @@ class Series(BaseModel):
     # Temporal information
     start_date: Optional[datetime] = Field(None, alias="startDate")
     created_at: datetime = Field(alias="createdAt")
-    updated_at: datetime = Field(alias="updatedAt")
+    updated_at: Optional[datetime] = Field(None, alias="updatedAt")
     published_at: Optional[TimestampWithTZ | datetime] = Field(None, alias="publishedAt")
 
     # Status flags
-    active: bool
-    archived: bool
-    closed: bool
-    featured: bool
+    active: Optional[bool] = None
+    archived: Optional[bool] = None
+    closed: Optional[bool] = None
+    featured: Optional[bool] = None
     new: Optional[bool] = None
-    restricted: bool
+    restricted: Optional[bool] = None
 
     # Financial metrics
     liquidity: Optional[float] = None

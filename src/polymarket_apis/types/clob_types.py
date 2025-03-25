@@ -277,15 +277,15 @@ class OpenOrder(BaseModel):
     associate_trades: list[str]
     created_at: datetime
 
-class Order(BaseModel):
+class MakerOrder(BaseModel):
+    token_id: str = Field(alias="asset_id")
     order_id: Keccak256
-    owner: str
     maker_address: EthAddress
+    owner: str
     matched_amount: float
     price: float
-    fee_rate_bps: float
-    token_id: str = Field(alias="asset_id")
     outcome: str
+    fee_rate_bps: float
 
 class PolygonTrade(BaseModel):
     trade_id: str = Field(alias="id")
@@ -304,7 +304,7 @@ class PolygonTrade(BaseModel):
     owner: str
     maker_address: EthAddress
     transaction_hash: Keccak256
-    maker_orders: list[Order]
+    maker_orders: list[MakerOrder]
     trader_side: Literal["TAKER", "MAKER"]
 
 
@@ -405,9 +405,12 @@ class OrderSummary(BaseModel):
     price: Optional[float] = None
     size: Optional[float] = None
 
+class PriceLevel(OrderSummary):
+    side: Literal["BUY", "SELL"]
+
 
 class OrderBookSummary(BaseModel):
-    market: Optional[Keccak256] = None
+    condition_id: Optional[Keccak256] = Field(None, alias="market")
     token_id: Optional[str] = Field(None, alias="asset_id")
     timestamp: Optional[datetime] = None
     hash: Optional[str] = None
