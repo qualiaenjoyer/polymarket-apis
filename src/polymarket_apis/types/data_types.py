@@ -40,6 +40,11 @@ class Position(BaseModel):
     event_slug: str = Field(alias="eventSlug")
     end_date: datetime = Field(alias="endDate")
     negative_risk: bool = Field(alias="negativeRisk")
+    @field_validator('end_date', pre=True)
+    def handle_empty_end_date(cls, v):
+        if v == "":
+            return datetime(2099,12,31)
+        return v
 
 
 class Trade(BaseModel):

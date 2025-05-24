@@ -4,6 +4,7 @@ from urllib.parse import urljoin
 
 import httpx
 
+from ..types.common import Keccak256
 
 from ..types.data_types import (
     Activity,
@@ -25,7 +26,7 @@ class PolymarketDataClient:
     def get_positions(
         self,
         user: str,
-        token_id: Optional[Union[str, list[str]]] = None,
+        condition_id: Optional[Union[Keccak256, list[Keccak256]]] = None,
         size_threshold: float = 1.0,
         redeemable: Optional[bool] = None,
         mergeable: Optional[bool] = None,
@@ -50,10 +51,10 @@ class PolymarketDataClient:
             "limit": min(limit, 500),
             "offset": offset,
         }
-        if isinstance(token_id, str):
-            params["market"] = token_id
-        if isinstance(token_id, list):
-            params["market"] = ",".join(token_id)
+        if isinstance(condition_id, str):
+            params["market"] = condition_id
+        if isinstance(condition_id, list):
+            params["market"] = ",".join(condition_id)
         if redeemable is not None:
             params["redeemable"] = redeemable
         if mergeable is not None:

@@ -721,7 +721,7 @@ class PolymarketClobClient:
         response = self.client.get("https://lb-api.polymarket.com/rank?window=1d&rankType=pnl&limit=20")
         response.raise_for_status()
         return response.json()
-    # https://lb-api.polymarket.com/rank?window=1d&rankType=pnl&address=0xA76ec0c0Ba70021500723bfB51eddF99d0cB40B7
+    # https://lb-api.polymarket.com/rank?window=1d&rankType=pnl&address=0x477f156a229f1a174fdf945c778b7362dd2b19aa
     # https://lb-api.polymarket.com/volume?window=7d&limit=20
 
     def search_events(self, query: str) -> list[Event]:
