@@ -51,7 +51,7 @@ class OrderEvent(BaseModel):
     event_type: Literal["order"]
     type: Literal["PLACEMENT", "UPDATE" , "CANCELLATION"]
 
-    status: Literal["LIVE", "CANCELLED", "MATCHED"]
+    status: Literal["LIVE", "CANCELED", "MATCHED"]
 
     @field_validator('expiration', mode='before')
     def validate_expiration(cls, v):
@@ -81,3 +81,65 @@ class TradeEvent(BaseModel):
     type: Literal["TRADE"]
 
     status: Literal["MATCHED", "MINED", "CONFIRMED", "RETRYING", "FAILED"]
+
+# wss://ws-live-data.polymarket.com types
+class LiveDataTrade(BaseModel):
+    asset: str  # ERC1155 token ID of conditional token being traded
+    bio: str  # Bio of the user of the trade
+    condition_id: str = Field(alias="conditionId")  # Id of market which is also the CTF condition ID
+    event_slug: str = Field(alias="eventSlug")  # Slug of the event
+    icon: str  # URL to the market icon image
+    name: str  # Name of the user of the trade
+    outcome: str  # Human readable outcome of the market
+    outcome_index: int = Field(alias="outcomeIndex")  # Index of the outcome
+    price: float  # Price of the trade
+    profile_image: str = Field(alias="profileImage")  # URL to the user profile image
+    profile_image_optimized: str = Field(alias="profileImageOptimized")
+    proxy_wallet: str = Field(alias="proxyWallet")  # Address of the user proxy wallet
+    pseudonym: str  # Pseudonym of the user
+    side: Literal["BUY", "SELL"]  # Side of the trade
+    size: float  # Size of the trade
+    slug: str  # Slug of the market
+    timestamp: int  # Timestamp of the trade
+    title: str  # Title of the event
+    transaction_hash: str = Field(alias="transactionHash")  # Hash of the transaction
+
+class Comment(BaseModel):
+    id: str  # Unique identifier of comment
+    body: str  # Content of the comment
+    parent_entity_type: str = Field(alias="parentEntityType")  # Type of the parent entity (Event or Series)
+    parent_entity_id: int = Field(alias="parentEntityID")  # ID of the parent entity
+    parent_comment_id: Optional[str] = Field(None, alias="parentCommentID")  # ID of the parent comment
+    user_address: str = Field(alias="userAddress")  # Address of the user
+    reply_address: Optional[str] = Field(None, alias="replyAddress")  # Address of the reply user
+    created_at: datetime = Field(alias="createdAt")  # Creation timestamp
+    updated_at: Optional[datetime] = Field(None, alias="updatedAt")  # Last update timestamp
+
+class Reaction(BaseModel):
+    id: str  # Unique identifier of reaction
+    comment_id: int = Field(alias="commentID")  # ID of the comment
+    reaction_type: str = Field(alias="reactionType")  # Type of the reaction
+    icon: Optional[str] = None  # Icon representing the reaction
+    user_address: str = Field(alias="userAddress")  # Address of the user
+    created_at: datetime = Field(alias="createdAt")  # Creation timestamp
+
+class LiveDataTradeEvent(BaseModel):
+    payload: LiveDataTrade
+    timestamp: datetime
+    type: Literal["trades"]
+    topic: Literal["activity"]
+
+
+class CommentEvent(BaseModel):
+    payload: Comment
+    timestamp: datetime
+    type: Literal["comment_created", "comment_removed"]
+    topic: Literal["comments"]
+
+
+class ReactionEvent(BaseModel):
+    payload: Reaction
+    timestamp: datetime
+    type: Literal["reaction_created", "reaction_removed"]
+    topic: Literal["comments"]
+

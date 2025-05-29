@@ -23,26 +23,26 @@ class PolymarketDataClient:
         return urljoin(self.base_url, endpoint)
 
     def get_positions(
-        self,
-        user: str,
-        token_id: Optional[Union[str, list[str]]] = None,
-        size_threshold: float = 1.0,
-        redeemable: Optional[bool] = None,
-        mergeable: Optional[bool] = None,
-        title: Optional[str] = None,
-        limit: int = 100,
-        offset: int = 0,
-        sort_by: Literal[
-            "TOKENS",
-            "CURRENT",
-            "INITIAL",
-            "CASHPNL",
-            "PERCENTPNL",
-            "TITLE",
-            "RESOLVING",
-            "PRICE",
-        ] = "TOKENS",
-        sort_direction: Literal["ASC", "DESC"] = "DESC",
+            self,
+            user: str,
+            condition_id: Optional[Union[str, list[str]]] = None,
+            size_threshold: float = 1.0,
+            redeemable: Optional[bool] = None,
+            mergeable: Optional[bool] = None,
+            title: Optional[str] = None,
+            limit: int = 100,
+            offset: int = 0,
+            sort_by: Literal[
+                "TOKENS",
+                "CURRENT",
+                "INITIAL",
+                "CASHPNL",
+                "PERCENTPNL",
+                "TITLE",
+                "RESOLVING",
+                "PRICE",
+            ] = "TOKENS",
+            sort_direction: Literal["ASC", "DESC"] = "DESC",
     ) -> list[Position]:
         params = {
             "user": user,
@@ -50,10 +50,10 @@ class PolymarketDataClient:
             "limit": min(limit, 500),
             "offset": offset,
         }
-        if isinstance(token_id, str):
-            params["market"] = token_id
-        if isinstance(token_id, list):
-            params["market"] = ",".join(token_id)
+        if isinstance(condition_id, str):
+            params["market"] = condition_id
+        if isinstance(condition_id, list):
+            params["market"] = ",".join(condition_id)
         if redeemable is not None:
             params["redeemable"] = redeemable
         if mergeable is not None:
@@ -70,15 +70,15 @@ class PolymarketDataClient:
         return [Position(**pos) for pos in response.json()]
 
     def get_trades(
-        self,
-        limit: int = 100,
-        offset: int = 0,
-        taker_only: bool = True,
-        filter_type: Optional[Literal["CASH", "TOKENS"]] = None,
-        filter_amount: float = None,
-        condition_id: Optional[str] = None,
-        user: Optional[str] = None,
-        side: Optional[Literal["BUY", "SELL"]] = None,
+            self,
+            limit: int = 100,
+            offset: int = 0,
+            taker_only: bool = True,
+            filter_type: Optional[Literal["CASH", "TOKENS"]] = None,
+            filter_amount: float = None,
+            condition_id: Optional[str] = None,
+            user: Optional[str] = None,
+            side: Optional[Literal["BUY", "SELL"]] = None,
     ) -> list[Trade]:
         params = {
             "limit": min(limit, 500),
@@ -101,39 +101,39 @@ class PolymarketDataClient:
         return [Trade(**trade) for trade in response.json()]
 
     def get_activity(
-        self,
-        user: str,
-        limit: int = 100,
-        offset: int = 0,
-        token_id: Optional[Union[str, list[str]]] = None,
-        type: Optional[
-            Union[
-                Literal[
-                    "TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION"
-                ],
-                list[
+            self,
+            user: str,
+            limit: int = 100,
+            offset: int = 0,
+            condition_id: Optional[Union[str, list[str]]] = None,
+            type: Optional[
+                Union[
                     Literal[
-                        "TRADE",
-                        "SPLIT",
-                        "MERGE",
-                        "REDEEM",
-                        "REWARD",
-                        "CONVERSION",
-                    ]
-                ],
-            ]
-        ] = None,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        side: Optional[Literal["BUY", "SELL"]] = None,
-        sort_by: Literal["TIMESTAMP", "TOKENS", "CASH"] = "TIMESTAMP",
-        sort_direction: Literal["ASC", "DESC"] = "DESC",
+                        "TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION"
+                    ],
+                    list[
+                        Literal[
+                            "TRADE",
+                            "SPLIT",
+                            "MERGE",
+                            "REDEEM",
+                            "REWARD",
+                            "CONVERSION",
+                        ]
+                    ],
+                ]
+            ] = None,
+            start: Optional[datetime] = None,
+            end: Optional[datetime] = None,
+            side: Optional[Literal["BUY", "SELL"]] = None,
+            sort_by: Literal["TIMESTAMP", "TOKENS", "CASH"] = "TIMESTAMP",
+            sort_direction: Literal["ASC", "DESC"] = "DESC",
     ) -> list[Activity]:
         params = {"user": user, "limit": min(limit, 500), "offset": offset}
-        if isinstance(token_id, str):
-            params["market"] = token_id
-        if isinstance(token_id, list):
-            params["market"] = ",".join(token_id)
+        if isinstance(condition_id, str):
+            params["market"] = condition_id
+        if isinstance(condition_id, list):
+            params["market"] = ",".join(condition_id)
         if isinstance(type, str):
             params["type"] = type
         if isinstance(type, list):
@@ -154,7 +154,7 @@ class PolymarketDataClient:
         return [Activity(**activity) for activity in response.json()]
 
     def get_holders(
-        self, condition_id: str, limit: int = 20
+            self, condition_id: str, limit: int = 20
     ) -> list[HolderResponse]:
         """
         takes in a condition_id and returns a list of at most 20 top holders for each corresponding token_id
@@ -167,7 +167,7 @@ class PolymarketDataClient:
         ]
 
     def get_value(
-        self, user: str, condition_id: Optional[Union[str, list[str]]] = None
+            self, user: str, condition_id: Optional[Union[str, list[str]]] = None
     ) -> ValueResponse:
         """
         takes in condition_id as:
@@ -183,7 +183,7 @@ class PolymarketDataClient:
             params["market"] = condition_id
         if isinstance(condition_id, list):
             params["market"] = ",".join(condition_id)
-            
+
         response = self.client.get(self._build_url("/value"), params=params)
         response.raise_for_status()
         return ValueResponse(**response.json()[0])

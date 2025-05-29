@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .common import EthAddress, Keccak256, EmptyString
 
@@ -40,6 +40,12 @@ class Position(BaseModel):
     event_slug: str = Field(alias="eventSlug")
     end_date: datetime = Field(alias="endDate")
     negative_risk: bool = Field(alias="negativeRisk")
+
+    @field_validator('end_date', mode="before")
+    def handle_empty_end_date(cls, v):
+        if v == "":
+            return datetime(2099,12,31)
+        return v
 
 
 class Trade(BaseModel):

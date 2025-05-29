@@ -5,7 +5,7 @@ from urllib.parse import urljoin
 
 import httpx
 
-from ..types.gamma_types import Event, GammaMarket
+from ..types.gamma_types import Event, GammaMarket, QueryEvent
 
 
 class PolymarketGammaClient:
@@ -228,6 +228,19 @@ class PolymarketGammaClient:
             offset += 500
 
         return events
+
+    def search_events(self, query: str) -> list[Event]:
+        """
+        Search for events by query
+        """
+
+        # TODO take pagination into account and maybe add other filters
+        # https://polymarket.com/api/events/search?_c=all&_q=trump&_s=volume:desc&_p=1
+
+        params = {"q": query}
+        response = self.client.get("https://polymarket.com/api/events/global", params=params)
+        response.raise_for_status()
+        return [QueryEvent(**event) for event in response.json()["events"]]
 
     def __enter__(self):
         return self

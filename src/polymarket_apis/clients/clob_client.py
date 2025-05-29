@@ -1,6 +1,8 @@
-from datetime import datetime, timezone, UTC
+
 from typing import Literal, Optional
 from urllib.parse import urljoin
+from datetime import datetime, timezone, UTC
+
 
 import json
 
@@ -36,7 +38,6 @@ from ..types.clob_types import (
     OrderCancelResponse,
     OrderPostResponse,
 )
-from ..types.gamma_types import Event
 from ..types.common import EthAddress, Keccak256
 from ..utilities.constants import POLYGON, END_CURSOR
 from ..utilities.endpoints import (
@@ -723,19 +724,6 @@ class PolymarketClobClient:
         return response.json()
     # https://lb-api.polymarket.com/rank?window=1d&rankType=pnl&address=0xA76ec0c0Ba70021500723bfB51eddF99d0cB40B7
     # https://lb-api.polymarket.com/volume?window=7d&limit=20
-
-    def search_events(self, query: str) -> list[Event]:
-        """
-        Search for events by query
-        """
-
-        # TODO take pagination into account and maybe add other filters
-        # https://polymarket.com/api/events/search?_c=all&_q=trump&_s=volume:desc&_p=1
-
-        params = {"q": query}
-        response = self.client.get("https://polymarket.com/api/events/global", params=params)
-        response.raise_for_status()
-        return [Event(**event) for event in response.json()["events"]]
 
     # TODO add notification endpoints
 

@@ -18,34 +18,6 @@ def _load_abi(contract_name: str) -> list:
     with open(abi_path) as f:
         return load(f)
 
-def _encode_split(self, condition_id: Keccak256, amount: int) -> str:
-    return self.conditional_tokens.encode_abi(
-        abi_element_identifier="splitPosition",
-        args=[self.usdc_address, HASH_ZERO, condition_id, [1, 2], amount]
-    )
-
-def _encode_merge(self, condition_id: Keccak256, amount: int) -> str:
-    return self.conditional_tokens.encode_abi(
-        abi_element_identifier="mergePositions",
-        args=[self.usdc_address, HASH_ZERO, condition_id, [1, 2], amount]
-    )
-
-def _encode_redeem(self, condition_id: Keccak256) -> str:
-    return self.conditional_tokens.encode_abi(
-        abi_element_identifier="redeemPositions",
-        args=[self.usdc_address, HASH_ZERO, condition_id, [1, 2]]
-    )
-
-def _encode_redeem_neg_risk(self, condition_id: Keccak256, amounts: list[int]) -> str:
-    return self.neg_risk_adapter.encode_abi(
-        abi_element_identifier="redeemPositions",
-        args=[condition_id, amounts]
-    )
-def _encode_convert(self, neg_risk_market_id: Keccak256, index_set: int, amount: int):
-    return self.neg_risk_adapter.encode_abi(
-        abi_element_identifier='convertPositions',
-        args=[neg_risk_market_id, index_set, amount]
-    )
 
 class PolymarketWeb3Client:
     def __init__(self, private_key: str , chain_id: Literal[137, 80002] = POLYGON):
@@ -82,6 +54,35 @@ class PolymarketWeb3Client:
         self.proxy_factory_address = "0xaB45c5A4B0c941a2F231C04C3f49182e1A254052"
         self.proxy_factory_abi = _load_abi("ProxyWalletFactory")
         self.proxy_factory = self.contract(self.proxy_factory_address, self.proxy_factory_abi)
+
+    def _encode_split(self, condition_id: Keccak256, amount: int) -> str:
+        return self.conditional_tokens.encode_abi(
+            abi_element_identifier="splitPosition",
+            args=[self.usdc_address, HASH_ZERO, condition_id, [1, 2], amount]
+        )
+
+    def _encode_merge(self, condition_id: Keccak256, amount: int) -> str:
+        return self.conditional_tokens.encode_abi(
+            abi_element_identifier="mergePositions",
+            args=[self.usdc_address, HASH_ZERO, condition_id, [1, 2], amount]
+        )
+
+    def _encode_redeem(self, condition_id: Keccak256) -> str:
+        return self.conditional_tokens.encode_abi(
+            abi_element_identifier="redeemPositions",
+            args=[self.usdc_address, HASH_ZERO, condition_id, [1, 2]]
+        )
+
+    def _encode_redeem_neg_risk(self, condition_id: Keccak256, amounts: list[int]) -> str:
+        return self.neg_risk_adapter.encode_abi(
+            abi_element_identifier="redeemPositions",
+            args=[condition_id, amounts]
+        )
+    def _encode_convert(self, neg_risk_market_id: Keccak256, index_set: int, amount: int):
+        return self.neg_risk_adapter.encode_abi(
+            abi_element_identifier='convertPositions',
+            args=[neg_risk_market_id, index_set, amount]
+        )
 
     def contract(self, address, abi):
         return self.w3.eth.contract(
@@ -150,7 +151,7 @@ class PolymarketWeb3Client:
             "typeCode": 1,
             "to": self.neg_risk_adapter_address if neg_risk else self.conditional_tokens_address,
             "value": 0,
-            "data": _encode_split(condition_id, amount)
+            "data": self._encode_split(condition_id, amount)
         }
 
         # Send transaction through proxy factory
@@ -183,7 +184,7 @@ class PolymarketWeb3Client:
             "typeCode": 1,
             "to": self.neg_risk_adapter_address if neg_risk else self.conditional_tokens_address,
             "value": 0,
-            "data": _encode_merge(condition_id, amount)
+            "data": self._encode_merge(condition_id, amount)
         }
 
         # Send transaction through proxy factory
@@ -218,7 +219,7 @@ class PolymarketWeb3Client:
             "typeCode": 1,
             "to": self.neg_risk_adapter_address if neg_risk else self.conditional_tokens_address,
             "value": 0,
-            "data": _encode_redeem_neg_risk(condition_id, amounts) if neg_risk else _encode_redeem(condition_id, amounts)
+            "data": self._encode_redeem_neg_risk(condition_id, amounts) if neg_risk else self._encode_redeem(condition_id)
         }
 
         # Send transaction through proxy factory
@@ -248,7 +249,7 @@ class PolymarketWeb3Client:
             "typeCode": 1,
             "to": self.neg_risk_adapter_address,
             "value": 0,
-            "data": _encode_convert(neg_risk_market_id, get_index_set(question_ids), amount),
+            "data": self._encode_convert(neg_risk_market_id, get_index_set(question_ids), amount),
         }
 
         txn_data = self.proxy_factory.functions.proxy([proxy_txn]).build_transaction({
@@ -267,5 +268,3 @@ class PolymarketWeb3Client:
         self.w3.eth.wait_for_transaction_receipt(tx_hash)
 
         print("Done!")
-
-

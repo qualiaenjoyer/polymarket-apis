@@ -28,8 +28,8 @@ class Event(BaseModel):
     category: Optional[str] = None
 
     # Visual representation
-    image: str
-    icon: str
+    image: Optional[str] = None
+    icon: Optional[str] = None
 
     # Temporal information
     start_date: Optional[datetime] = Field(None, alias="startDate")
@@ -270,3 +270,46 @@ class Series(BaseModel):
     # User information
     created_by: Optional[str] = Field(None, alias="createdBy")
     updated_by: Optional[str] = Field(None, alias="updatedBy")
+
+
+class QueryEvent(BaseModel):
+    # Basic identification
+    event_id: str = Field(alias="id")
+    slug: str
+    title: str
+
+    # Visual representation
+    image: Optional[str] = None
+
+    # Status flags
+    active: bool
+    closed: bool
+    archived: bool
+    neg_risk: Optional[bool] = Field(None, alias="negRisk")
+
+    # Temporal information
+    start_date: Optional[datetime] = Field(None, alias="startDate")
+    end_date: Optional[datetime] = Field(None, alias="endDate")
+    ended: bool
+
+    # Related data
+    markets: Optional[list[QueryMarket]] = None
+
+
+class QueryMarket(BaseModel):
+    # Basic identification
+    slug: str
+    question: str
+    group_item_title: Optional[str] = Field(None, alias="groupItemTitle")
+
+    # Market data
+    outcomes: Optional[list] = None
+    outcome_prices: Optional[Json[list[float]] | list[float]] = Field(None, alias="outcomePrices")
+    last_trade_price: Optional[float] = Field(None, alias="lastTradePrice")
+    best_ask: Optional[float] = Field(None, alias="bestAsk")
+    best_bid: Optional[float] = Field(None, alias="bestBid")
+    spread: float
+
+    # Status flags
+    closed: bool
+    archived: bool
