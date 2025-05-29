@@ -17,7 +17,7 @@ from .common import EthAddress, Keccak256, TimestampWithTZ
 
 class Event(BaseModel):
     # Basic identification
-    event_id: str = Field(alias="id")
+    id: str
     slug: str
     ticker: Optional[str] = None
 
@@ -85,7 +85,7 @@ class Event(BaseModel):
 
 class GammaMarket(BaseModel):
     # Basic identification
-    market_id: str = Field(alias="id")
+    id: str
     slug: str
     condition_id: Keccak256 = Field(alias="conditionId")
     question_id: Optional[Keccak256] = Field(None, alias="questionID")
@@ -274,7 +274,7 @@ class Series(BaseModel):
 
 class QueryEvent(BaseModel):
     # Basic identification
-    event_id: str = Field(alias="id")
+    id: str
     slug: str
     title: str
 
