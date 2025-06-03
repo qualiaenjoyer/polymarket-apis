@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated
 import re
 
-from pydantic import BeforeValidator, Field, AfterValidator
+from pydantic import BeforeValidator, Field, AfterValidator, BaseModel
 
 
 def validate_keccak256(v: str) -> str:
@@ -20,3 +20,7 @@ TimestampWithTZ = Annotated[datetime, BeforeValidator(parse_timestamp)]
 EthAddress = Annotated[str, Field(pattern=r"^0x[A-Fa-f0-9]{40}$")]
 Keccak256 = Annotated[str, AfterValidator(validate_keccak256)]
 EmptyString = Annotated[str, Field(pattern=r"^$", description="An empty string")]
+
+class TimeseriesPoint(BaseModel):
+    t: datetime
+    p: float

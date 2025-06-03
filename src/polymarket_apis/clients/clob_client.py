@@ -683,48 +683,6 @@ class PolymarketClobClient:
 
         return results
 
-    def get_pnl(
-            self,
-            user: EthAddress,
-            period: Literal["all", "1m", "1w", "1d"] = "all",
-            frequency: Literal["1h", "3h", "12h", "1d"] = "1h"
-    ) -> list[TimeseriesPoint]:
-        """
-        Get a user's PnL timeseries in the last day, week, month or all with a given frequency
-        """
-        params = {
-            "user_address": user,
-            "interval": period,
-            "fidelity": frequency
-        }
-
-        response = self.client.get("https://user-pnl-api.polymarket.com/user-pnl", params=params)
-        response.raise_for_status()
-        return [TimeseriesPoint(**point) for point in response.json()]
-
-    def get_profit(self, user: EthAddress, window: Literal["1d", "7d", "30d", "all"] = "all"):
-        """
-        Get a user's overall profit in the last day, week, month or all
-        """
-        params = {
-            "address": user,
-            "window": window,
-            "limit": 1
-        }
-        response = self.client.get("https://lb-api.polymarket.com/profit", params=params)
-        response.raise_for_status()
-        return UserProfit(**response.json()[0])
-    def get_leaderboard(self):
-        """
-        Get the leaderboard of users by PnL
-        """
-        # TODO figure out filters
-        response = self.client.get("https://lb-api.polymarket.com/rank?window=1d&rankType=pnl&limit=20")
-        response.raise_for_status()
-        return response.json()
-    # https://lb-api.polymarket.com/rank?window=1d&rankType=pnl&address=0xA76ec0c0Ba70021500723bfB51eddF99d0cB40B7
-    # https://lb-api.polymarket.com/volume?window=7d&limit=20
-
     # TODO add notification endpoints
 
     def __enter__(self):

@@ -144,3 +144,18 @@ class ValueResponse(BaseModel):
 
     # Value information
     value: float
+
+class User(BaseModel):
+    address: EthAddress = Field(alias="proxyWallet")
+    name: str
+    bio: str
+    profile_image: str = Field(alias="profileImage")
+    profile_image_optimized: str = Field(alias="profileImageOptimized")
+
+class UserMetric(User):
+    amount: float
+    pseudonym: str
+
+class UserRank(User):
+    amount: float
+    rank: int

@@ -11,7 +11,11 @@ from ..types.data_types import (
     Position,
     Trade,
     ValueResponse,
+    UserMetric,
+    UserRank,
 )
+
+from ..types.common import EthAddress, TimeseriesPoint
 
 
 class PolymarketDataClient:
@@ -187,6 +191,67 @@ class PolymarketDataClient:
         response = self.client.get(self._build_url("/value"), params=params)
         response.raise_for_status()
         return ValueResponse(**response.json()[0])
+
+    # website endpoints
+
+    def get_pnl(
+            self,
+            user: EthAddress,
+            period: Literal["all", "1m", "1w", "1d"] = "all",
+            frequency: Literal["1h", "3h", "12h", "1d"] = "1h"
+    ) -> list[TimeseriesPoint]:
+        """
+        Get a user's PnL timeseries in the last day, week, month or all with a given frequency
+        """
+        params = {
+            "user_address": user,
+            "interval": period,
+            "fidelity": frequency
+        }
+
+        response = self.client.get("https://user-pnl-api.polymarket.com/user-pnl", params=params)
+        response.raise_for_status()
+        return [TimeseriesPoint(**point) for point in response.json()]
+
+    def get_user_metric(self, user: EthAddress, metric: Literal["profit", "volume"] = "profit", window: Literal["1d", "7d", "30d", "all"] = "all"):
+        """
+        Get a user's overall profit or volume in the last day, week, month or all
+        """
+        params = {
+            "address": user,
+            "window": window,
+            "limit": 1
+        }
+        response = self.client.get("https://lb-api.polymarket.com/" + metric, params=params)
+        response.raise_for_status()
+        return UserMetric(**response.json()[0])
+
+    def get_leaderboard_user_rank(self, user: EthAddress, metric: Literal["profit", "volume"] = "profit", window: Literal["1d", "7d", "30d", "all"] = "all"):
+        """
+        Get a user's rank on the leaderboard by profit or volume
+        """
+
+        params = {
+            "address": user,
+            "window": window,
+            "rankType": "pnl" if metric == "profit" else "vol"
+        }
+        response = self.client.get("https://lb-api.polymarket.com/rank", params=params)
+        response.raise_for_status()
+        return UserRank(**response.json()[0])
+
+    def get_leaderboard_top_users(self, metric: Literal["profit", "volume"] = "profit", window: Literal["1d", "7d", "30d", "all"] = "all", limit: int = 100):
+        """
+        Get the leaderboard of the top at most 100 users by profit or volume
+        """
+        params = {
+            "window": window,
+            "limit": limit
+        }
+        response = self.client.get("https://lb-api.polymarket.com/" + metric, params=params)
+        response.raise_for_status()
+        return [UserMetric(**user) for user in response.json()]
+
 
     def __enter__(self):
         return self

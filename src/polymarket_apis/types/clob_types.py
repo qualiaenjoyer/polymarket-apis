@@ -12,7 +12,7 @@ from pydantic import (
 
 )
 from ..utilities.constants import ZERO_ADDRESS
-from ..types.common import Keccak256, EthAddress
+from ..types.common import Keccak256, EthAddress, TimeseriesPoint
 
 
 from datetime import datetime
@@ -76,11 +76,6 @@ class Token(BaseModel):
     outcome: str
     price: float
     winner: Optional[bool] = None
-
-
-class TimeseriesPoint(BaseModel):
-    t: datetime
-    p: float
 
 
 class PriceHistory(BaseModel):
@@ -499,20 +494,6 @@ class ContractConfig(BaseModel):
     The ERC1155 conditional tokens contract.
     """
 
-class User(BaseModel):
-    address: EthAddress = Field(alias="proxyWallet")
-    name: str
-    bio: str
-    profile_image: str = Field(alias="profileImage")
-    profile_image_optimized: str = Field(alias="profileImageOptimized")
-
-class UserProfit(User):
-    amount: float
-    pseudonym: str
-
-class UserRank(User):
-    amount: float
-    rank: int
 
 class OrderPostResponse(BaseModel):
     error_msg: str = Field(alias="errorMsg")
