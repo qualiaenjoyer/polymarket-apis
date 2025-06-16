@@ -88,7 +88,7 @@ class Activity(BaseModel):
     condition_id: Union[Keccak256, EmptyString] = Field(alias="conditionId")
     type: Literal["TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION"]
     size: float
-    usdcSize: float
+    usdc_size: float = Field(alias="usdcSize")
     price: float
     asset: str
     side: Optional[str]
@@ -140,13 +140,13 @@ class HolderResponse(BaseModel):
 
 class ValueResponse(BaseModel):
     # User identification
-    user: EthAddress
+    proxy_wallet: EthAddress = Field(alias="proxyWallet")
 
     # Value information
     value: float
 
 class User(BaseModel):
-    address: EthAddress = Field(alias="proxyWallet")
+    proxy_wallet: EthAddress = Field(alias="proxyWallet")
     name: str
     bio: str
     profile_image: str = Field(alias="profileImage")

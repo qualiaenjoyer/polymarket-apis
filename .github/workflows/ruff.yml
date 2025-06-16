@@ -1,0 +1,12 @@
+name: Ruff
+
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ruff-action
+        uses: astral-sh/ruff-action@v3.4.0
+

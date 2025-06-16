@@ -9,8 +9,11 @@ from ..types.websockets_types import (
     OrderEvent,
     TradeEvent,
     LiveDataTradeEvent,
+    LiveDataOrderMatchEvent,
     CommentEvent,
-    ReactionEvent
+    ReactionEvent,
+    RequestEvent,
+    QuoteEvent
 )
 from ..types.clob_types import ApiCreds
 
@@ -46,10 +49,16 @@ def _process_live_data_event(event):
         match message["type"]:
             case "trades":
                 print(LiveDataTradeEvent(**message), "\n")
+            case "orders_matched":
+                print(LiveDataOrderMatchEvent(**message), "\n")
             case "comment_created" | "comment_removed":
                 print(CommentEvent(**message), "\n")
             case "reaction_created" | "reaction_removed":
                 print(ReactionEvent(**message), "\n")
+            case "request_created" | "request_edited" | "request_canceled" | "request_expired":
+                print(RequestEvent(**message), "\n")
+            case "quote_created" | "quote_edited" | "quote_canceled" | "quote_expired":
+                print(QuoteEvent(**message), "\n")
     except Exception as e:
         print(e, "\n")
         print(event.text)

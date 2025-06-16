@@ -84,25 +84,26 @@ class TradeEvent(BaseModel):
 
 # wss://ws-live-data.polymarket.com types
 class LiveDataTrade(BaseModel):
-    asset: str  # ERC1155 token ID of conditional token being traded
-    bio: str  # Bio of the user of the trade
+    token_id: str = Field(alias="asset") # ERC1155 token ID of conditional token being traded
     condition_id: str = Field(alias="conditionId")  # Id of market which is also the CTF condition ID
     event_slug: str = Field(alias="eventSlug")  # Slug of the event
-    icon: str  # URL to the market icon image
-    name: str  # Name of the user of the trade
     outcome: str  # Human readable outcome of the market
     outcome_index: int = Field(alias="outcomeIndex")  # Index of the outcome
     price: float  # Price of the trade
-    profile_image: str = Field(alias="profileImage")  # URL to the user profile image
-    profile_image_optimized: str = Field(alias="profileImageOptimized")
-    proxy_wallet: str = Field(alias="proxyWallet")  # Address of the user proxy wallet
-    pseudonym: str  # Pseudonym of the user
     side: Literal["BUY", "SELL"]  # Side of the trade
     size: float  # Size of the trade
     slug: str  # Slug of the market
-    timestamp: int  # Timestamp of the trade
+    timestamp: datetime  # Timestamp of the trade
     title: str  # Title of the event
     transaction_hash: str = Field(alias="transactionHash")  # Hash of the transaction
+    proxy_wallet: str = Field(alias="proxyWallet")  # Address of the user proxy wallet
+    icon: str  # URL to the market icon image
+    name: str  # Name of the user of the trade
+    bio: str  # Bio of the user of the trade
+    pseudonym: str  # Pseudonym of the user
+    profile_image: str = Field(alias="profileImage")  # URL to the user profile image
+    profile_image_optimized: Optional[str] = Field(None, alias="profileImageOptimized")
+
 
 class Comment(BaseModel):
     id: str  # Unique identifier of comment
@@ -123,12 +124,45 @@ class Reaction(BaseModel):
     user_address: str = Field(alias="userAddress")  # Address of the user
     created_at: datetime = Field(alias="createdAt")  # Creation timestamp
 
+class Request(BaseModel):
+    request_id: str = Field(alias="requestId")  # Unique identifier for the request
+    proxy_address: str = Field(alias="proxyAddress")  # Proxy address
+    user_address: str = Field(alias="userAddress")  # User address
+    condition_id: Keccak256 = Field(alias="market")  # Id of market which is also the CTF condition ID
+    token_id: str = Field(alias="token")  # ERC1155 token ID of conditional token being traded
+    complement_token_id: str = Field(alias="complement")  # Complement ERC1155 token ID of conditional token being traded
+    state: Literal["STATE_REQUEST_EXPIRED", "STATE_USER_CANCELED", "STATE_REQUEST_CANCELED", "STATE_MAKER_CANCELED", "STATE_ACCEPTING_QUOTES", "STATE_REQUEST_QUOTED", "STATE_QUOTE_IMPROVED"]  # Current state of the request
+    side: Literal["BUY", "SELL"]  # Indicates buy or sell side
+    price: float  # Price from in/out sizes
+    size_in: float = Field(alias="sizeIn")  # Input size of the request
+    size_out: float = Field(alias="sizeOut")  # Output size of the request
+    expiry: Optional[datetime] = None
+
+class Quote(BaseModel):
+    quote_id: str = Field(alias="quoteId")  # Unique identifier for the quote
+    request_id: str = Field(alias="requestId")  # Associated request identifier
+    proxy_address: str = Field(alias="proxyAddress")  # Proxy address
+    user_address: str = Field(alias="userAddress")  # User address
+    condition_id: Keccak256 = Field(alias="condition")  # Id of market which is also the CTF condition ID
+    token_id: str = Field(alias="token")  # ERC1155 token ID of conditional token being traded
+    complement_token_id: str = Field(alias="complement")  # Complement ERC1155 token ID of conditional token being traded
+    state: Literal["STATE_REQUEST_EXPIRED", "STATE_USER_CANCELED", "STATE_REQUEST_CANCELED", "STATE_MAKER_CANCELED", "STATE_ACCEPTING_QUOTES", "STATE_REQUEST_QUOTED", "STATE_QUOTE_IMPROVED"]  # Current state of the quote
+    side: Literal["BUY", "SELL"]  # Indicates buy or sell side
+    size_in: float = Field(alias="sizeIn")  # Input size of the quote
+    size_out: float = Field(alias="sizeOut")  # Output size of the quote
+    expiry: Optional[datetime] = None
+
 class LiveDataTradeEvent(BaseModel):
     payload: LiveDataTrade
     timestamp: datetime
     type: Literal["trades"]
     topic: Literal["activity"]
 
+class LiveDataOrderMatchEvent(BaseModel):
+    payload: LiveDataTrade
+    timestamp: datetime
+    type: Literal["orders_matched"]
+    topic: Literal["activity"]
 
 class CommentEvent(BaseModel):
     payload: Comment
@@ -136,10 +170,20 @@ class CommentEvent(BaseModel):
     type: Literal["comment_created", "comment_removed"]
     topic: Literal["comments"]
 
-
 class ReactionEvent(BaseModel):
     payload: Reaction
     timestamp: datetime
     type: Literal["reaction_created", "reaction_removed"]
     topic: Literal["comments"]
 
+class RequestEvent(BaseModel):
+    payload: Request
+    timestamp: datetime
+    type: Literal["request_created", "request_edited", "request_canceled", "request_expired"]
+    topic: Literal["rfq"]
+
+class QuoteEvent(BaseModel):
+    payload: Quote
+    timestamp: datetime
+    type: Literal["quote_created", "quote_edited", "quote_canceled", "quote_expired"]
+    topic: Literal["rfq"]
