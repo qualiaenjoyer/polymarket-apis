@@ -1,8 +1,6 @@
-
 from typing import Literal, Optional
 from urllib.parse import urljoin
 from datetime import datetime, timezone, UTC
-
 
 import json
 
@@ -85,15 +83,17 @@ class PolymarketClobClient:
             proxy_address: EthAddress,
             creds: ApiCreds = None,
             chain_id: Literal[137, 80002] = POLYGON,
+            signature_type: Literal[0, 1, 2] = 1,
+            # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet
     ):
+        self.proxy_address = proxy_address
         self.client = httpx.Client(http2=True, timeout=30.0)
         self.async_client = httpx.AsyncClient(http2=True, timeout=30.0)
         self.base_url: str = "https://clob.polymarket.com"
-        self.signature_type = 2
         self.signer = Signer(private_key=private_key, chain_id=chain_id)
         self.builder = OrderBuilder(
             signer=self.signer,
-            sig_type=1,
+            sig_type=signature_type,
             funder=proxy_address,
         )
         self.creds = creds if creds else self.derive_api_key()
@@ -295,6 +295,7 @@ class PolymarketClobClient:
         response = self.client.get(self._build_url(GET_MARKET + condition_id))
         response.raise_for_status()
         return ClobMarket(**response.json())
+
     def get_markets(self, next_cursor="MA==")  -> PaginatedResponse[ClobMarket]:
         # TODO fix validation at "ODUwMA==" cursor - bad market setup
         """
@@ -392,11 +393,6 @@ class PolymarketClobClient:
         response = self.client.get(self._build_url("/prices-history"), params=params)
         response.raise_for_status()
         return PriceHistory(**response.json(), token_id=token_id)
-
-
-
-
-
 
     def get_orders(self, order_id: str = None, condition_id: Keccak256 = None, token_id: str = None, next_cursor: str ="MA==") -> list[OpenOrder]:
         """
@@ -616,7 +612,7 @@ class PolymarketClobClient:
 
         return results
 
-    def get_total_rewards(self, date: datetime = datetime.now(UTC)) -> float:
+    def get_total_rewards(self, date: datetime = datetime.now(UTC)) -> DailyEarnedReward:
         """
         Get the total rewards earned on a given date (seems to only hold the 6 most recent data points)
         """
@@ -632,7 +628,15 @@ class PolymarketClobClient:
 
         response = self.client.get("https://polymarket.com/api/rewards/totalEarnings", params=params)
         response.raise_for_status()
-        return DailyEarnedReward(**response.json()[0])
+        if response.json():
+            return DailyEarnedReward(**response.json()[0])
+        return DailyEarnedReward(
+                date=date,
+                asset_address="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+                maker_address=self.proxy_address,
+                earnings=0.0,
+                asset_rate=0.0,
+            )
 
     def get_reward_markets(
             self,
