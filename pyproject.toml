@@ -15,7 +15,7 @@ dependencies = [
     "wsaccel>=0.6.7",
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 
 [build-system]
 requires = ["hatchling"]
@@ -30,6 +30,19 @@ dev-dependencies = [
     "plotly>=5.24.1",
     "jupyter-contrib-nbextensions>=0.7.0",
 ]
+
+[tool.ruff]
+preview = true
+
+[tool.ruff.lint]
+select = ["E301"]
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = true
+
+[tool.ruff.isort]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
