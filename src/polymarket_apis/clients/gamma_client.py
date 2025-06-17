@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional, Union
 from urllib.parse import urljoin
+import json
 
 
 import httpx
@@ -27,7 +28,7 @@ class PolymarketGammaClient:
             archived: Optional[bool] = None,
             active: Optional[bool] = None,
             closed: Optional[bool] = None,
-            clob_token_ids: Optional[list[str]] = None,
+            token_ids: Optional[list[str]] = None,
             condition_ids: Optional[list[str]] = None,
             liquidity_num_min: Optional[float] = None,
             liquidity_num_max: Optional[float] = None,
@@ -58,8 +59,8 @@ class PolymarketGammaClient:
             params["active"] = active
         if closed is not None:
             params["closed"] = closed
-        if clob_token_ids:
-            params["clob_token_ids"] = clob_token_ids
+        if token_ids:
+            params["clob_token_ids"] = token_ids
         if condition_ids:
             params["condition_ids"] = condition_ids
         if liquidity_num_min:
@@ -229,7 +230,7 @@ class PolymarketGammaClient:
 
         return events
 
-    def search_events(self, query: str) -> list[Event]:
+    def search_events(self, query: str) -> list[QueryEvent]:
         """
         Search for events by query
         """
@@ -242,6 +243,75 @@ class PolymarketGammaClient:
         response.raise_for_status()
         return [QueryEvent(**event) for event in response.json()["events"]]
 
+    def grok_market_summary(self, condition_id: str):
+        market = self.get_markets(condition_ids=[condition_id])[0]
+
+        params = {
+            "marketName": market.group_item_title,
+            "eventTitle": market.question,
+            "odds": market.outcome_prices[0],
+            "marketDescription": market.description,
+            "isNegRisk": market.neg_risk
+        }
+
+        with self.client.stream(method="GET", url="https://polymarket.com/api/grok/market-explanation", params=params) as stream:
+            messages = []
+            citations = []
+            for line in stream.iter_lines():
+                if line:
+                    line_str = line
+                    if line_str.startswith('data: '):
+                        json_part = line_str[len('data: '):]
+                        try:
+                            data = json.loads(json_part)
+                            # Extract content if present
+                            content = data.get('choices', [{}])[0].get('delta', {}).get('content', '')
+                            if content:
+                                messages.append(content)
+                                print(content, end='')  # Stream content
+                            # Extract citations if present
+                            if 'citations' in data:
+                                citations.extend(data['citations'])
+                        except json.JSONDecodeError:
+                            pass
+
+        # After streaming, print citations if any
+        if citations:
+            print("\n\nCitations:")
+            for cite in citations:
+                print(f"- {cite}")
+
+    def grok_event_summary(self, event_slug: str):
+        params = {
+            "prompt": event_slug
+        }
+
+        with self.client.stream(method="GET", url="https://polymarket.com/api/grok/event-summary", params=params) as stream:
+            messages = []
+            citations = []
+            for line in stream.iter_lines():
+                if line:
+                    line_str = line
+                    if line_str.startswith('data: '):
+                        json_part = line_str[len('data: '):]
+                        try:
+                            data = json.loads(json_part)
+                            # Extract content if present
+                            content = data.get('choices', [{}])[0].get('delta', {}).get('content', '')
+                            if content:
+                                messages.append(content)
+                                print(content, end='')  # Stream content
+                            # Extract citations if present
+                            if 'citations' in data:
+                                citations.extend(data['citations'])
+                        except json.JSONDecodeError:
+                            pass
+
+        # After streaming, print citations if any
+        if citations:
+            print("\n\nCitations:")
+            for cite in citations:
+                print(f"- {cite}")
     def __enter__(self):
         return self
 
