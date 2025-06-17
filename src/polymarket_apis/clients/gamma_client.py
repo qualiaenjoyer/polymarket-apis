@@ -312,6 +312,7 @@ class PolymarketGammaClient:
             print("\n\nCitations:")
             for cite in citations:
                 print(f"- {cite}")
+                
     def __enter__(self):
         return self
 
