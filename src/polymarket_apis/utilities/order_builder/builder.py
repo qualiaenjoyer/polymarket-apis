@@ -1,30 +1,36 @@
 from py_order_utils.builders import OrderBuilder as UtilsOrderBuilder
-from py_order_utils.signer import Signer as UtilsSigner
+from py_order_utils.model import (
+    BUY as UTILS_BUY,
+)
 from py_order_utils.model import (
     EOA,
     OrderData,
     SignedOrder,
-    BUY as UtilsBuy,
-    SELL as UtilsSell,
 )
+from py_order_utils.model import (
+    SELL as UTILS_SELL,
+)
+from py_order_utils.signer import Signer as UtilsSigner
 
+from ...types.clob_types import (
+    CreateOrderOptions,
+    MarketOrderArgs,
+    OrderArgs,
+    OrderSummary,
+    OrderType,
+    RoundConfig,
+    TickSize,
+)
+from ..config import get_contract_config
+from ..constants import BUY, SELL
+from ..exceptions import LiquidityError
+from ..signing.signer import Signer
 from .helpers import (
-    to_token_decimals,
+    decimal_places,
     round_down,
     round_normal,
-    decimal_places,
     round_up,
-)
-from ..constants import BUY, SELL
-from ..config import get_contract_config
-from ..signing.signer import Signer
-from ...types.clob_types import (
-    OrderArgs,
-    CreateOrderOptions,
-    TickSize,
-    RoundConfig,
-    MarketOrderArgs,
-    OrderSummary,
+    to_token_decimals,
 )
 
 ROUNDING_CONFIG: dict[TickSize, RoundConfig] = {
@@ -48,7 +54,7 @@ class OrderBuilder:
         self.funder = funder if funder is not None else self.signer.address()
 
     def get_order_amounts(
-        self, side: str, size: float, price: float, round_config: RoundConfig
+            self, side: str, size: float, price: float, round_config: RoundConfig,
     ):
         raw_price = round_normal(price, round_config.price)
 
@@ -64,8 +70,8 @@ class OrderBuilder:
             maker_amount = to_token_decimals(raw_maker_amt)
             taker_amount = to_token_decimals(raw_taker_amt)
 
-            return UtilsBuy, maker_amount, taker_amount
-        elif side == SELL:
+            return UTILS_BUY, maker_amount, taker_amount
+        if side == SELL:
             raw_maker_amt = round_down(size, round_config.size)
 
             raw_taker_amt = raw_maker_amt * raw_price
@@ -77,33 +83,48 @@ class OrderBuilder:
             maker_amount = to_token_decimals(raw_maker_amt)
             taker_amount = to_token_decimals(raw_taker_amt)
 
-            return UtilsSell, maker_amount, taker_amount
-        else:
-            raise ValueError(f"order_args.side must be '{BUY}' or '{SELL}'")
+            return UTILS_SELL, maker_amount, taker_amount
+        msg = f"order_args.side must be '{BUY}' or '{SELL}'"
+        raise ValueError(msg)
 
     def get_market_order_amounts(
-        self, amount: float, price: float, round_config: RoundConfig
+            self, side: str, amount: float, price: float, round_config: RoundConfig,
     ):
-        raw_maker_amt = round_down(amount, round_config.size)
         raw_price = round_normal(price, round_config.price)
 
-        raw_taker_amt = raw_maker_amt / raw_price
-        if decimal_places(raw_taker_amt) > round_config.amount:
-            raw_taker_amt = round_up(raw_taker_amt, round_config.amount + 4)
+        if side == BUY:
+            raw_maker_amt = round_down(amount, round_config.size)
+            raw_taker_amt = raw_maker_amt / raw_price
             if decimal_places(raw_taker_amt) > round_config.amount:
-                raw_taker_amt = round_down(raw_taker_amt, round_config.amount)
+                raw_taker_amt = round_up(raw_taker_amt, round_config.amount + 4)
+                if decimal_places(raw_taker_amt) > round_config.amount:
+                    raw_taker_amt = round_down(raw_taker_amt, round_config.amount)
 
-        maker_amount = to_token_decimals(raw_maker_amt)
-        taker_amount = to_token_decimals(raw_taker_amt)
+            maker_amount = to_token_decimals(raw_maker_amt)
+            taker_amount = to_token_decimals(raw_taker_amt)
 
-        return maker_amount, taker_amount
+            return UTILS_BUY, maker_amount, taker_amount
+
+        if side == SELL:
+            raw_maker_amt = round_down(amount, round_config.size)
+
+            raw_taker_amt = raw_maker_amt * raw_price
+            if decimal_places(raw_taker_amt) > round_config.amount:
+                raw_taker_amt = round_up(raw_taker_amt, round_config.amount + 4)
+                if decimal_places(raw_taker_amt) > round_config.amount:
+                    raw_taker_amt = round_down(raw_taker_amt, round_config.amount)
+
+            maker_amount = to_token_decimals(raw_maker_amt)
+            taker_amount = to_token_decimals(raw_taker_amt)
+
+            return UTILS_SELL, maker_amount, taker_amount
+        msg = f"order_args.side must be '{BUY}' or '{SELL}'"
+        raise ValueError(msg)
 
     def create_order(
-        self, order_args: OrderArgs, options: CreateOrderOptions
+            self, order_args: OrderArgs, options: CreateOrderOptions,
     ) -> SignedOrder:
-        """
-        Creates and signs an order
-        """
+        """Creates and signs an order."""
         side, maker_amount, taker_amount = self.get_order_amounts(
             order_args.side,
             order_args.size,
@@ -126,7 +147,7 @@ class OrderBuilder:
         )
 
         contract_config = get_contract_config(
-            self.signer.get_chain_id(), options.neg_risk
+            self.signer.get_chain_id(), options.neg_risk,
         )
 
         order_builder = UtilsOrderBuilder(
@@ -138,12 +159,11 @@ class OrderBuilder:
         return order_builder.build_signed_order(data)
 
     def create_market_order(
-        self, order_args: MarketOrderArgs, options: CreateOrderOptions
+            self, order_args: MarketOrderArgs, options: CreateOrderOptions,
     ) -> SignedOrder:
-        """
-        Creates and signs a market order
-        """
-        maker_amount, taker_amount = self.get_market_order_amounts(
+        """Creates and signs a market order."""
+        side, maker_amount, taker_amount = self.get_market_order_amounts(
+            order_args.side,
             order_args.amount,
             order_args.price,
             ROUNDING_CONFIG[options.tick_size],
@@ -155,7 +175,7 @@ class OrderBuilder:
             tokenId=order_args.token_id,
             makerAmount=str(maker_amount),
             takerAmount=str(taker_amount),
-            side=UtilsBuy,
+            side=side,
             feeRateBps=str(order_args.fee_rate_bps),
             nonce=str(order_args.nonce),
             signer=self.signer.address(),
@@ -164,23 +184,57 @@ class OrderBuilder:
         )
 
         contract_config = get_contract_config(
-            self.signer.get_chain_id(), options.neg_risk
+            self.signer.get_chain_id(), options.neg_risk,
         )
 
         order_builder = UtilsOrderBuilder(
             contract_config.exchange,
             self.signer.get_chain_id(),
-            UtilsSigner(private_key=self.signer.private_key),
+            UtilsSigner(key=self.signer.private_key),
         )
 
         return order_builder.build_signed_order(data)
 
-    def calculate_market_price(
-        self, positions: list[OrderSummary], amount_to_match: float
+    def calculate_buy_market_price(
+            self,
+            asks: list[OrderSummary], # expected to be sorted from worst to best price (high to low)
+            amount_to_match: float, # in usdc
+            order_type: OrderType,
     ) -> float:
+        if not asks:
+            msg = "No ask orders available"
+            raise LiquidityError(msg)
+
         sum = 0
-        for p in positions:
+        for p in reversed(asks):
             sum += float(p.size) * float(p.price)
             if sum >= amount_to_match:
                 return float(p.price)
-        raise Exception("no match")
+
+        if order_type == OrderType.FOK:
+            msg = "no match"
+            raise ValueError(msg)
+
+        return float(asks[0].price)
+
+    def calculate_sell_market_price(
+            self,
+            bids: list[OrderSummary], # expected to be sorted from worst to best price (low to high)
+            amount_to_match: float, # in usdc
+            order_type: OrderType,
+    ) -> float:
+        if not bids:
+            msg = "No bid orders available"
+            raise LiquidityError(msg)
+
+        sum = 0
+        for p in reversed(bids):
+            sum += float(p.size)
+            if sum >= amount_to_match:
+                return float(p.price)
+
+        if order_type == OrderType.FOK:
+            msg = "no match"
+            raise ValueError(msg)
+
+        return float(bids[0].price)

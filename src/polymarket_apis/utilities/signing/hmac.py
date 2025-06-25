@@ -1,16 +1,14 @@
-import hmac
-import hashlib
 import base64
+import hashlib
+import hmac
 
 
 def build_hmac_signature(
-    secret: str, timestamp: str, method: str, requestPath: str, body=None
+    secret: str, timestamp: str, method: str, request_path: str, body=None,
 ):
-    """
-    Creates an HMAC signature by signing a payload with the secret
-    """
+    """Creates an HMAC signature by signing a payload with the secret."""
     base64_secret = base64.urlsafe_b64decode(secret)
-    message = str(timestamp) + str(method) + str(requestPath)
+    message = str(timestamp) + str(method) + str(request_path)
     if body:
         # NOTE: Necessary to replace single quotes with double quotes
         # to generate the same hmac message as go and typescript

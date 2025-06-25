@@ -1,9 +1,9 @@
-from datetime import datetime
-from typing import List, Literal, Optional, Union
+from datetime import UTC, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from .common import EthAddress, Keccak256, EmptyString
+from .common import EmptyString, EthAddress, Keccak256
 
 
 class Position(BaseModel):
@@ -41,10 +41,10 @@ class Position(BaseModel):
     end_date: datetime = Field(alias="endDate")
     negative_risk: bool = Field(alias="negativeRisk")
 
-    @field_validator('end_date', mode="before")
+    @field_validator("end_date", mode="before")
     def handle_empty_end_date(cls, v):
         if v == "":
-            return datetime(2099,12,31)
+            return datetime(2099,12,31, tzinfo=UTC)
         return v
 
 
@@ -85,13 +85,13 @@ class Activity(BaseModel):
 
     # Activity details
     timestamp: datetime
-    condition_id: Union[Keccak256, EmptyString] = Field(alias="conditionId")
+    condition_id: Keccak256 | EmptyString = Field(alias="conditionId")
     type: Literal["TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION"]
     size: float
     usdc_size: float = Field(alias="usdcSize")
     price: float
     asset: str
-    side: Optional[str]
+    side: str | None
     outcome_index: int = Field(alias="outcomeIndex")
 
     # Event information
@@ -135,7 +135,7 @@ class HolderResponse(BaseModel):
     token_id: str = Field(alias="token")
 
     # Holders list
-    holders: List[Holder]
+    holders: list[Holder]
 
 
 class ValueResponse(BaseModel):

@@ -1,8 +1,7 @@
+import json
 from datetime import datetime
 from typing import Optional, Union
 from urllib.parse import urljoin
-import json
-
 
 import httpx
 
@@ -39,7 +38,7 @@ class PolymarketGammaClient:
             end_date_min: Optional[datetime] = None,
             end_date_max: Optional[datetime] = None,
             tag_id: Optional[int] = None,
-            related_tags: bool = False,
+            related_tags: Optional[bool] = False,
     ) -> list[GammaMarket]:
         params = {}
         if limit:
@@ -89,9 +88,7 @@ class PolymarketGammaClient:
         return [GammaMarket(**market) for market in response.json()]
 
     def get_market(self, market_id: str) -> GammaMarket:
-        """
-        Get a GammaMarket by market_id
-        """
+        """Get a GammaMarket by market_id."""
         response = self.client.get(self._build_url(f"/markets/{market_id}"))
         response.raise_for_status()
         return GammaMarket(**response.json())
@@ -230,15 +227,9 @@ class PolymarketGammaClient:
 
         return events
 
-    def search_events(self, query: str) -> list[QueryEvent]:
-        """
-        Search for events by query
-        """
-
-        # TODO take pagination into account and maybe add other filters
-        # https://polymarket.com/api/events/search?_c=all&_q=trump&_s=volume:desc&_p=1
-
-        params = {"q": query}
+    def search_events(self, query: str, active: bool = True) -> list[QueryEvent]:
+        """Search for events by query."""
+        params = {"q": query, "events_status": "active" if active else "resolved"}
         response = self.client.get("https://polymarket.com/api/events/global", params=params)
         response.raise_for_status()
         return [QueryEvent(**event) for event in response.json()["events"]]
@@ -251,7 +242,7 @@ class PolymarketGammaClient:
             "eventTitle": market.question,
             "odds": market.outcome_prices[0],
             "marketDescription": market.description,
-            "isNegRisk": market.neg_risk
+            "isNegRisk": market.neg_risk,
         }
 
         with self.client.stream(method="GET", url="https://polymarket.com/api/grok/market-explanation", params=params) as stream:
@@ -260,18 +251,18 @@ class PolymarketGammaClient:
             for line in stream.iter_lines():
                 if line:
                     line_str = line
-                    if line_str.startswith('data: '):
-                        json_part = line_str[len('data: '):]
+                    if line_str.startswith("data: "):
+                        json_part = line_str[len("data: "):]
                         try:
                             data = json.loads(json_part)
                             # Extract content if present
-                            content = data.get('choices', [{}])[0].get('delta', {}).get('content', '')
+                            content = data.get("choices", [{}])[0].get("delta", {}).get("content", "")
                             if content:
                                 messages.append(content)
-                                print(content, end='')  # Stream content
+                                print(content, end="")  # Stream content
                             # Extract citations if present
-                            if 'citations' in data:
-                                citations.extend(data['citations'])
+                            if "citations" in data:
+                                citations.extend(data["citations"])
                         except json.JSONDecodeError:
                             pass
 
@@ -283,7 +274,7 @@ class PolymarketGammaClient:
 
     def grok_event_summary(self, event_slug: str):
         params = {
-            "prompt": event_slug
+            "prompt": event_slug,
         }
 
         with self.client.stream(method="GET", url="https://polymarket.com/api/grok/event-summary", params=params) as stream:
@@ -292,18 +283,18 @@ class PolymarketGammaClient:
             for line in stream.iter_lines():
                 if line:
                     line_str = line
-                    if line_str.startswith('data: '):
-                        json_part = line_str[len('data: '):]
+                    if line_str.startswith("data: "):
+                        json_part = line_str[len("data: "):]
                         try:
                             data = json.loads(json_part)
                             # Extract content if present
-                            content = data.get('choices', [{}])[0].get('delta', {}).get('content', '')
+                            content = data.get("choices", [{}])[0].get("delta", {}).get("content", "")
                             if content:
                                 messages.append(content)
-                                print(content, end='')  # Stream content
+                                print(content, end="")  # Stream content
                             # Extract citations if present
-                            if 'citations' in data:
-                                citations.extend(data['citations'])
+                            if "citations" in data:
+                                citations.extend(data["citations"])
                         except json.JSONDecodeError:
                             pass
 
@@ -312,7 +303,7 @@ class PolymarketGammaClient:
             print("\n\nCitations:")
             for cite in citations:
                 print(f"- {cite}")
-                
+
     def __enter__(self):
         return self
 

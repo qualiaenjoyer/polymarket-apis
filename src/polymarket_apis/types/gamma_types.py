@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import (
     BaseModel,
-    Json,
     Field,
-    field_validator,
+    Json,
     ValidationInfo,
     ValidatorFunctionWrapHandler,
+    field_validator,
 )
 
 from .common import EthAddress, Keccak256, TimestampWithTZ
@@ -19,68 +18,68 @@ class Event(BaseModel):
     # Basic identification
     id: str
     slug: str
-    ticker: Optional[str] = None
+    ticker: str | None = None
 
     # Core event information
     title: str
-    description: Optional[str] = None
-    resolution_source: Optional[str] = Field(None, alias="resolutionSource")
-    category: Optional[str] = None
+    description: str | None = None
+    resolution_source: str | None = Field(None, alias="resolutionSource")
+    category: str | None = None
 
     # Visual representation
-    image: Optional[str] = None
-    icon: Optional[str] = None
+    image: str | None = None
+    icon: str | None = None
 
     # Temporal information
-    start_date: Optional[datetime] = Field(None, alias="startDate")
-    end_date: Optional[datetime] = Field(None, alias="endDate")
-    creation_date: Optional[datetime] = Field(None, alias="creationDate")
+    start_date: datetime | None = Field(None, alias="startDate")
+    end_date: datetime | None = Field(None, alias="endDate")
+    creation_date: datetime | None = Field(None, alias="creationDate")
     created_at: datetime = Field(alias="createdAt")
-    updated_at: Optional[datetime] = Field(None, alias="updatedAt")
-    published_at: Optional[TimestampWithTZ] = None
-    closed_time: Optional[datetime] = Field(None, alias="closedTime")
+    updated_at: datetime | None = Field(None, alias="updatedAt")
+    published_at: TimestampWithTZ | None = None
+    closed_time: datetime | None = Field(None, alias="closedTime")
 
     # Status flags
     active: bool
     closed: bool
-    archived: Optional[bool] = None
-    new: Optional[bool] = None
-    featured: Optional[bool] = None
-    restricted: Optional[bool] = None
+    archived: bool | None = None
+    new: bool | None = None
+    featured: bool | None = None
+    restricted: bool | None = None
     cyom: bool
-    automatically_active: Optional[bool] = Field(None, alias="automaticallyActive")
+    automatically_active: bool | None = Field(None, alias="automaticallyActive")
 
     # Financial metrics
-    liquidity: Optional[float] = None
-    volume: Optional[float] = None
-    open_interest: Optional[int] = Field(None, alias="openInterest")
-    competitive: Optional[float] = None
-    volume_24hr: Optional[float] = Field(None, alias="volume24hr")
-    liquidity_amm: Optional[float] = Field(None, alias="liquidityAmm")
-    liquidity_clob: Optional[float] = Field(None, alias="liquidityClob")
+    liquidity: float | None = None
+    volume: float | None = None
+    open_interest: int | None = Field(None, alias="openInterest")
+    competitive: float | None = None
+    volume_24hr: float | None = Field(None, alias="volume24hr")
+    liquidity_amm: float | None = Field(None, alias="liquidityAmm")
+    liquidity_clob: float | None = Field(None, alias="liquidityClob")
 
     # Related data
-    markets: Optional[list[GammaMarket]] = None
-    series: Optional[list[Series]] = None
-    tags: Optional[list[Tag]] = None
+    markets: list[GammaMarket] | None = None
+    series: list[Series] | None = None
+    tags: list[Tag] | None = None
 
     # User interaction
-    comment_count: Optional[int] = Field(None, alias="commentCount")
+    comment_count: int | None = Field(None, alias="commentCount")
 
     # Display and functionality settings
-    sort_by: Optional[str] = Field(None, alias="sortBy")
+    sort_by: str | None = Field(None, alias="sortBy")
     show_all_outcomes: bool = Field(alias="showAllOutcomes")
     show_market_images: bool = Field(alias="showMarketImages")
-    gmp_chart_mode: Optional[str] = Field(None, alias="gmpChartMode")
+    gmp_chart_mode: str | None = Field(None, alias="gmpChartMode")
 
     # Negative risk settings
     enable_neg_risk: bool = Field(alias="enableNegRisk")
-    neg_risk: Optional[bool] = Field(None, alias="negRisk")
-    neg_risk_market_id: Optional[str] = Field(None, alias="negRiskMarketID")
-    neg_risk_augmented: Optional[bool] = Field(None, alias="negRiskAugmented")
+    neg_risk: bool | None = Field(None, alias="negRisk")
+    neg_risk_market_id: str | None = Field(None, alias="negRiskMarketID")
+    neg_risk_augmented: bool | None = Field(None, alias="negRiskAugmented")
 
     # Order book settings
-    enable_order_book: Optional[bool] = Field(None, alias="enableOrderBook")
+    enable_order_book: bool | None = Field(None, alias="enableOrderBook")
 
 
 class GammaMarket(BaseModel):
@@ -88,100 +87,100 @@ class GammaMarket(BaseModel):
     id: str
     slug: str
     condition_id: Keccak256 = Field(alias="conditionId")
-    question_id: Optional[Keccak256] = Field(None, alias="questionID")
+    question_id: Keccak256 | None = Field(None, alias="questionID")
 
     # Core market information
     question: str
     description: str
-    resolution_source: Optional[str] = Field(None, alias="resolutionSource")
-    outcome: Optional[list] = None
-    outcome_prices: Optional[Json[list[float]] | list[float]] = Field(None, alias="outcomePrices")
+    resolution_source: str | None = Field(None, alias="resolutionSource")
+    outcome: list | None = None
+    outcome_prices: Json[list[float]] | list[float] | None = Field(None, alias="outcomePrices")
 
     # Visual representation
-    image: Optional[str] = None
-    icon: Optional[str] = None
+    image: str | None = None
+    icon: str | None = None
 
     # Temporal information
-    start_date: Optional[datetime] = Field(None, alias="startDate")
-    end_date: Optional[datetime] = Field(None, alias="endDate")
+    start_date: datetime | None = Field(None, alias="startDate")
+    end_date: datetime | None = Field(None, alias="endDate")
     created_at: datetime = Field(alias="createdAt")
-    updated_at: Optional[datetime] = Field(None, alias="updatedAt")
-    start_date_iso: Optional[datetime] = Field(None, alias="startDateIso")
-    end_date_iso: Optional[datetime] = Field(None, alias="endDateIso")
-    deployed_timestamp: Optional[datetime] = Field(None, alias="deployedTimestamp")
-    accepting_orders_timestamp: Optional[datetime] = Field(
-        None, alias="acceptingOrdersTimestamp"
+    updated_at: datetime | None = Field(None, alias="updatedAt")
+    start_date_iso: datetime | None = Field(None, alias="startDateIso")
+    end_date_iso: datetime | None = Field(None, alias="endDateIso")
+    deployed_timestamp: datetime | None = Field(None, alias="deployedTimestamp")
+    accepting_orders_timestamp: datetime | None = Field(
+        None, alias="acceptingOrdersTimestamp",
     )
 
     # Status flags
     active: bool
     closed: bool
     archived: bool
-    new: Optional[bool] = None
-    featured: Optional[bool] = None
+    new: bool | None = None
+    featured: bool | None = None
     restricted: bool
     ready: bool
-    deployed: Optional[bool] = None
+    deployed: bool | None = None
     funded: bool
     cyom: bool
     approved: bool
 
     # Financial metrics
-    liquidity: Optional[float] = None
-    volume: Optional[float] = None
-    volume_num: Optional[float] = Field(None, alias="volumeNum")
-    liquidity_num: Optional[float] = Field(None, alias="liquidityNum")
-    volume_24hr: Optional[float] = Field(None, alias="volume24hr")
-    volume_24hr_clob: Optional[float] = Field(None, alias="volume24hrClob")
-    volume_clob: Optional[float] = Field(None, alias="volumeClob")
-    liquidity_clob: Optional[float] = Field(None, alias="liquidityClob")
-    competitive: Optional[float] = None
+    liquidity: float | None = None
+    volume: float | None = None
+    volume_num: float | None = Field(None, alias="volumeNum")
+    liquidity_num: float | None = Field(None, alias="liquidityNum")
+    volume_24hr: float | None = Field(None, alias="volume24hr")
+    volume_24hr_clob: float | None = Field(None, alias="volume24hrClob")
+    volume_clob: float | None = Field(None, alias="volumeClob")
+    liquidity_clob: float | None = Field(None, alias="liquidityClob")
+    competitive: float | None = None
     spread: float
 
     # Order book settings
-    enable_order_book: Optional[bool] = Field(None, alias="enableOrderBook")
-    order_price_min_tick_size: Optional[float] = Field(
-        None, alias="orderPriceMinTickSize"
+    enable_order_book: bool | None = Field(None, alias="enableOrderBook")
+    order_price_min_tick_size: float | None = Field(
+        None, alias="orderPriceMinTickSize",
     )
-    order_min_size: Optional[float] = Field(None, alias="orderMinSize")
-    accepting_orders: Optional[bool] = Field(None, alias="acceptingOrders")
+    order_min_size: float | None = Field(None, alias="orderMinSize")
+    accepting_orders: bool | None = Field(None, alias="acceptingOrders")
 
     # Related data
-    events: Optional[list[Event]] = None
-    clob_rewards: Optional[list[ClobReward]] = Field(None, alias="clobRewards")
+    events: list[Event] | None = None
+    clob_rewards: list[ClobReward] | None = Field(None, alias="clobRewards")
 
     # User interaction
-    comment_count: Optional[int] = Field(None, alias="commentCount")
+    comment_count: int | None = Field(None, alias="commentCount")
 
     # Market maker information
     market_maker_address: str = Field(alias="marketMakerAddress")
 
     # Additional settings
-    group_item_title: Optional[str] = Field(None, alias="groupItemTitle")
-    group_item_threshold: Optional[int] = Field(None, alias="groupItemThreshold")
-    token_ids: Optional[Json[list[str]] | list[str]] = Field(None, alias="clobTokenIds")
-    uma_bond: Optional[int] = Field(None, alias="umaBond")
-    uma_reward: Optional[float] = Field(None, alias="umaReward")
-    neg_risk: Optional[bool] = Field(None, alias="negRisk")
+    group_item_title: str | None = Field(None, alias="groupItemTitle")
+    group_item_threshold: int | None = Field(None, alias="groupItemThreshold")
+    token_ids: Json[list[str]] | list[str] | None = Field(None, alias="clobTokenIds")
+    uma_bond: int | None = Field(None, alias="umaBond")
+    uma_reward: float | None = Field(None, alias="umaReward")
+    neg_risk: bool | None = Field(None, alias="negRisk")
     pager_duty_notification_enabled: bool = Field(alias="pagerDutyNotificationEnabled")
-    review_status: Optional[str] = Field(None, alias="reviewStatus")
+    review_status: str | None = Field(None, alias="reviewStatus")
     rewards_min_size: int = Field(alias="rewardsMinSize")
     rewards_max_spread: float = Field(alias="rewardsMaxSpread")
 
     # Resolution information
-    submitted_by: Optional[str] = None
-    resolved_by: Optional[EthAddress] = Field(None, alias="resolvedBy")
-    has_reviewed_dates: Optional[bool] = Field(None, alias="hasReviewedDates")
+    submitted_by: str | None = None
+    resolved_by: EthAddress | None = Field(None, alias="resolvedBy")
+    has_reviewed_dates: bool | None = Field(None, alias="hasReviewedDates")
 
     @field_validator("condition_id", mode="wrap")
     @classmethod
     def validate_condition_id(
-            cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+            cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo,
     ) -> str:
         try:
             # First attempt standard Keccak256 validation
             return handler(value)
-        except ValueError as original_error:
+        except ValueError:
             active = info.data.get("active", False)
 
             # Only allow empty string when inactive
@@ -189,8 +188,7 @@ class GammaMarket(BaseModel):
                 return value
 
             # Re-raise original error for other cases
-            raise original_error
-
+            raise
 
 class ClobReward(BaseModel):
     # Basic identification
@@ -200,7 +198,7 @@ class ClobReward(BaseModel):
     # Reward information
     asset_address: str = Field(alias="assetAddress")
     rewards_amount: float = Field(alias="rewardsAmount")
-    rewards_daily_rate: Optional[float] = Field(None, alias="rewardsDailyRate")
+    rewards_daily_rate: float | None = Field(None, alias="rewardsDailyRate")
 
     # Temporal information
     start_date: datetime = Field(alias="startDate")
@@ -214,17 +212,17 @@ class Tag(BaseModel):
     slug: str
 
     # Display settings
-    force_show: Optional[bool] = Field(None, alias="forceShow")
-    force_hide: Optional[bool] = Field(None, alias="forceHide")
+    force_show: bool | None = Field(None, alias="forceShow")
+    force_hide: bool | None = Field(None, alias="forceHide")
 
     # Temporal information
-    published_at: Optional[TimestampWithTZ | datetime] = Field(None, alias="publishedAt")
-    created_at: Optional[datetime] = Field(None, alias="createdAt")
-    updated_at: Optional[datetime] = Field(None, alias="updatedAt")
+    published_at: TimestampWithTZ | datetime | None = Field(None, alias="publishedAt")
+    created_at: datetime | None = Field(None, alias="createdAt")
+    updated_at: datetime | None = Field(None, alias="updatedAt")
 
     # User information
-    created_by: Optional[int] = Field(None, alias="createdBy")
-    updated_by: Optional[int] = Field(None, alias="updatedBy")
+    created_by: int | None = Field(None, alias="createdBy")
+    updated_by: int | None = Field(None, alias="updatedBy")
 
 
 class Series(BaseModel):
@@ -235,41 +233,41 @@ class Series(BaseModel):
     title: str
 
     # Series characteristics
-    series_type: Optional[str] = Field(None,  alias="seriesType")
-    recurrence: Optional[str] = None
-    layout: Optional[str] = None
+    series_type: str | None = Field(None,  alias="seriesType")
+    recurrence: str | None = None
+    layout: str | None = None
 
     # Visual representation
-    icon: Optional[str] = None
-    image: Optional[str] = None
+    icon: str | None = None
+    image: str | None = None
 
     # Temporal information
-    start_date: Optional[datetime] = Field(None, alias="startDate")
+    start_date: datetime | None = Field(None, alias="startDate")
     created_at: datetime = Field(alias="createdAt")
-    updated_at: Optional[datetime] = Field(None, alias="updatedAt")
-    published_at: Optional[TimestampWithTZ | datetime] = Field(None, alias="publishedAt")
+    updated_at: datetime | None = Field(None, alias="updatedAt")
+    published_at: TimestampWithTZ | datetime | None = Field(None, alias="publishedAt")
 
     # Status flags
-    active: Optional[bool] = None
-    archived: Optional[bool] = None
-    closed: Optional[bool] = None
-    featured: Optional[bool] = None
-    new: Optional[bool] = None
-    restricted: Optional[bool] = None
+    active: bool | None = None
+    archived: bool | None = None
+    closed: bool | None = None
+    featured: bool | None = None
+    new: bool | None = None
+    restricted: bool | None = None
 
     # Financial metrics
-    liquidity: Optional[float] = None
-    volume: Optional[float] = None
-    volume_24hr: Optional[float] = Field(None, alias="volume24hr")
-    competitive: Optional[str] = None
+    liquidity: float | None = None
+    volume: float | None = None
+    volume_24hr: float | None = Field(None, alias="volume24hr")
+    competitive: str | None = None
 
     # User interaction
     comment_count: int = Field(alias="commentCount")
-    comments_enabled: Optional[bool] = Field(None, alias="commentsEnabled")
+    comments_enabled: bool | None = Field(None, alias="commentsEnabled")
 
     # User information
-    created_by: Optional[str] = Field(None, alias="createdBy")
-    updated_by: Optional[str] = Field(None, alias="updatedBy")
+    created_by: str | None = Field(None, alias="createdBy")
+    updated_by: str | None = Field(None, alias="updatedBy")
 
 
 class QueryEvent(BaseModel):
@@ -279,35 +277,35 @@ class QueryEvent(BaseModel):
     title: str
 
     # Visual representation
-    image: Optional[str] = None
+    image: str | None = None
 
     # Status flags
     active: bool
     closed: bool
     archived: bool
-    neg_risk: Optional[bool] = Field(None, alias="negRisk")
+    neg_risk: bool | None = Field(None, alias="negRisk")
 
     # Temporal information
-    start_date: Optional[datetime] = Field(None, alias="startDate")
-    end_date: Optional[datetime] = Field(None, alias="endDate")
+    start_date: datetime | None = Field(None, alias="startDate")
+    end_date: datetime | None = Field(None, alias="endDate")
     ended: bool
 
     # Related data
-    markets: Optional[list[QueryMarket]] = None
+    markets: list[QueryMarket] | None = None
 
 
 class QueryMarket(BaseModel):
     # Basic identification
     slug: str
     question: str
-    group_item_title: Optional[str] = Field(None, alias="groupItemTitle")
+    group_item_title: str | None = Field(None, alias="groupItemTitle")
 
     # Market data
-    outcomes: Optional[list] = None
-    outcome_prices: Optional[Json[list[float]] | list[float]] = Field(None, alias="outcomePrices")
-    last_trade_price: Optional[float] = Field(None, alias="lastTradePrice")
-    best_ask: Optional[float] = Field(None, alias="bestAsk")
-    best_bid: Optional[float] = Field(None, alias="bestBid")
+    outcomes: list | None = None
+    outcome_prices: Json[list[float]] | list[float] | None = Field(None, alias="outcomePrices")
+    last_trade_price: float | None = Field(None, alias="lastTradePrice")
+    best_ask: float | None = Field(None, alias="bestAsk")
+    best_bid: float | None = Field(None, alias="bestBid")
     spread: float
 
     # Status flags

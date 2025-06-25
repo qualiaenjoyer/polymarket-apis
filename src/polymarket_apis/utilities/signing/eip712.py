@@ -23,6 +23,6 @@ def sign_clob_auth_message(signer: Signer, timestamp: int, nonce: int) -> str:
     )
     chain_id = signer.get_chain_id()
     auth_struct_hash = prepend_zx(
-        keccak(clob_auth_msg.signable_bytes(get_clob_auth_domain(chain_id))).hex()
+        keccak(clob_auth_msg.signable_bytes(get_clob_auth_domain(chain_id))).hex(),
     )
     return prepend_zx(signer.sign(auth_struct_hash))

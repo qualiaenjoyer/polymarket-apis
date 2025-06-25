@@ -1,7 +1,7 @@
-from math import floor, ceil
-from decimal import Decimal
-
 import hashlib
+from decimal import Decimal
+from math import ceil, floor
+
 from ...types.clob_types import OrderBookSummary, TickSize
 
 
@@ -29,11 +29,11 @@ def decimal_places(x: float) -> int:
 
 
 def generate_orderbook_summary_hash(orderbook: OrderBookSummary) -> str:
-    """Compute hash while forcing empty string for hash field"""
+    """Compute hash while forcing empty string for hash field."""
     server_hash = orderbook.hash
     orderbook.hash = ""
     computed_hash = hashlib.sha1(
-        str(orderbook.model_dump_json(by_alias=True)).encode("utf-8")
+        str(orderbook.model_dump_json(by_alias=True)).encode("utf-8"),
     ).hexdigest()
     orderbook.hash = server_hash
     return computed_hash
