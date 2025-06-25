@@ -91,7 +91,7 @@ class PolymarketClobClient:
             self,
             private_key: str,
             proxy_address: EthAddress,
-            creds: ApiCreds = None,
+            creds: Optional[ApiCreds] = None,
             chain_id: Literal[137, 80002] = POLYGON,
             signature_type: Literal[0, 1, 2] = 1,
             # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet
@@ -106,7 +106,7 @@ class PolymarketClobClient:
             sig_type=signature_type,
             funder=proxy_address,
         )
-        self.creds = creds if creds else self.derive_api_key()
+        self.creds = creds if creds else self.create_or_derive_api_creds()
 
         # local cache
         self.__tick_sizes = {}
@@ -120,15 +120,15 @@ class PolymarketClobClient:
         response.raise_for_status()
         return response.json()
 
-    def derive_api_key(self, nonce: Optional[int] = None) -> ApiCreds:
-        headers = create_level_1_headers(self.signer, nonce)
-        response = self.client.get(self._build_url(DERIVE_API_KEY), headers=headers)
-        response.raise_for_status()
-        return ApiCreds(**response.json())
-
     def create_api_creds(self, nonce: Optional[int] = None) -> ApiCreds:
         headers = create_level_1_headers(self.signer, nonce)
         response = self.client.post(self._build_url(CREATE_API_KEY), headers=headers)
+        response.raise_for_status()
+        return ApiCreds(**response.json())
+
+    def derive_api_key(self, nonce: Optional[int] = None) -> ApiCreds:
+        headers = create_level_1_headers(self.signer, nonce)
+        response = self.client.get(self._build_url(DERIVE_API_KEY), headers=headers)
         response.raise_for_status()
         return ApiCreds(**response.json())
 
@@ -138,17 +138,17 @@ class PolymarketClobClient:
         except HTTPStatusError:
             return self.derive_api_key(nonce)
 
-    def set_api_creds(self, creds: ApiCreds):
+    def set_api_creds(self, creds: ApiCreds) -> None:
         self.creds = creds
 
-    def get_api_keys(self) -> ApiCreds:
+    def get_api_keys(self) -> dict:
         request_args = RequestArgs(method="GET", request_path=GET_API_KEYS)
         headers = create_level_2_headers(self.signer, self.creds, request_args)
         response = self.client.get(self._build_url(GET_API_KEYS), headers=headers)
         response.raise_for_status()
         return response.json()
 
-    def delete_api_keys(self) -> ApiCreds:
+    def delete_api_keys(self) -> Literal["OK"]:
         request_args = RequestArgs(method="DELETE", request_path=DELETE_API_KEY)
         headers = create_level_2_headers(self.signer, self.creds, request_args)
         response = self.client.delete(self._build_url(DELETE_API_KEY), headers=headers)
@@ -465,13 +465,13 @@ class PolymarketClobClient:
                     msg = (f"Error posting order in position {index} \n"
                            f"Details: {resp.error_msg}")
                     logger.warning(msg)
-
-            return order_responses
         except httpx.HTTPStatusError as exc:
             msg = f"Client Error '{exc.response.status_code} {exc.response.reason_phrase}' while posting order"
             logger.warning(msg)
             error_json = exc.response.json()
             print("Details:", error_json["error"])
+        else:
+            return order_responses
 
     def create_and_post_orders(self, args: list[OrderArgs], order_types: list[OrderType]) -> list[OrderPostResponse]:
         """Utility function to create and publish multiple orders at once."""
@@ -655,9 +655,9 @@ class PolymarketClobClient:
         if date is None:
             date = datetime.now(UTC)
         params = {
-                "authenticationType": "magic",
-                "date": f"{date.strftime("%Y-%m-%d")}",
-            }
+            "authenticationType": "magic",
+            "date": f"{date.strftime("%Y-%m-%d")}",
+        }
 
         request_args = RequestArgs(method="GET", request_path="/rewards/user/total")
         headers = create_level_2_headers(self.signer, self.creds, request_args)
@@ -668,12 +668,12 @@ class PolymarketClobClient:
         if response.json():
             return DailyEarnedReward(**response.json()[0])
         return DailyEarnedReward(
-                date=date,
-                asset_address="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
-                maker_address=self.proxy_address,
-                earnings=0.0,
-                asset_rate=0.0,
-            )
+            date=date,
+            asset_address="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+            maker_address=self.proxy_address,
+            earnings=0.0,
+            asset_rate=0.0,
+        )
 
     def get_reward_markets(
             self,
