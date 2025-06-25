@@ -1,10 +1,14 @@
 [project]
 name = "polymarket-apis"
-version = "0.2.0"
-description = "Unified Polymarket apis - clob, gamma, data, web3, websockets"
+version = "0.2.1"
+description = "Unified Polymarket APIs - clob, gamma, data, web3, websockets"
+readme = "README.md"
+requires-python = ">=3.12"
 authors = [
     { name = "Razvan Gheorghe", email = "razvan@gheorghe.me" }
 ]
+
+# PEP 631-compliant dependencies table
 dependencies = [
     "httpx[http2]>=0.25.1",
     "pydantic>=2.10.5",
@@ -12,14 +16,31 @@ dependencies = [
     "py-order-utils>=0.3.2",
     "web3>=7.0",
     "lomond>=0.3.3",
-    "wsaccel>=0.6.7",
+    "wsaccel>=0.6.7"
 ]
-readme = "README.md"
-requires-python = ">=3.12"
+
+[dependency-groups]
+lint = [
+    "ruff>=0.12.0"
+]
+dev = [
+    "ruff>=0.12.0",
+    "notebook>=7.3.2",
+    "python-dotenv>=1.0.1",
+    "plotly>=5.24.1",
+    "jupyter-contrib-nbextensions>=0.7.0",
+    "jupyter>=1.1.1"
+]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/polymarket_apis"]
 
 [tool.uv]
 managed = true
@@ -34,7 +55,7 @@ lint.extend-select = [
     "D",    # Pydocstyle – docstring formatting
     "UP",   # Pyupgrade – upgrades syntax to newer Python versions
     "YTT",  # Flake8-2020 – checks for Python 2020 best practices
-    # "ANN",  # Flake8-annotations – enforces type annotation style
+    # "ANN", # Flake8-annotations – enforces type annotation style
     "ASYNC",# Flake8-async – checks async/await usage
     "S",    # Flake8-bandit – security issues
     "BLE",  # Flake8-blind-except – flags bare excepts
@@ -42,7 +63,7 @@ lint.extend-select = [
     "B",    # Flake8-bugbear – common bug patterns
     "A",    # Flake8-builtins – misuse of Python built-in names
     "COM",  # Flake8-commas – trailing/comma issues
-    # "CPY",  # Flake8-copyright – copyright header checks
+    # "CPY", # Flake8-copyright – copyright header checks
     "C4",   # Flake8-comprehensions – best practices in comprehensions
     "DTZ",  # Flake8-datetimez – requires timezone-aware datetime objects
     "T10",  # Flake8-debugger – debugger statements (e.g. pdb)
@@ -56,7 +77,7 @@ lint.extend-select = [
     "G",    # Flake8-logging-format – logging format string issues
     "INP",  # Flake8-no-pep420 – warns against non-PEP420 namespace usage
     "PIE",  # Flake8-pie – Python improvement suggestions
-    # "T20",  # Flake8-print – disallows print statements
+    # "T20", # Flake8-print – disallows print statements
     "PYI",  # Flake8-pyi – checks for type stub (.pyi) consistency
     "PT",   # Flake8-pytest-style – pytest best practices
     "Q",    # Flake8-quotes – enforces quote style consistency
@@ -70,7 +91,7 @@ lint.extend-select = [
     "ARG",  # Flake8-unused-arguments – flags unused function arguments
     "PTH",  # Flake8-use-pathlib – encourages pathlib over os.path
     "FIX",  # Flake8-fixme – flags FIXME comments
-    # "ERA",  # Eradicate – detects commented-out code (potentially dangerous)
+    # "ERA", # Eradicate – detects commented-out code (potentially dangerous)
     "PD",   # Pandas-vet – checks pandas-specific code practices
     "PGH",  # Pygrep-hooks – custom grep hooks for linting
     "PL",   # Pylint – integration with Pylint conventions
@@ -81,55 +102,35 @@ lint.extend-select = [
     "AIR",  # Airflow – Airflow-specific linting rules
     "PERF", # Perflint – performance-related checks
     "FURB", # Refurb – rules for code refurbishment
-    # "DOC",  # Pydoclint – docstring linting and consistency
+    # "DOC", # Pydoclint – docstring linting and consistency
     "RUF",  # Ruff-specific rules – additional Ruff checks
 ]
 
 lint.ignore = [
-    "UP007", # non-pep604-annotation-union
-    "UP045", # non-pep604-annotation-optional
-    "TD",   # Flake8-todos – flags TODO comments
-    "TID",  # Flake8-tidy-imports – enforces specific import styles (e.g., no relative imports)
-    "E501",  # Pycodestyle - line too long
-    "D1",    # Pydocstyle - missing docstring in public module, class, or function
-    "FBT001", # Flake8-boolean-trap - boolean-type-hint-positional-argument
-    "FBT002", # Flake8-boolean-trap - boolean-default-value-positional-argument
-    "FBT003", # Flake8-boolean-trap - boolean-positional-value-in-call
-    "D203",  # Pydocstyle - one blank line required before class docstring
-    "D212",  # Pydocstyle - summary line should be immediately after the opening quotes.
-    "D401",  # Pydocstyle - Checks for docstring first lines that are not in an imperative mood.
-    "N805",  # PEP8 Naming - invalid-first-argument-name-for-method
-    "S105",  # Flake8-bandit - Checks for potential uses of hardcoded passwords in strings.
-    "S311",  # Flake8-bandit - Standard pseudo-random generators are not suitable for security/cryptographic purposes
-    "S324", # Flake8-bandit - Use of weak or broken cryptographic hash functions in hashlib and crypt libraries
-    "PERF401", # Perflint - Checks for for loops that can be replaced by a list comprehension.
-    "RET504", # Flake8-return - Checks for variable assignments that immediately precede a return of the assigned variable.
-    "FA102", # Flake8-future-annotations - Missing `from __future__ import annotations`, but uses PEP 604 union\
-    "TC001", # Flake8-type-checking - typing-only-first-party-import
-    "TC003", # Flake8-type-checking - typing-only-standard-library-import
-    "C901", # McCabe - complex-structure
-    "PLR0912", # Pylint - too-many-branches
-    "PLR0913", # Pylint - too-many-arguments
-    "PLR2004", # Pylint - magic-value-comparison
-    "A001", # Flake8-builtins - builtin-variable-shadowing
-    "A002", # Flake8-builtins - builtin-argument-shadowing
-]
-
-[tool.hatch.metadata]
-allow-direct-references = true
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/polymarket_apis"]
-
-[dependency-groups]
-lint = [
-    "ruff>=0.12.0",
-]
-dev = [
-    "ruff>=0.12.0",
-    "notebook>=7.3.2",
-    "python-dotenv>=1.0.1",
-    "plotly>=5.24.1",
-    "jupyter-contrib-nbextensions>=0.7.0",
-    "jupyter>=1.1.1",
+    "UP007",     # non-pep604-annotation-union
+    "UP045",     # non-pep604-annotation-optional
+    "TID",       # Flake8-tidy-imports – enforces specific import styles (e.g., no relative imports)
+    "E501",      # Pycodestyle - line too long
+    "D1",        # Pydocstyle - missing docstring in public module, class, or function
+    "FBT001",    # Flake8-boolean-trap - boolean-type-hint-positional-argument
+    "FBT002",    # Flake8-boolean-trap - boolean-default-value-positional-argument
+    "FBT003",    # Flake8-boolean-trap - boolean-positional-value-in-call
+    "D203",      # Pydocstyle - one blank line required before class docstring
+    "D212",      # Pydocstyle - summary line should be immediately after the opening quotes.
+    "D401",      # Pydocstyle - Checks for docstring first lines that are not in an imperative mood.
+    "N805",      # PEP8 Naming - invalid-first-argument-name-for-method
+    "S105",      # Flake8-bandit - Checks for potential uses of hardcoded passwords in strings.
+    "S311",      # Flake8-bandit - Standard pseudo-random generators are not suitable for security/cryptographic purposes
+    "S324",      # Flake8-bandit - Use of weak or broken cryptographic hash functions in hashlib and crypt libraries
+    "PERF401",   # Perflint - Checks for for loops that can be replaced by a list comprehension.
+    "RET504",    # Flake8-return - Checks for variable assignments that immediately precede a return of the assigned variable.
+    "FA102",     # Flake8-future-annotations - Missing `from __future__ import annotations`, but uses PEP 604 union
+    "TC001",     # Flake8-type-checking - typing-only-first-party-import
+    "TC003",     # Flake8-type-checking - typing-only-standard-library-import
+    "C901",      # McCabe - complex-structure
+    "PLR0912",   # Pylint - too-many-branches
+    "PLR0913",   # Pylint - too-many-arguments
+    "PLR2004",   # Pylint - magic-value-comparison
+    "A001",      # Flake8-builtins - builtin-variable-shadowing
+    "A002",      # Flake8-builtins - builtin-argument-shadowing
 ]

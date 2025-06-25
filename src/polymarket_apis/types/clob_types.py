@@ -1,10 +1,12 @@
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import Any, Literal, Optional, TypeVar
+from typing import Any, Literal, Optional, TypeVar, Union
 
+from py_order_utils.model import SignedOrder
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
     RootModel,
     ValidationError,
@@ -454,6 +456,11 @@ class MarketOrderArgs(BaseModel):
 
     order_type: OrderType = OrderType.FOK
 
+class PostOrdersArgs(BaseModel):
+    order: SignedOrder
+    order_type: OrderType = OrderType.GTC
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 class ContractConfig(BaseModel):
     """Contract Configuration."""
@@ -476,7 +483,7 @@ class ContractConfig(BaseModel):
 
 class OrderPostResponse(BaseModel):
     error_msg: str = Field(alias="errorMsg")
-    order_id: Keccak256 = Field(alias="orderID")
+    order_id: Union[Keccak256, Literal[""]] = Field(alias="orderID")
     taking_amount: str = Field(alias="takingAmount")
     making_amount: str = Field(alias="makingAmount")
     status: str = Literal["live", "matched"]

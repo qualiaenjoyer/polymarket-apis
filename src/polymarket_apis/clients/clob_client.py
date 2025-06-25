@@ -27,6 +27,7 @@ from ..types.clob_types import (
     PartialCreateOrderOptions,
     PolygonTrade,
     PolymarketRewardItem,
+    PostOrdersArgs,
     Price,
     PriceHistory,
     RequestArgs,
@@ -63,6 +64,7 @@ from ..utilities.endpoints import (
     MID_POINTS,
     ORDERS,
     POST_ORDER,
+    POST_ORDERS,
     PRICE,
     TIME,
     TRADES,
@@ -412,8 +414,8 @@ class PolymarketClobClient:
             ),
         )
 
-    def post_order(self, order, order_type: OrderType = OrderType.GTC) -> Optional[OrderPostResponse]:
-        """Posts the order."""
+    def post_order(self, order: SignedOrder, order_type: OrderType = OrderType.GTC) -> Optional[OrderPostResponse]:
+        """Posts a SignedOrder."""
         body = order_to_json(order, self.creds.api_key, order_type)
         headers = create_level_2_headers(
             self.signer,
@@ -439,6 +441,45 @@ class PolymarketClobClient:
         """Utility function to create and publish an order."""
         order = self.create_order(order_args, options)
         return self.post_order(order=order, order_type=order_type)
+
+    def post_orders(self, args: list[PostOrdersArgs]):
+        """Posts multiple SignedOrders at once."""
+        body = [order_to_json(arg.order, self.creds.api_key, arg.order_type) for arg in args]
+        headers = create_level_2_headers(
+            self.signer,
+            self.creds,
+            RequestArgs(method="POST", request_path=POST_ORDERS, body=body),
+        )
+        try:
+            response = self.client.post(
+                self._build_url("/orders"),
+                headers=headers,
+                content=json.dumps(body).encode("utf-8"),
+            )
+            response.raise_for_status()
+            order_responses = []
+            for index, item in enumerate(response.json()):
+                resp = OrderPostResponse(**item)
+                order_responses.append(resp)
+                if resp.error_msg:
+                    msg = (f"Error posting order in position {index} \n"
+                           f"Details: {resp.error_msg}")
+                    logger.warning(msg)
+
+            return order_responses
+        except httpx.HTTPStatusError as exc:
+            msg = f"Client Error '{exc.response.status_code} {exc.response.reason_phrase}' while posting order"
+            logger.warning(msg)
+            error_json = exc.response.json()
+            print("Details:", error_json["error"])
+
+    def create_and_post_orders(self, args: list[OrderArgs], order_types: list[OrderType]) -> list[OrderPostResponse]:
+        """Utility function to create and publish multiple orders at once."""
+        return self.post_orders(
+            [PostOrdersArgs(order=self.create_order(order_args),
+                            order_type=order_type)
+             for order_args, order_type in zip(args, order_types, strict=True)],
+        )
 
     def calculate_market_price(self, token_id: str, side: str, amount: float, order_type: OrderType) -> float:
         """Calculates the matching price considering an amount and the current orderbook."""
