@@ -310,7 +310,7 @@ class PolymarketClobClient:
             self,
             token_id: str,
             interval: Optional[Literal["1d", "6h", "1h"]] = "1d",
-            fidelity: Optional[int] = 1,  # resolution in minutes
+            fidelity: int = 1,  # resolution in minutes
     ) -> PriceHistory:
         """Get the recent price history of a token (up to now) - 1h, 6h, 1d."""
         if fidelity < 1:
@@ -437,7 +437,7 @@ class PolymarketClobClient:
             error_json = exc.response.json()
             print("Details:", error_json["error"])
 
-    def create_and_post_order(self, order_args: OrderArgs, options: PartialCreateOrderOptions = None, order_type: OrderType = OrderType.GTC) -> OrderPostResponse:
+    def create_and_post_order(self, order_args: OrderArgs, options: Optional[PartialCreateOrderOptions] = None, order_type: OrderType = OrderType.GTC) -> OrderPostResponse:
         """Utility function to create and publish an order."""
         order = self.create_order(order_args, options)
         return self.post_order(order=order, order_type=order_type)

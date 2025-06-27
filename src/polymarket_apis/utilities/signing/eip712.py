@@ -1,9 +1,9 @@
 from eth_utils import keccak
 from poly_eip712_structs import make_domain
-from py_order_utils.signer import Signer
 from py_order_utils.utils import prepend_zx
 
-from polymarket_apis.utilities.signing.model import ClobAuth
+from ..signing.model import ClobAuth
+from ..signing.signer import Signer
 
 CLOB_DOMAIN_NAME = "ClobAuthDomain"
 CLOB_VERSION = "1"

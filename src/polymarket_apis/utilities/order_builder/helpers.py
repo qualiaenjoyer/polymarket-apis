@@ -25,7 +25,17 @@ def to_token_decimals(x: float) -> int:
 
 
 def decimal_places(x: float) -> int:
-    return abs(Decimal(x.__str__()).as_tuple().exponent)
+    """
+    Returns the number of decimal places in a float.
+
+    Assumes x is always a finite, non-special value (not NaN or Infinity).
+    """
+    exponent = Decimal(str(x)).as_tuple().exponent
+    if not isinstance(exponent, int):
+        msg = "Input must be a finite float."
+        raise TypeError(msg)
+    return abs(exponent)
+
 
 
 def generate_orderbook_summary_hash(orderbook: OrderBookSummary) -> str:

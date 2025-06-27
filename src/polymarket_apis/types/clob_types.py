@@ -215,7 +215,7 @@ class ClobMarket(BaseModel):
 
     @field_validator("neg_risk_market_id", "neg_risk_request_id", mode="wrap")
     @classmethod
-    def validate_neg_risk_fields(cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo) -> str:
+    def validate_neg_risk_fields(cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo) -> Optional[str]:
         try:
             return handler(value)
         except ValidationError as e:
@@ -486,7 +486,7 @@ class OrderPostResponse(BaseModel):
     order_id: Union[Keccak256, Literal[""]] = Field(alias="orderID")
     taking_amount: str = Field(alias="takingAmount")
     making_amount: str = Field(alias="makingAmount")
-    status: str = Literal["live", "matched"]
+    status: str = Literal["live", "matched", "delayed"]
     success: bool
 
 class OrderCancelResponse(BaseModel):

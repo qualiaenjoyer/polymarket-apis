@@ -1,6 +1,6 @@
 from json import load
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 from web3 import Web3
 from web3.exceptions import ContractCustomError
@@ -109,7 +109,7 @@ class PolymarketWeb3Client:
         balance_res = self.conditional_tokens.functions.balanceOf(address, int(token_id)).call()
         return float(balance_res / 1e6)
 
-    def get_token_complement(self, token_id: str) -> str:
+    def get_token_complement(self, token_id: str) -> Optional[str]:
         """Get the complement of the given token."""
         try:
             return str(self.neg_risk_exchange.functions.getComplement(int(token_id)).call())
@@ -133,12 +133,6 @@ class PolymarketWeb3Client:
         the oracle and question id.
         """
         return "0x" + self.neg_risk_adapter.functions.getConditionId(question_id).call().hex()
-
-    # I think the oracle is the NegRiskOperator 0x71523d0f655B41E805Cec45b17163f528B59B820 for neg risk
-    # which you get by putting the question id without the outcomeSlotCount into neg_risk_adapter.getOracle
-    # and UmaCtfAdapter 0x2F5e3684cb1F318ec51b00Edba38d79Ac2c0aA9d for non neg risk
-
-    # also watch OptimisticOracleV2 0xeE3Afe347D5C74317041E2618C49534dAf887c24 - could get useful info about resolution
 
     def split_position(self, condition_id: Keccak256, amount: int, neg_risk: bool = True):
         """Splits usdc into two complementary positions of equal size."""
