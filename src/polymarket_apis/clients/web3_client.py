@@ -77,7 +77,7 @@ class PolymarketWeb3Client:
             abi_element_identifier="redeemPositions",
             args=[condition_id, amounts],
         )
-    def _encode_convert(self, neg_risk_market_id: Keccak256, index_set: int, amount: int):
+    def _encode_convert(self, neg_risk_market_id: Keccak256, index_set: int, amount: int) -> str:
         return self.neg_risk_adapter.encode_abi(
             abi_element_identifier="convertPositions",
             args=[neg_risk_market_id, index_set, amount],

@@ -12,6 +12,8 @@ def validate_keccak256(v: str) -> str:
     return v
 
 def parse_timestamp(v: str) -> datetime:
+    if isinstance(v, datetime):
+        return v
     # Normalize '+00' to '+0000' for timezone
     if v.endswith("+00"):
         v = v[:-3] + "+0000"
@@ -45,5 +47,5 @@ Keccak256 = Annotated[str, AfterValidator(validate_keccak256)]
 EmptyString = Annotated[str, Field(pattern=r"^$", description="An empty string")]
 
 class TimeseriesPoint(BaseModel):
-    t: datetime
-    p: float
+    value: float
+    timestamp: datetime

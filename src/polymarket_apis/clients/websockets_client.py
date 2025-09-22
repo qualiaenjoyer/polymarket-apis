@@ -1,15 +1,26 @@
 from collections.abc import Callable
-from typing import Any
+from json import JSONDecodeError
+from typing import Any, Optional
 
 from lomond import WebSocket
 from lomond.persist import persist
 from pydantic import ValidationError
 
+from polymarket_apis.utilities.exceptions import AuthenticationRequiredError
+
 from ..types.clob_types import ApiCreds
 from ..types.websockets_types import (
     CommentEvent,
+    CryptoPriceSubscribeEvent,
+    CryptoPriceUpdateEvent,
+    LastTradePriceEvent,
+    LiveDataLastTradePriceEvent,
+    LiveDataOrderBookSummaryEvent,
     LiveDataOrderMatchEvent,
+    LiveDataPriceChangeEvent,
+    LiveDataTickSizeChangeEvent,
     LiveDataTradeEvent,
+    MarketStatusChangeEvent,
     OrderBookSummaryEvent,
     OrderEvent,
     PriceChangeEvent,
@@ -23,28 +34,42 @@ from ..types.websockets_types import (
 
 def _process_market_event(event):
     try:
-        event = event.json
-        for message in event:
-            match message["event_type"]:
-                case "book":
-                    print(OrderBookSummaryEvent(**message), "\n")
-                case "price_change":
-                    print(PriceChangeEvent(**message), "\n")
-                case "tick_size_change":
-                    print(TickSizeChangeEvent(**message), "\n")
-    except ValidationError as e:
+        message = event.json
+        if isinstance(message, list):
+            for item in message:
+                try:
+                    print(OrderBookSummaryEvent(**item), "\n")
+                except ValidationError as e:
+                    print(item.text)
+                    print(e.errors())
+            return
+        match message["event_type"]:
+            case "book":
+                print(OrderBookSummaryEvent(**message), "\n")
+            case "price_change":
+                print(PriceChangeEvent(**message), "\n")
+            case "tick_size_change":
+                print(TickSizeChangeEvent(**message), "\n")
+            case "last_trade_price":
+                print(LastTradePriceEvent(**message), "\n")
+            case _:
+                print(message)
+    except JSONDecodeError:
         print(event.text)
-        print(e.errors(), "\n")
+    except ValidationError as e:
+        print(e.errors())
+        print(event.json)
 
 def _process_user_event(event):
     try:
-        event = event.json
-        for message in event:
-            match message["event_type"]:
-                case "order":
-                    print(OrderEvent(**message), "\n")
-                case "trade":
-                    print(TradeEvent(**message), "\n")
+        message = event.json
+        match message["event_type"]:
+            case "order":
+                print(OrderEvent(**message), "\n")
+            case "trade":
+                print(TradeEvent(**message), "\n")
+    except JSONDecodeError:
+        print(event.text)
     except ValidationError as e:
         print(event.text)
         print(e.errors(), "\n")
@@ -65,9 +90,27 @@ def _process_live_data_event(event):
                 print(RequestEvent(**message), "\n")
             case "quote_created" | "quote_edited" | "quote_canceled" | "quote_expired":
                 print(QuoteEvent(**message), "\n")
-    except ValidationError as e:
+            case "subscribe":
+                print(CryptoPriceSubscribeEvent(**message), "\n")
+            case "update":
+                print(CryptoPriceUpdateEvent(**message), "\n")
+            case "agg_orderbook":
+                print(LiveDataOrderBookSummaryEvent(**message), "\n")
+            case "price_change":
+                print(LiveDataPriceChangeEvent(**message), "\n")
+            case "last_trade_price":
+                print(LiveDataLastTradePriceEvent(**message), "\n")
+            case "tick_size_change":
+                print(LiveDataTickSizeChangeEvent(**message), "\n")
+            case "market_created" | "market_resolved":
+                print(MarketStatusChangeEvent(**message), "\n")
+            case _:
+                print(message)
+    except JSONDecodeError:
         print(event.text)
+    except ValidationError as e:
         print(e.errors(), "\n")
+        print(event.text)
 
 class PolymarketWebsocketsClient:
     def __init__(self):
@@ -106,26 +149,39 @@ class PolymarketWebsocketsClient:
         for event in persist(websocket):
             if event.name == "ready":
                 websocket.send_json(
-                    auth = creds.model_dump(by_alias=True),
+                    auth=creds.model_dump(by_alias=True),
                 )
             elif event.name == "text":
                 process_event(event)
 
-    def live_data_socket(self, subscriptions: list[dict[str, Any]], process_event: Callable = _process_live_data_event):
+    def live_data_socket(self, subscriptions: list[dict[str, Any]], process_event: Callable = _process_live_data_event, creds: Optional[ApiCreds] = None):
+        # info on how to subscribe found at https://github.com/Polymarket/real-time-data-client?tab=readme-ov-file#subscribe
+        # website seems to still use user_socket so clob_user might be wip
         """
         Connect to the live data websocket and subscribe to specified events.
 
         Args:
             subscriptions: List of subscription configurations
             process_event: Callback function to process received events
+            creds: ApiCreds for authentication if subscribing to clob_user topic
 
         """
         websocket = WebSocket(self.url_live_data)
+
+        needs_auth = any(sub.get("topic") == "clob_user" for sub in subscriptions)
+        if needs_auth and creds is None:
+            msg = "ApiCreds credentials are required for the clob_user topic subscriptions"
+            raise AuthenticationRequiredError(msg)
+
         for event in persist(websocket):
             if event.name == "ready":
-                websocket.send_json(
-                    action="subscribe",
-                    subscriptions=subscriptions,
-                )
+                payload = {
+                    "action": "subscribe",
+                    "subscriptions": subscriptions,
+                }
+                if needs_auth:
+                    payload["auth"] = creds.model_dump(by_alias=True)
+                websocket.send_json(**payload)
+
             elif event.name == "text":
                 process_event(event)

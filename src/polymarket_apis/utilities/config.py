@@ -34,3 +34,15 @@ def get_contract_config(chain_id: int, neg_risk: bool = False) -> ContractConfig
         raise ValueError(msg)
 
     return config
+
+
+GRAPHQL_ENDPOINTS = {
+    "activity_subgraph": "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/activity-subgraph/0.0.4/gn",
+    "fpmm_subgraph": "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/fpmm-subgraph/0.0.1/gn",
+    "open_interest_subgraph": "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/oi-subgraph/0.0.6/gn",
+    "orderbook_subgraph": "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/orderbook-subgraph/0.0.1/gn",
+    "pnl_subgraph": "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/pnl-subgraph/0.0.14/gn",
+    "positions_subgraph": "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/positions-subgraph/0.0.7/gn",
+    "sports_oracle_subgraph": "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/sports-oracle-subgraph/0.0.1/gn",
+    "wallet_subgraph": "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/wallet-subgraph/0.0.4/gn",
+}

@@ -1,11 +1,19 @@
 import json
+import random
+import string
 from datetime import datetime
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 from urllib.parse import urljoin
 
 import httpx
 
-from ..types.gamma_types import Event, GammaMarket, QueryEvent
+from ..types.gamma_types import Event, EventList, GammaMarket
+
+
+def generate_random_id(length=16):
+    characters = string.ascii_letters + string.digits
+    random_id = "".join(random.choices(characters, k=length))
+    return random_id
 
 
 class PolymarketGammaClient:
@@ -227,82 +235,94 @@ class PolymarketGammaClient:
 
         return events
 
-    def search_events(self, query: str, active: bool = True) -> list[QueryEvent]:
-        """Search for events by query."""
-        params = {"q": query, "events_status": "active" if active else "resolved"}
-        response = self.client.get("https://polymarket.com/api/events/global", params=params)
+    def search_events(
+            self,
+            query: str,
+            active: bool = True,
+            status: Optional[Literal["active", "resolved"]] = "active",
+            sort: Literal["volume", "volume_24hr", "liquidity", "start_date", "end_date", "competitive"] = "volume_24hr",
+            page: int = 1,
+            limit_per_type: int = 50, # max is 50
+    ) -> EventList:
+        """Search for events by query. Should emulate the website search function."""
+        params = {"q": query,"page": page, "limit_per_type": limit_per_type, "events_status": status, "active": active, "presets": "EventsTitle"}
+        if sort:
+            params["sort"] = sort
+        if sort == "end_date":
+            params["ascending"] = "true"
+        response = self.client.get(self._build_url("/public-search"), params=params)
         response.raise_for_status()
-        return [QueryEvent(**event) for event in response.json()["events"]]
-
-    def grok_market_summary(self, condition_id: str):
-        market = self.get_markets(condition_ids=[condition_id])[0]
-
-        params = {
-            "marketName": market.group_item_title,
-            "eventTitle": market.question,
-            "odds": market.outcome_prices[0],
-            "marketDescription": market.description,
-            "isNegRisk": market.neg_risk,
-        }
-
-        with self.client.stream(method="GET", url="https://polymarket.com/api/grok/market-explanation", params=params) as stream:
-            messages = []
-            citations = []
-            for line in stream.iter_lines():
-                if line:
-                    line_str = line
-                    if line_str.startswith("data: "):
-                        json_part = line_str[len("data: "):]
-                        try:
-                            data = json.loads(json_part)
-                            # Extract content if present
-                            content = data.get("choices", [{}])[0].get("delta", {}).get("content", "")
-                            if content:
-                                messages.append(content)
-                                print(content, end="")  # Stream content
-                            # Extract citations if present
-                            if "citations" in data:
-                                citations.extend(data["citations"])
-                        except json.JSONDecodeError:
-                            pass
-
-        # After streaming, print citations if any
-        if citations:
-            print("\n\nCitations:")
-            for cite in citations:
-                print(f"- {cite}")
+        return EventList(**response.json())
 
     def grok_event_summary(self, event_slug: str):
+        json_payload = {
+            "id": generate_random_id(),
+            "messages": [{"role": "user", "content": "", "parts": []}],
+        }
+
         params = {
             "prompt": event_slug,
         }
 
-        with self.client.stream(method="GET", url="https://polymarket.com/api/grok/event-summary", params=params) as stream:
+        with self.client.stream(
+            method="POST",
+            url="https://polymarket.com/api/grok/event-summary",
+            params=params,
+            json=json_payload,
+        ) as stream:
             messages = []
             citations = []
-            for line in stream.iter_lines():
-                if line:
-                    line_str = line
-                    if line_str.startswith("data: "):
-                        json_part = line_str[len("data: "):]
-                        try:
-                            data = json.loads(json_part)
-                            # Extract content if present
-                            content = data.get("choices", [{}])[0].get("delta", {}).get("content", "")
-                            if content:
-                                messages.append(content)
-                                print(content, end="")  # Stream content
-                            # Extract citations if present
-                            if "citations" in data:
-                                citations.extend(data["citations"])
-                        except json.JSONDecodeError:
-                            pass
+            seen_urls = set()
 
-        # After streaming, print citations if any
+            for line_bytes in stream.iter_lines():
+                line = (
+                    line_bytes.decode() if isinstance(line_bytes, bytes) else line_bytes
+                )
+                if line.startswith("__SOURCES__:"):
+                    sources_json_str = line[len("__SOURCES__:") :]
+                    try:
+                        sources_obj = json.loads(sources_json_str)
+                        for source in sources_obj.get("sources", []):
+                            url = source.get("url")
+                            if url and url not in seen_urls:
+                                citations.append(source)
+                                seen_urls.add(url)
+                    except json.JSONDecodeError:
+                        pass
+                else:
+                    messages.append(line)
+                    print(line, end="")  # or handle message text as needed
+
+        # After reading streamed lines:
         if citations:
-            print("\n\nCitations:")
-            for cite in citations:
-                print(f"- {cite}")
+            print("\n\nSources:")
+            for source in citations:
+                print(f"- {source.get('url', 'Unknown URL')}")
+
+    def grok_election_market_explanation(self, candidate_name: str, election_title: str):
+        text = f"Provide candidate information for {candidate_name} in the {election_title} on Polymarket."
+        json_payload = {
+            "id": generate_random_id(),
+            "messages": [
+                {
+                    "role": "user",
+                    "content": text,
+                    "parts": [{"type": "text", "text": text}],
+                },
+            ],
+        }
+
+        response = self.client.post(
+            url="https://polymarket.com/api/grok/election-market-explanation",
+            json=json_payload,
+        )
+        response.raise_for_status()
+
+        parts = [p.strip() for p in response.text.split("**") if p.strip()]
+        for i, part in enumerate(parts):
+            if ":" in part and i != 0:
+                print()
+            print(part)
 
     def __enter__(self):
         return self

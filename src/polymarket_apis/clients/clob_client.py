@@ -48,6 +48,7 @@ from ..utilities.endpoints import (
     DELETE_API_KEY,
     DERIVE_API_KEY,
     GET_API_KEYS,
+    GET_FEE_RATE,
     GET_LAST_TRADE_PRICE,
     GET_LAST_TRADES_PRICES,
     GET_MARKET,
@@ -70,6 +71,7 @@ from ..utilities.endpoints import (
     TRADES,
 )
 from ..utilities.exceptions import (
+    InvalidFeeRateError,
     InvalidPriceError,
     InvalidTickSizeError,
     LiquidityError,
@@ -111,6 +113,7 @@ class PolymarketClobClient:
         # local cache
         self.__tick_sizes = {}
         self.__neg_risk = {}
+        self.__fee_rates = {}
 
     def _build_url(self, endpoint: str) -> str:
         return urljoin(self.base_url, endpoint)
@@ -183,6 +186,18 @@ class PolymarketClobClient:
 
         return self.__neg_risk[token_id]
 
+    def get_fee_rate_bps(self, token_id: str) -> int:
+        if token_id in self.__fee_rates:
+            return self.__fee_rates[token_id]
+
+        params = {"token_id": token_id}
+        response = self.client.get(self._build_url(GET_FEE_RATE), params=params)
+        response.raise_for_status()
+        fee_rate = response.json().get("base_fee") or 0
+        self.__fee_rates[token_id] = fee_rate
+
+        return fee_rate
+
     def __resolve_tick_size(
             self, token_id: str, tick_size: TickSize = None,
     ) -> TickSize:
@@ -194,6 +209,17 @@ class PolymarketClobClient:
         else:
             tick_size = min_tick_size
         return tick_size
+
+    def __resolve_fee_rate(
+            self, token_id: str, user_fee_rate: Optional[int] = None,
+    ) -> int:
+        market_fee_rate_bps = self.get_fee_rate_bps(token_id)
+        # If both fee rate on the market and the user supplied fee rate are non-zero, validate that they match
+        # else return the market fee rate
+        if market_fee_rate_bps > 0 and user_fee_rate is not None and user_fee_rate > 0 and user_fee_rate != market_fee_rate_bps:
+            msg = f"invalid user provided fee rate: ({user_fee_rate}), fee rate for the market must be {market_fee_rate_bps}"
+            raise InvalidFeeRateError(msg)
+        return market_fee_rate_bps
 
     def get_midpoint(self, token_id: str) -> Midpoint:
         """Get the mid-market price for the given token."""
@@ -406,6 +432,10 @@ class PolymarketClobClient:
             else self.get_neg_risk(order_args.token_id)
         )
 
+        # fee rate
+        fee_rate_bps = self.__resolve_fee_rate(order_args.token_id, order_args.fee_rate_bps)
+        order_args.fee_rate_bps = fee_rate_bps
+
         return self.builder.create_order(
             order_args,
             CreateOrderOptions(
@@ -526,6 +556,10 @@ class PolymarketClobClient:
             else self.get_neg_risk(order_args.token_id)
         )
 
+        # fee rate
+        fee_rate_bps = self.__resolve_fee_rate(order_args.token_id, order_args.fee_rate_bps)
+        order_args.fee_rate_bps = fee_rate_bps
+
         return self.builder.create_market_order(
             order_args,
             CreateOrderOptions(
@@ -614,7 +648,7 @@ class PolymarketClobClient:
 
     def get_trades(
             self,
-            condition_id: Keccak256 | None = None,
+            condition_id: Optional[Keccak256] = None,
             token_id: Optional[str] = None,
             trade_id: Optional[str] = None,
             before: Optional[datetime] = None,
