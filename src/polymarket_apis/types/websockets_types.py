@@ -16,6 +16,7 @@ class PriceChange(BaseModel):
     side: Literal["BUY", "SELL"] = Field(validation_alias=AliasChoices("si", "side"))
     token_id: str = Field(validation_alias=AliasChoices("a", "asset_id"))
     hash: str = Field(validation_alias=AliasChoices("h", "hash"))
+
 class PriceChanges(BaseModel):
     condition_id: Keccak256 = Field(validation_alias=AliasChoices("m", "market"))
     price_changes: list[PriceChange] = Field(validation_alias=AliasChoices("pc", "price_changes"))
@@ -58,8 +59,8 @@ class OrderEvent(BaseModel):
     order_id: Keccak256 = Field(alias="id")
     associated_trades: Optional[list[str]] = None # list of trade ids which
     maker_address: EthAddress
-    order_owner: str # api key of order owner
-    event_owner: str = Field(alias="owner") # api key of event owner
+    order_owner: str = Field(alias="owner") # api key of order owner
+    event_owner: Optional[str] = Field(None, alias="owner") # api key of event owner
 
     price: float
     side: Literal["BUY", "SELL"]
@@ -70,10 +71,10 @@ class OrderEvent(BaseModel):
 
     created_at: datetime
     expiration: Optional[datetime] = None
-    timestamp: datetime # time of event
+    timestamp: Optional[datetime] = None # time of event
 
-    event_type: Literal["order"]
-    type: Literal["PLACEMENT", "UPDATE" , "CANCELLATION"]
+    event_type: Optional[Literal["order"]] = None
+    type: Literal["PLACEMENT", "UPDATE", "CANCELLATION"]
 
     status: Literal["LIVE", "CANCELED", "MATCHED"]
 
@@ -89,7 +90,7 @@ class TradeEvent(BaseModel):
     taker_order_id: Keccak256
     maker_orders: list[MakerOrder]
     trade_id: str = Field(alias="id")
-    trade_owner: str # api key of trade owner
+    trade_owner: Optional[str] = Field(None, alias="owner") # api key of trade owner
     event_owner: str = Field(alias="owner") # api key of event owner
 
     price: float
@@ -99,17 +100,17 @@ class TradeEvent(BaseModel):
 
     last_update: datetime # time of last update to trade
     matchtime: Optional[datetime] = None # time trade was matched
-    timestamp: datetime # time of event
+    timestamp: Optional[datetime] = None # time of event
 
-    event_type: Literal["trade"]
-    type: Literal["TRADE"]
+    event_type: Optional[Literal["trade"]] = None
+    type: Optional[Literal["TRADE"]] = None
 
     status: Literal["MATCHED", "MINED", "CONFIRMED", "RETRYING", "FAILED"]
 
 # wss://ws-live-data.polymarket.com types
 
 # Payload models
-class LiveDataTrade(BaseModel):
+class ActivityTrade(BaseModel):
     token_id: str = Field(alias="asset") # ERC1155 token ID of conditional token being traded
     condition_id: str = Field(alias="conditionId")  # Id of market which is also the CTF condition ID
     event_slug: str = Field(alias="eventSlug")  # Slug of the event
@@ -198,14 +199,14 @@ class LiveDataClobMarket(BaseModel):
     neg_risk: bool
 
 # Event models
-class LiveDataTradeEvent(BaseModel):
-    payload: LiveDataTrade
+class ActivityTradeEvent(BaseModel):
+    payload: ActivityTrade
     timestamp: datetime
     type: Literal["trades"]
     topic: Literal["activity"]
 
-class LiveDataOrderMatchEvent(BaseModel):
-    payload: LiveDataTrade
+class ActivityOrderMatchEvent(BaseModel):
+    payload: ActivityTrade
     timestamp: datetime
     type: Literal["orders_matched"]
     topic: Literal["activity"]
@@ -282,7 +283,23 @@ class MarketStatusChangeEvent(BaseModel):
     type: Literal["market_created", "market_resolved"]
     topic: Literal["clob_market"]
 
+class LiveDataOrderEvent(BaseModel):
+    connection_id: str
+    payload: OrderEvent
+    timestamp: datetime
+    type: Literal["order"]
+    topic: Literal["clob_user"]
+
+class LiveDataTradeEvent(BaseModel):
+    connection_id: str
+    payload: TradeEvent
+    timestamp: datetime
+    type: Literal["trade"]
+    topic: Literal["clob_user"]
+
 class ErrorEvent(BaseModel):
     message: str
     connection_id: str = Field(alias="connectionId")
     request_id: str = Field(alias="requestId")
+
+

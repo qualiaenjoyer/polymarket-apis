@@ -10,13 +10,15 @@ from polymarket_apis.utilities.exceptions import AuthenticationRequiredError
 
 from ..types.clob_types import ApiCreds
 from ..types.websockets_types import (
+    ActivityOrderMatchEvent,
+    ActivityTradeEvent,
     CommentEvent,
     CryptoPriceSubscribeEvent,
     CryptoPriceUpdateEvent,
     LastTradePriceEvent,
     LiveDataLastTradePriceEvent,
     LiveDataOrderBookSummaryEvent,
-    LiveDataOrderMatchEvent,
+    LiveDataOrderEvent,
     LiveDataPriceChangeEvent,
     LiveDataTickSizeChangeEvent,
     LiveDataTradeEvent,
@@ -79,9 +81,9 @@ def _process_live_data_event(event):
         message = event.json
         match message["type"]:
             case "trades":
-                print(LiveDataTradeEvent(**message), "\n")
+                print(ActivityTradeEvent(**message), "\n")
             case "orders_matched":
-                print(LiveDataOrderMatchEvent(**message), "\n")
+                print(ActivityOrderMatchEvent(**message), "\n")
             case "comment_created" | "comment_removed":
                 print(CommentEvent(**message), "\n")
             case "reaction_created" | "reaction_removed":
@@ -104,6 +106,10 @@ def _process_live_data_event(event):
                 print(LiveDataTickSizeChangeEvent(**message), "\n")
             case "market_created" | "market_resolved":
                 print(MarketStatusChangeEvent(**message), "\n")
+            case "order":
+                print(LiveDataOrderEvent(**message), "\n")
+            case "trade":
+                print(LiveDataTradeEvent(**message), "\n")
             case _:
                 print(message)
     except JSONDecodeError:
@@ -128,6 +134,7 @@ class PolymarketWebsocketsClient:
 
         """
         websocket = WebSocket(self.url_market)
+
         for event in persist(websocket):  # persist automatically reconnects
             if event.name == "ready":
                 websocket.send_json(
@@ -146,6 +153,7 @@ class PolymarketWebsocketsClient:
 
         """
         websocket = WebSocket(self.url_user)
+
         for event in persist(websocket):
             if event.name == "ready":
                 websocket.send_json(
@@ -156,7 +164,6 @@ class PolymarketWebsocketsClient:
 
     def live_data_socket(self, subscriptions: list[dict[str, Any]], process_event: Callable = _process_live_data_event, creds: Optional[ApiCreds] = None):
         # info on how to subscribe found at https://github.com/Polymarket/real-time-data-client?tab=readme-ov-file#subscribe
-        # website seems to still use user_socket so clob_user might be wip
         """
         Connect to the live data websocket and subscribe to specified events.
 
@@ -175,12 +182,22 @@ class PolymarketWebsocketsClient:
 
         for event in persist(websocket):
             if event.name == "ready":
+                if needs_auth:
+                    subscriptions_with_creds = []
+                    for sub in subscriptions:
+                        if sub.get("topic") == "clob_user":
+                            sub_copy = sub.copy()
+                            sub_copy["clob_auth"] = creds.model_dump()
+                            subscriptions_with_creds.append(sub_copy)
+                        else:
+                            subscriptions_with_creds.append(sub)
+                    subscriptions = subscriptions_with_creds
+
                 payload = {
                     "action": "subscribe",
                     "subscriptions": subscriptions,
                 }
-                if needs_auth:
-                    payload["auth"] = creds.model_dump(by_alias=True)
+
                 websocket.send_json(**payload)
 
             elif event.name == "text":

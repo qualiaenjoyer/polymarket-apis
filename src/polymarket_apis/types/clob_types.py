@@ -22,7 +22,7 @@ from ..utilities.constants import ZERO_ADDRESS
 logger = logging.getLogger(__name__)
 
 class ApiCreds(BaseModel):
-    api_key: str = Field(alias="apiKey")
+    key: str = Field(alias="apiKey")
     secret: str
     passphrase: str
 

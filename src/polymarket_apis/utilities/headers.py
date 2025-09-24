@@ -49,6 +49,6 @@ def create_level_2_headers(signer: Signer, creds: ApiCreds, request_args: Reques
         POLY_ADDRESS: signer.address(),
         POLY_SIGNATURE: hmac_sig,
         POLY_TIMESTAMP: timestamp,
-        POLY_API_KEY: creds.api_key,
+        POLY_API_KEY: creds.key,
         POLY_PASSPHRASE: creds.passphrase,
     }

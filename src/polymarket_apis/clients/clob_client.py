@@ -446,7 +446,7 @@ class PolymarketClobClient:
 
     def post_order(self, order: SignedOrder, order_type: OrderType = OrderType.GTC) -> Optional[OrderPostResponse]:
         """Posts a SignedOrder."""
-        body = order_to_json(order, self.creds.api_key, order_type)
+        body = order_to_json(order, self.creds.key, order_type)
         headers = create_level_2_headers(
             self.signer,
             self.creds,
@@ -474,7 +474,7 @@ class PolymarketClobClient:
 
     def post_orders(self, args: list[PostOrdersArgs]):
         """Posts multiple SignedOrders at once."""
-        body = [order_to_json(arg.order, self.creds.api_key, arg.order_type) for arg in args]
+        body = [order_to_json(arg.order, self.creds.key, arg.order_type) for arg in args]
         headers = create_level_2_headers(
             self.signer,
             self.creds,
