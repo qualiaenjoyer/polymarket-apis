@@ -332,7 +332,7 @@ class Pagination(BaseModel):
     total_results: int = Field(alias="totalResults")
 
 class EventList(BaseModel):
-    events: list[QueryEvent]
+    events: Optional[list[QueryEvent]] = None
     pagination: Pagination
 
 class QueryMarket(BaseModel):
