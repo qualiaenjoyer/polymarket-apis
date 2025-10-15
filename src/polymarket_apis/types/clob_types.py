@@ -153,7 +153,7 @@ class PolymarketRewardItem(BaseModel):
     market_competitiveness: float
 
 
-class RewardsMarket(BaseModel):
+class MarketRewards(BaseModel):
     condition_id: Keccak256
     question: str
     market_slug: str
@@ -254,7 +254,7 @@ class OpenOrder(BaseModel):
     price: float
     outcome: str
     expiration: datetime
-    order_type: Literal["GTC", "FOK", "GTD"]
+    order_type: Literal["GTC", "GTD"]
     associate_trades: list[str]
     created_at: datetime
 

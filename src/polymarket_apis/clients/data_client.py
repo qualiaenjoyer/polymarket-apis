@@ -155,7 +155,7 @@ class PolymarketDataClient:
     def get_value(
             self,
             user: str,
-            condition_id: Optional[Union[str, list[str]]] = None,
+            condition_ids: Optional[Union[str, list[str]]] = None,
     ) -> ValueResponse:
         """
         Get the current value of a user's position in a set of markets.
@@ -166,10 +166,10 @@ class PolymarketDataClient:
             - list[str] --> sum of the values of positions.
         """
         params = {"user": user}
-        if isinstance(condition_id, str):
-            params["market"] = condition_id
-        if isinstance(condition_id, list):
-            params["market"] = ",".join(condition_id)
+        if isinstance(condition_ids, str):
+            params["market"] = condition_ids
+        if isinstance(condition_ids, list):
+            params["market"] = ",".join(condition_ids)
 
         response = self.client.get(self._build_url("/value"), params=params)
         response.raise_for_status()

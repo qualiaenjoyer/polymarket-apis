@@ -16,6 +16,7 @@ from ..types.clob_types import (
     CreateOrderOptions,
     DailyEarnedReward,
     MarketOrderArgs,
+    MarketRewards,
     Midpoint,
     OpenOrder,
     OrderArgs,
@@ -31,7 +32,6 @@ from ..types.clob_types import (
     Price,
     PriceHistory,
     RequestArgs,
-    RewardsMarket,
     Spread,
     TickSize,
     TokenBidAskDict,
@@ -480,6 +480,7 @@ class PolymarketClobClient:
             self.creds,
             RequestArgs(method="POST", request_path=POST_ORDERS, body=body),
         )
+
         try:
             response = self.client.post(
                 self._build_url("/orders"),
@@ -524,12 +525,15 @@ class PolymarketClobClient:
             return self.builder.calculate_buy_market_price(
                 book.asks, amount, order_type,
             )
-        if book.bids is None:
-            msg = "No bid orders available"
-            raise LiquidityError(msg)
-        return self.builder.calculate_sell_market_price(
-            book.bids, amount, order_type,
-        )
+        if side == "SELL":
+            if book.bids is None:
+                msg = "No bid orders available"
+                raise LiquidityError(msg)
+            return self.builder.calculate_sell_market_price(
+                book.bids, amount, order_type,
+            )
+        msg = 'Side must be "BUY" or "SELL"'
+        raise ValueError(msg)
 
     def create_market_order(self, order_args: MarketOrderArgs, options: Optional[PartialCreateOrderOptions] = None):
         """Creates and signs a market order."""
@@ -633,9 +637,9 @@ class PolymarketClobClient:
         response.raise_for_status()
         return response.json()
 
-    def get_rewards_market(self, condition_id: Keccak256) -> RewardsMarket:
+    def get_market_rewards(self, condition_id: Keccak256) -> MarketRewards:
         """
-        Get the RewardsMarket for a given market (condition_id).
+        Get the MarketRewards for a given market (condition_id).
 
         - metadata, tokens, max_spread, min_size, rewards_config, market_competitiveness.
         """
@@ -644,7 +648,7 @@ class PolymarketClobClient:
 
         response = self.client.get(self._build_url("/rewards/markets/" + condition_id), headers=headers)
         response.raise_for_status()
-        return next(RewardsMarket(**market) for market in response.json()["data"])
+        return next(MarketRewards(**market) for market in response.json()["data"])
 
     def get_trades(
             self,
@@ -653,7 +657,7 @@ class PolymarketClobClient:
             trade_id: Optional[str] = None,
             before: Optional[datetime] = None,
             after: Optional[datetime] = None,
-            maker_address: Optional[int] = None,
+            proxy_address: Optional[int] = None,
             next_cursor="MA==") -> list[PolygonTrade]:
         """Fetches the trade history for a user."""
         params = {}
@@ -667,8 +671,8 @@ class PolymarketClobClient:
             params["before"] = int(before.replace(microsecond=0).timestamp())
         if after:
             params["after"] = int(after.replace(microsecond=0).timestamp())
-        if maker_address:
-            params["maker_address"] = maker_address
+        if proxy_address:
+            params["maker_address"] = proxy_address
 
         request_args = RequestArgs(method="GET", request_path=TRADES)
         headers = create_level_2_headers(self.signer, self.creds, request_args)

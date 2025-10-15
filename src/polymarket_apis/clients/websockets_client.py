@@ -6,8 +6,6 @@ from lomond import WebSocket
 from lomond.persist import persist
 from pydantic import ValidationError
 
-from polymarket_apis.utilities.exceptions import AuthenticationRequiredError
-
 from ..types.clob_types import ApiCreds
 from ..types.websockets_types import (
     ActivityOrderMatchEvent,
@@ -32,6 +30,7 @@ from ..types.websockets_types import (
     TickSizeChangeEvent,
     TradeEvent,
 )
+from ..utilities.exceptions import AuthenticationRequiredError
 
 
 def _process_market_event(event):

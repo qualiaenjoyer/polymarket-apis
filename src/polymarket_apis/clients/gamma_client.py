@@ -30,13 +30,15 @@ class PolymarketGammaClient:
             offset: Optional[int] = None,
             order: Optional[str] = None,
             ascending: bool = True,
-            ids: Optional[list[int]] = None,
-            slugs: Optional[list[str]] = None,
             archived: Optional[bool] = None,
             active: Optional[bool] = None,
             closed: Optional[bool] = None,
+            slugs: Optional[list[str]] = None,
+            market_ids: Optional[list[int]] = None,
             token_ids: Optional[list[str]] = None,
             condition_ids: Optional[list[str]] = None,
+            tag_id: Optional[int] = None,
+            related_tags: Optional[bool] = False,
             liquidity_num_min: Optional[float] = None,
             liquidity_num_max: Optional[float] = None,
             volume_num_min: Optional[float] = None,
@@ -45,8 +47,6 @@ class PolymarketGammaClient:
             start_date_max: Optional[datetime] = None,
             end_date_min: Optional[datetime] = None,
             end_date_max: Optional[datetime] = None,
-            tag_id: Optional[int] = None,
-            related_tags: Optional[bool] = False,
     ) -> list[GammaMarket]:
         params = {}
         if limit:
@@ -56,8 +56,6 @@ class PolymarketGammaClient:
         if order:
             params["order"] = order
             params["ascending"] = ascending
-        if ids:
-            params["id"] = ids
         if slugs:
             params["slug"] = slugs
         if archived is not None:
@@ -66,6 +64,8 @@ class PolymarketGammaClient:
             params["active"] = active
         if closed is not None:
             params["closed"] = closed
+        if market_ids:
+            params["id"] = market_ids
         if token_ids:
             params["clob_token_ids"] = token_ids
         if condition_ids:
@@ -243,13 +243,16 @@ class PolymarketGammaClient:
             sort: Literal["volume", "volume_24hr", "liquidity", "start_date", "end_date", "competitive"] = "volume_24hr",
             page: int = 1,
             limit_per_type: int = 50, # max is 50
+            presets: Optional[Literal["EventsHybrid", "EventsTitle"] | list[Literal["EventsHybrid", "EventsTitle"]]] = None,
     ) -> EventList:
         """Search for events by query. Should emulate the website search function."""
-        params = {"q": query,"page": page, "limit_per_type": limit_per_type, "events_status": status, "active": active, "presets": "EventsTitle"}
+        params = {"q": query,"page": page, "limit_per_type": limit_per_type, "events_status": status, "active": active}
         if sort:
             params["sort"] = sort
         if sort == "end_date":
             params["ascending"] = "true"
+        if presets:
+            params["presets"] = presets
         response = self.client.get(self._build_url("/public-search"), params=params)
         response.raise_for_status()
         return EventList(**response.json())

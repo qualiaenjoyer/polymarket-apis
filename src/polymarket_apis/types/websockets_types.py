@@ -67,7 +67,7 @@ class OrderEvent(BaseModel):
     size_matched: float
     original_size: float
     outcome: str
-    order_type: Literal["GTC", "FOK", "GTD"]
+    order_type: Literal["GTC", "GTD", "FOK", "FAK"]
 
     created_at: datetime
     expiration: Optional[datetime] = None
@@ -284,16 +284,16 @@ class MarketStatusChangeEvent(BaseModel):
     topic: Literal["clob_market"]
 
 class LiveDataOrderEvent(BaseModel):
-    connection_id: str
     payload: OrderEvent
     timestamp: datetime
+    connection_id: str
     type: Literal["order"]
     topic: Literal["clob_user"]
 
 class LiveDataTradeEvent(BaseModel):
-    connection_id: str
     payload: TradeEvent
     timestamp: datetime
+    connection_id: str
     type: Literal["trade"]
     topic: Literal["clob_user"]
 

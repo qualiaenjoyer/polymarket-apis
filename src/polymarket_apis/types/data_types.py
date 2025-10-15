@@ -12,11 +12,11 @@ class Position(BaseModel):
 
     # Asset information
     token_id: str = Field(alias="asset")
+    complementary_token_id: str = Field(alias="oppositeAsset")
     condition_id: Keccak256 = Field(alias="conditionId")
     outcome: str
+    complementary_outcome: str = Field(alias="oppositeOutcome")
     outcome_index: int = Field(alias="outcomeIndex")
-    opposite_outcome: str = Field(alias="oppositeOutcome")
-    opposite_asset: str = Field(alias="oppositeAsset")
 
     # Position details
     size: float

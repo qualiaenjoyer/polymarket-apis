@@ -220,7 +220,7 @@ class OrderBuilder:
     def calculate_sell_market_price(
             self,
             bids: list[OrderSummary], # expected to be sorted from worst to best price (low to high)
-            amount_to_match: float, # in usdc
+            amount_to_match: float, # in shares
             order_type: OrderType,
     ) -> float:
         if not bids:

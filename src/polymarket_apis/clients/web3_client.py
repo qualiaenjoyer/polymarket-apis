@@ -195,6 +195,7 @@ class PolymarketWeb3Client:
         self.w3.eth.wait_for_transaction_receipt(tx_hash)
 
         print("Done!")
+
     def redeem_position(self, condition_id: Keccak256, amounts: list[float], neg_risk: bool = True):
         """
         Redeem a position into usdc.

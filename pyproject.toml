@@ -1,6 +1,6 @@
 [project]
 name = "polymarket-apis"
-version = "0.2.6"
+version = "0.3.0"
 description = "Unified Polymarket APIs - clob, gamma, data, web3, websockets"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -17,6 +17,7 @@ dependencies = [
     "web3>=7.0",
     "lomond>=0.3.3",
     "wsaccel>=0.6.7",
+    "gql[httpx]>=4.0.0",
 ]
 
 [dependency-groups]
