@@ -95,7 +95,9 @@ class GammaMarket(BaseModel):
     description: str
     resolution_source: Optional[str] = Field(None, alias="resolutionSource")
     outcome: Optional[list] = None
-    outcome_prices: Optional[Json[list[float]] | list[float]] = Field(None, alias="outcomePrices")
+    outcome_prices: Optional[Json[list[float]] | list[float]] = Field(
+        None, alias="outcomePrices"
+    )
 
     # Media URLs
     image: Optional[str] = None
@@ -109,7 +111,9 @@ class GammaMarket(BaseModel):
     start_date_iso: Optional[datetime] = Field(None, alias="startDateIso")
     end_date_iso: Optional[datetime] = Field(None, alias="endDateIso")
     deployed_timestamp: Optional[datetime] = Field(None, alias="deployedTimestamp")
-    accepting_orders_timestamp: Optional[datetime] = Field(None, alias="acceptingOrdersTimestamp")
+    accepting_orders_timestamp: Optional[datetime] = Field(
+        None, alias="acceptingOrdersTimestamp"
+    )
 
     # Status flags
     active: bool
@@ -139,7 +143,8 @@ class GammaMarket(BaseModel):
     # Order book settings
     enable_order_book: Optional[bool] = Field(None, alias="enableOrderBook")
     order_price_min_tick_size: Optional[float] = Field(
-        None, alias="orderPriceMinTickSize",
+        None,
+        alias="orderPriceMinTickSize",
     )
     order_min_size: Optional[float] = Field(None, alias="orderMinSize")
     accepting_orders: Optional[bool] = Field(None, alias="acceptingOrders")
@@ -174,7 +179,10 @@ class GammaMarket(BaseModel):
     @field_validator("condition_id", mode="wrap")
     @classmethod
     def validate_condition_id(
-            cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo,
+        cls,
+        value: str,
+        handler: ValidatorFunctionWrapHandler,
+        info: ValidationInfo,
     ) -> str:
         try:
             # First attempt standard Keccak256 validation
@@ -188,6 +196,7 @@ class GammaMarket(BaseModel):
 
             # Re-raise original error for other cases
             raise
+
 
 class ClobReward(BaseModel):
     # Identifiers
@@ -215,7 +224,9 @@ class Tag(BaseModel):
     force_hide: Optional[bool] = Field(None, alias="forceHide")
 
     # Datetime
-    published_at: Optional[TimestampWithTZ | datetime] = Field(None, alias="publishedAt")
+    published_at: Optional[TimestampWithTZ | datetime] = Field(
+        None, alias="publishedAt"
+    )
     created_at: Optional[datetime] = Field(None, alias="createdAt")
     updated_at: Optional[datetime] = Field(None, alias="updatedAt")
 
@@ -232,7 +243,7 @@ class Series(BaseModel):
     title: str
 
     # Series characteristics
-    series_type: Optional[str] = Field(None,  alias="seriesType")
+    series_type: Optional[str] = Field(None, alias="seriesType")
     recurrence: Optional[str] = None
     layout: Optional[str] = None
 
@@ -244,7 +255,9 @@ class Series(BaseModel):
     start_date: Optional[datetime] = Field(None, alias="startDate")
     created_at: datetime = Field(alias="createdAt")
     updated_at: Optional[datetime] = Field(None, alias="updatedAt")
-    published_at: Optional[TimestampWithTZ | datetime] = Field(None, alias="publishedAt")
+    published_at: Optional[TimestampWithTZ | datetime] = Field(
+        None, alias="publishedAt"
+    )
 
     # Status flags
     active: Optional[bool] = None
@@ -267,6 +280,7 @@ class Series(BaseModel):
     # User information
     created_by: Optional[str] = Field(None, alias="createdBy")
     updated_by: Optional[str] = Field(None, alias="updatedBy")
+
 
 class QueryEvent(BaseModel):
     # Identifiers and description
@@ -327,13 +341,16 @@ class QueryEvent(BaseModel):
     show_all_outcomes: bool = Field(alias="showAllOutcomes")
     show_market_images: bool = Field(alias="showMarketImages")
 
+
 class Pagination(BaseModel):
     has_more: bool = Field(alias="hasMore")
     total_results: int = Field(alias="totalResults")
 
+
 class EventList(BaseModel):
     events: Optional[list[QueryEvent]] = None
     pagination: Pagination
+
 
 class QueryMarket(BaseModel):
     # Identifiers
@@ -343,7 +360,9 @@ class QueryMarket(BaseModel):
 
     # Market data
     outcomes: Optional[list] = None
-    outcome_prices: Optional[Json[list[float]] | list[float]] = Field(None, alias="outcomePrices")
+    outcome_prices: Optional[Json[list[float]] | list[float]] = Field(
+        None, alias="outcomePrices"
+    )
     last_trade_price: Optional[float] = Field(None, alias="lastTradePrice")
     best_ask: Optional[float] = Field(None, alias="bestAsk")
     best_bid: Optional[float] = Field(None, alias="bestBid")

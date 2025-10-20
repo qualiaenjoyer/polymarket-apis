@@ -1,6 +1,6 @@
 # polymarket-apis [![PyPI version](https://img.shields.io/pypi/v/polymarket-apis.svg)](https://pypi.org/project/polymarket-apis/)
 
-Polymarket CLOB, Gamma, Data, Web3, Websockets and GraphQL clients.
+Unified Polymarket APIs with Pydantic data validation - Clob, Gamma, Data, Web3, Websockets, GraphQL clients.
 
 ## Polymarket Mental Models
 
@@ -30,6 +30,9 @@ flowchart LR
 
 - **Outcome** — represents a binary option related to a market. (most commonly `Yes`/`No`, but can be e.g. `Paris Saint-Germain`/`Inter Milan` in the case of a match where draws are not possible)
   - Identified by a **`token id`** (e.g. `15353185604353847122370324954202969073036867278400776447048296624042585335546` for the `Yes` outcome in the 1 rate cut in 2025 market)
+
+- The different APIs represent Events/Markets differently (e.g. Event, QueryEvent / ClobMarket, GammaMarket, RewardsMarket) but they all use to the same underlying identifiers.
+
 
 ### Tokens
 - **Tokens** are the blockchain implementation of **Outcomes** - tradable digital assets on the Polygon blockchain that users buy, hold and sell on Polygon. 

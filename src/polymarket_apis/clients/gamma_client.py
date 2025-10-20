@@ -25,28 +25,28 @@ class PolymarketGammaClient:
         return urljoin(self.base_url, endpoint)
 
     def get_markets(
-            self,
-            limit: Optional[int] = None,
-            offset: Optional[int] = None,
-            order: Optional[str] = None,
-            ascending: bool = True,
-            archived: Optional[bool] = None,
-            active: Optional[bool] = None,
-            closed: Optional[bool] = None,
-            slugs: Optional[list[str]] = None,
-            market_ids: Optional[list[int]] = None,
-            token_ids: Optional[list[str]] = None,
-            condition_ids: Optional[list[str]] = None,
-            tag_id: Optional[int] = None,
-            related_tags: Optional[bool] = False,
-            liquidity_num_min: Optional[float] = None,
-            liquidity_num_max: Optional[float] = None,
-            volume_num_min: Optional[float] = None,
-            volume_num_max: Optional[float] = None,
-            start_date_min: Optional[datetime] = None,
-            start_date_max: Optional[datetime] = None,
-            end_date_min: Optional[datetime] = None,
-            end_date_max: Optional[datetime] = None,
+        self,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        order: Optional[str] = None,
+        ascending: bool = True,
+        archived: Optional[bool] = None,
+        active: Optional[bool] = None,
+        closed: Optional[bool] = None,
+        slugs: Optional[list[str]] = None,
+        market_ids: Optional[list[int]] = None,
+        token_ids: Optional[list[str]] = None,
+        condition_ids: Optional[list[str]] = None,
+        tag_id: Optional[int] = None,
+        related_tags: Optional[bool] = False,
+        liquidity_num_min: Optional[float] = None,
+        liquidity_num_max: Optional[float] = None,
+        volume_num_min: Optional[float] = None,
+        volume_num_max: Optional[float] = None,
+        start_date_min: Optional[datetime] = None,
+        start_date_max: Optional[datetime] = None,
+        end_date_min: Optional[datetime] = None,
+        end_date_max: Optional[datetime] = None,
     ) -> list[GammaMarket]:
         params = {}
         if limit:
@@ -102,28 +102,28 @@ class PolymarketGammaClient:
         return GammaMarket(**response.json())
 
     def get_events(
-            self,
-            limit: Optional[int] = None,
-            offset: Optional[int] = None,
-            order: Optional[str] = None,
-            ascending: bool = True,
-            event_ids: Optional[Union[str, list[str]]] = None,
-            slugs: Optional[list[str]] = None,
-            archived: Optional[bool] = None,
-            active: Optional[bool] = None,
-            closed: Optional[bool] = None,
-            liquidity_min: Optional[float] = None,
-            liquidity_max: Optional[float] = None,
-            volume_min: Optional[float] = None,
-            volume_max: Optional[float] = None,
-            start_date_min: Optional[datetime] = None,
-            start_date_max: Optional[datetime] = None,
-            end_date_min: Optional[datetime] = None,
-            end_date_max: Optional[datetime] = None,
-            tag: Optional[str] = None,
-            tag_id: Optional[int] = None,
-            tag_slug: Optional[str] = None,
-            related_tags: bool = False,
+        self,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        order: Optional[str] = None,
+        ascending: bool = True,
+        event_ids: Optional[Union[str, list[str]]] = None,
+        slugs: Optional[list[str]] = None,
+        archived: Optional[bool] = None,
+        active: Optional[bool] = None,
+        closed: Optional[bool] = None,
+        liquidity_min: Optional[float] = None,
+        liquidity_max: Optional[float] = None,
+        volume_min: Optional[float] = None,
+        volume_max: Optional[float] = None,
+        start_date_min: Optional[datetime] = None,
+        start_date_max: Optional[datetime] = None,
+        end_date_min: Optional[datetime] = None,
+        end_date_max: Optional[datetime] = None,
+        tag: Optional[str] = None,
+        tag_id: Optional[int] = None,
+        tag_slug: Optional[str] = None,
+        related_tags: bool = False,
     ) -> list[Event]:
         params = {}
         if limit:
@@ -178,26 +178,26 @@ class PolymarketGammaClient:
         return Event(**response.json())
 
     def get_all_events(
-            self,
-            order: Optional[str] = None,
-            ascending: bool = True,
-            event_ids: Optional[Union[str, list[str]]] = None,
-            slugs: Optional[list[str]] = None,
-            archived: Optional[bool] = None,
-            active: Optional[bool] = None,
-            closed: Optional[bool] = None,
-            liquidity_min: Optional[float] = None,
-            liquidity_max: Optional[float] = None,
-            volume_min: Optional[float] = None,
-            volume_max: Optional[float] = None,
-            start_date_min: Optional[datetime] = None,
-            start_date_max: Optional[datetime] = None,
-            end_date_min: Optional[datetime] = None,
-            end_date_max: Optional[datetime] = None,
-            tag: Optional[str] = None,
-            tag_id: Optional[int] = None,
-            tag_slug: Optional[str] = None,
-            related_tags: bool = False,
+        self,
+        order: Optional[str] = None,
+        ascending: bool = True,
+        event_ids: Optional[Union[str, list[str]]] = None,
+        slugs: Optional[list[str]] = None,
+        archived: Optional[bool] = None,
+        active: Optional[bool] = None,
+        closed: Optional[bool] = None,
+        liquidity_min: Optional[float] = None,
+        liquidity_max: Optional[float] = None,
+        volume_min: Optional[float] = None,
+        volume_max: Optional[float] = None,
+        start_date_min: Optional[datetime] = None,
+        start_date_max: Optional[datetime] = None,
+        end_date_min: Optional[datetime] = None,
+        end_date_max: Optional[datetime] = None,
+        tag: Optional[str] = None,
+        tag_id: Optional[int] = None,
+        tag_slug: Optional[str] = None,
+        related_tags: bool = False,
     ) -> list[Event]:
         offset = 0
         events = []
@@ -236,17 +236,33 @@ class PolymarketGammaClient:
         return events
 
     def search_events(
-            self,
-            query: str,
-            active: bool = True,
-            status: Optional[Literal["active", "resolved"]] = "active",
-            sort: Literal["volume", "volume_24hr", "liquidity", "start_date", "end_date", "competitive"] = "volume_24hr",
-            page: int = 1,
-            limit_per_type: int = 50, # max is 50
-            presets: Optional[Literal["EventsHybrid", "EventsTitle"] | list[Literal["EventsHybrid", "EventsTitle"]]] = None,
+        self,
+        query: str,
+        active: bool = True,
+        status: Optional[Literal["active", "resolved"]] = "active",
+        sort: Literal[
+            "volume",
+            "volume_24hr",
+            "liquidity",
+            "start_date",
+            "end_date",
+            "competitive",
+        ] = "volume_24hr",
+        page: int = 1,
+        limit_per_type: int = 50,  # max is 50
+        presets: Optional[
+            Literal["EventsHybrid", "EventsTitle"]
+            | list[Literal["EventsHybrid", "EventsTitle"]]
+        ] = None,
     ) -> EventList:
         """Search for events by query. Should emulate the website search function."""
-        params = {"q": query,"page": page, "limit_per_type": limit_per_type, "events_status": status, "active": active}
+        params = {
+            "q": query,
+            "page": page,
+            "limit_per_type": limit_per_type,
+            "events_status": status,
+            "active": active,
+        }
         if sort:
             params["sort"] = sort
         if sort == "end_date":
@@ -302,7 +318,9 @@ class PolymarketGammaClient:
             for source in citations:
                 print(f"- {source.get('url', 'Unknown URL')}")
 
-    def grok_election_market_explanation(self, candidate_name: str, election_title: str):
+    def grok_election_market_explanation(
+        self, candidate_name: str, election_title: str
+    ):
         text = f"Provide candidate information for {candidate_name} in the {election_title} on Polymarket."
         json_payload = {
             "id": generate_random_id(),

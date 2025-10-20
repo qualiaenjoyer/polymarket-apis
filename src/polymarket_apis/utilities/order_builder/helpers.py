@@ -39,7 +39,6 @@ def decimal_places(x: float) -> int:
     return max(0, -exponent)
 
 
-
 def generate_orderbook_summary_hash(orderbook: OrderBookSummary) -> str:
     """Compute hash while forcing empty string for hash field."""
     server_hash = orderbook.hash

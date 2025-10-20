@@ -28,4 +28,4 @@ CUSTOM_ERROR_DICT = {
     "0xcd7769ff": "NotApprovedForAll()",
     "0x80fee105": "OnlyOracle()",
     "0x155a4b5c": "UnexpectedCollateralToken()",
-    }
+}

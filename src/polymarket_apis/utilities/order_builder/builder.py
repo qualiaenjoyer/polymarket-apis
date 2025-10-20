@@ -54,7 +54,11 @@ class OrderBuilder:
         self.funder = funder if funder is not None else self.signer.address()
 
     def get_order_amounts(
-            self, side: str, size: float, price: float, round_config: RoundConfig,
+        self,
+        side: str,
+        size: float,
+        price: float,
+        round_config: RoundConfig,
     ):
         raw_price = round_normal(price, round_config.price)
 
@@ -88,7 +92,11 @@ class OrderBuilder:
         raise ValueError(msg)
 
     def get_market_order_amounts(
-            self, side: str, amount: float, price: float, round_config: RoundConfig,
+        self,
+        side: str,
+        amount: float,
+        price: float,
+        round_config: RoundConfig,
     ):
         raw_price = round_normal(price, round_config.price)
 
@@ -122,7 +130,9 @@ class OrderBuilder:
         raise ValueError(msg)
 
     def create_order(
-            self, order_args: OrderArgs, options: CreateOrderOptions,
+        self,
+        order_args: OrderArgs,
+        options: CreateOrderOptions,
     ) -> SignedOrder:
         """Creates and signs an order."""
         side, maker_amount, taker_amount = self.get_order_amounts(
@@ -147,7 +157,8 @@ class OrderBuilder:
         )
 
         contract_config = get_contract_config(
-            self.signer.get_chain_id(), options.neg_risk,
+            self.signer.get_chain_id(),
+            options.neg_risk,
         )
 
         order_builder = UtilsOrderBuilder(
@@ -159,7 +170,9 @@ class OrderBuilder:
         return order_builder.build_signed_order(data)
 
     def create_market_order(
-            self, order_args: MarketOrderArgs, options: CreateOrderOptions,
+        self,
+        order_args: MarketOrderArgs,
+        options: CreateOrderOptions,
     ) -> SignedOrder:
         """Creates and signs a market order."""
         side, maker_amount, taker_amount = self.get_market_order_amounts(
@@ -184,7 +197,8 @@ class OrderBuilder:
         )
 
         contract_config = get_contract_config(
-            self.signer.get_chain_id(), options.neg_risk,
+            self.signer.get_chain_id(),
+            options.neg_risk,
         )
 
         order_builder = UtilsOrderBuilder(
@@ -196,10 +210,12 @@ class OrderBuilder:
         return order_builder.build_signed_order(data)
 
     def calculate_buy_market_price(
-            self,
-            asks: list[OrderSummary], # expected to be sorted from worst to best price (high to low)
-            amount_to_match: float, # in usdc
-            order_type: OrderType,
+        self,
+        asks: list[
+            OrderSummary
+        ],  # expected to be sorted from worst to best price (high to low)
+        amount_to_match: float,  # in usdc
+        order_type: OrderType,
     ) -> float:
         if not asks:
             msg = "No ask orders available"
@@ -218,10 +234,12 @@ class OrderBuilder:
         return float(asks[0].price)
 
     def calculate_sell_market_price(
-            self,
-            bids: list[OrderSummary], # expected to be sorted from worst to best price (low to high)
-            amount_to_match: float, # in shares
-            order_type: OrderType,
+        self,
+        bids: list[
+            OrderSummary
+        ],  # expected to be sorted from worst to best price (low to high)
+        amount_to_match: float,  # in shares
+        order_type: OrderType,
     ) -> float:
         if not bids:
             msg = "No bid orders available"

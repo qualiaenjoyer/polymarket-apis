@@ -44,7 +44,7 @@ class Position(BaseModel):
     @field_validator("end_date", mode="before")
     def handle_empty_end_date(cls, v):
         if v == "":
-            return datetime(2099,12,31, tzinfo=UTC)
+            return datetime(2099, 12, 31, tzinfo=UTC)
         return v
 
 
@@ -145,6 +145,7 @@ class ValueResponse(BaseModel):
     # Value information
     value: float
 
+
 class User(BaseModel):
     proxy_wallet: EthAddress = Field(alias="proxyWallet")
     name: str
@@ -152,9 +153,11 @@ class User(BaseModel):
     profile_image: str = Field(alias="profileImage")
     profile_image_optimized: str = Field(alias="profileImageOptimized")
 
+
 class UserMetric(User):
     amount: float
     pseudonym: str
+
 
 class UserRank(User):
     amount: float

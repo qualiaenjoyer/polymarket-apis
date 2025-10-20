@@ -26,6 +26,7 @@ NEG_RISK_CONFIG = {
     ),
 }
 
+
 def get_contract_config(chain_id: int, neg_risk: bool = False) -> ContractConfig:
     """Get the contract configuration for the chain."""
     config = NEG_RISK_CONFIG.get(chain_id) if neg_risk else CONFIG.get(chain_id)

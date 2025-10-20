@@ -21,6 +21,7 @@ from ..utilities.constants import ZERO_ADDRESS
 
 logger = logging.getLogger(__name__)
 
+
 class ApiCreds(BaseModel):
     key: str = Field(alias="apiKey")
     secret: str
@@ -122,10 +123,12 @@ class Rewards(BaseModel):
     rewards_min_size: int = Field(alias="min_size")
     rewards_max_spread: float = Field(alias="max_spread")
 
+
 class EarnedReward(BaseModel):
     asset_address: EthAddress
     earnings: float
     asset_rate: float
+
 
 class DailyEarnedReward(BaseModel):
     date: datetime
@@ -134,12 +137,12 @@ class DailyEarnedReward(BaseModel):
     earnings: float
     asset_rate: float
 
-class PolymarketRewardItem(BaseModel):
+
+class RewardMarket(BaseModel):
     market_id: str
     condition_id: Keccak256
     question: str
     market_slug: str
-    market_description: str
     event_slug: str
     image: str
     maker_address: EthAddress
@@ -164,6 +167,7 @@ class MarketRewards(BaseModel):
     rewards_max_spread: float
     rewards_min_size: int
     market_competitiveness: float
+
 
 class ClobMarket(BaseModel):
     # Core market information
@@ -215,7 +219,9 @@ class ClobMarket(BaseModel):
 
     @field_validator("neg_risk_market_id", "neg_risk_request_id", mode="wrap")
     @classmethod
-    def validate_neg_risk_fields(cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo) -> Optional[str]:
+    def validate_neg_risk_fields(
+        cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+    ) -> Optional[str]:
         try:
             return handler(value)
         except ValidationError as e:
@@ -227,12 +233,17 @@ class ClobMarket(BaseModel):
                 return value
             if neg_risk and value == "":
                 for _ in e.errors():
-                    msg = ("Poorly setup market: negative risk is True, but either neg_risk_market_id or neg_risk_request_id is missing. "
-                           f" Question: {info.data.get("question")}; Market slug: {info.data.get('market_slug')} \n")
+                    msg = (
+                        "Poorly setup market: negative risk is True, but either neg_risk_market_id or neg_risk_request_id is missing. "
+                        f" Question: {info.data.get('question')}; Market slug: {info.data.get('market_slug')} \n"
+                    )
                     logger.warning(msg)
+
     @field_validator("condition_id", "question_id", mode="wrap")
     @classmethod
-    def validate_condition_fields(cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo) -> str:
+    def validate_condition_fields(
+        cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+    ) -> str:
         try:
             return handler(value)
         except ValueError:
@@ -240,6 +251,7 @@ class ClobMarket(BaseModel):
             if not active:
                 return value
             raise
+
 
 class OpenOrder(BaseModel):
     order_id: Keccak256 = Field(alias="id")
@@ -258,6 +270,7 @@ class OpenOrder(BaseModel):
     associate_trades: list[str]
     created_at: datetime
 
+
 class MakerOrder(BaseModel):
     token_id: str = Field(alias="asset_id")
     order_id: Keccak256
@@ -268,6 +281,7 @@ class MakerOrder(BaseModel):
     outcome: str
     fee_rate_bps: float
 
+
 class PolygonTrade(BaseModel):
     trade_id: str = Field(alias="id")
     taker_order_id: Keccak256
@@ -277,7 +291,7 @@ class PolygonTrade(BaseModel):
     size: float
     fee_rate_bps: float
     price: float
-    status: str # change to literals MINED, CONFIRMED
+    status: str  # change to literals MINED, CONFIRMED
     match_time: datetime
     last_update: datetime
     outcome: str
@@ -287,6 +301,7 @@ class PolygonTrade(BaseModel):
     transaction_hash: Keccak256
     maker_orders: list[MakerOrder]
     trader_side: Literal["TAKER", "MAKER"]
+
 
 class TradeParams(BaseModel):
     id: Optional[str] = None
@@ -304,12 +319,13 @@ class OpenOrderParams(BaseModel):
 
 
 class DropNotificationParams(BaseModel):
-    ids: Optional[list[str]]= None
+    ids: Optional[list[str]] = None
 
 
 class OrderSummary(BaseModel):
     price: Optional[float] = None
     size: Optional[float] = None
+
 
 class PriceLevel(OrderSummary):
     side: Literal["BUY", "SELL"]
@@ -374,6 +390,7 @@ class RoundConfig(BaseModel):
     price: int
     size: int
     amount: int
+
 
 class OrderArgs(BaseModel):
     token_id: str
@@ -456,11 +473,13 @@ class MarketOrderArgs(BaseModel):
 
     order_type: OrderType = OrderType.FOK
 
+
 class PostOrdersArgs(BaseModel):
     order: SignedOrder
     order_type: OrderType = OrderType.GTC
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
 
 class ContractConfig(BaseModel):
     """Contract Configuration."""
@@ -488,6 +507,7 @@ class OrderPostResponse(BaseModel):
     making_amount: str = Field(alias="makingAmount")
     status: str = Literal["live", "matched", "delayed"]
     success: bool
+
 
 class OrderCancelResponse(BaseModel):
     not_canceled: Optional[dict[Keccak256, str]]

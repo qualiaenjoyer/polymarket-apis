@@ -27,11 +27,11 @@ from ..types.clob_types import (
     PaginatedResponse,
     PartialCreateOrderOptions,
     PolygonTrade,
-    PolymarketRewardItem,
     PostOrdersArgs,
     Price,
     PriceHistory,
     RequestArgs,
+    RewardMarket,
     Spread,
     TickSize,
     TokenBidAskDict,
@@ -88,15 +88,16 @@ from ..utilities.signing.signer import Signer
 
 logger = logging.getLogger(__name__)
 
+
 class PolymarketClobClient:
     def __init__(
-            self,
-            private_key: str,
-            proxy_address: EthAddress,
-            creds: Optional[ApiCreds] = None,
-            chain_id: Literal[137, 80002] = POLYGON,
-            signature_type: Literal[0, 1, 2] = 1,
-            # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet
+        self,
+        private_key: str,
+        proxy_address: EthAddress,
+        creds: Optional[ApiCreds] = None,
+        chain_id: Literal[137, 80002] = POLYGON,
+        signature_type: Literal[0, 1, 2] = 1,
+        # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet
     ):
         self.proxy_address = proxy_address
         self.client = httpx.Client(http2=True, timeout=30.0)
@@ -199,7 +200,9 @@ class PolymarketClobClient:
         return fee_rate
 
     def __resolve_tick_size(
-            self, token_id: str, tick_size: TickSize = None,
+        self,
+        token_id: str,
+        tick_size: TickSize = None,
     ) -> TickSize:
         min_tick_size = self.get_tick_size(token_id)
         if tick_size is not None:
@@ -211,12 +214,19 @@ class PolymarketClobClient:
         return tick_size
 
     def __resolve_fee_rate(
-            self, token_id: str, user_fee_rate: Optional[int] = None,
+        self,
+        token_id: str,
+        user_fee_rate: Optional[int] = None,
     ) -> int:
         market_fee_rate_bps = self.get_fee_rate_bps(token_id)
         # If both fee rate on the market and the user supplied fee rate are non-zero, validate that they match
         # else return the market fee rate
-        if market_fee_rate_bps > 0 and user_fee_rate is not None and user_fee_rate > 0 and user_fee_rate != market_fee_rate_bps:
+        if (
+            market_fee_rate_bps > 0
+            and user_fee_rate is not None
+            and user_fee_rate > 0
+            and user_fee_rate != market_fee_rate_bps
+        ):
             msg = f"invalid user provided fee rate: ({user_fee_rate}), fee rate for the market must be {market_fee_rate_bps}"
             raise InvalidFeeRateError(msg)
         return market_fee_rate_bps
@@ -291,10 +301,14 @@ class PolymarketClobClient:
         response.raise_for_status()
         return [OrderBookSummary(**obs) for obs in response.json()]
 
-    async def get_order_books_async(self, token_ids: list[str]) -> list[OrderBookSummary]:
+    async def get_order_books_async(
+        self, token_ids: list[str]
+    ) -> list[OrderBookSummary]:
         """Get the orderbook for a set of tokens asynchronously."""
         body = [{"token_id": token_id} for token_id in token_ids]
-        response = await self.async_client.post(self._build_url(GET_ORDER_BOOKS), json=body)
+        response = await self.async_client.post(
+            self._build_url(GET_ORDER_BOOKS), json=body
+        )
         response.raise_for_status()
         return [OrderBookSummary(**obs) for obs in response.json()]
 
@@ -304,7 +318,7 @@ class PolymarketClobClient:
         response.raise_for_status()
         return ClobMarket(**response.json())
 
-    def get_markets(self, next_cursor="MA==")  -> PaginatedResponse[ClobMarket]:
+    def get_markets(self, next_cursor="MA==") -> PaginatedResponse[ClobMarket]:
         """Get paginated ClobMarkets."""
         params = {"next_cursor": next_cursor}
         response = self.client.get(self._build_url(GET_MARKETS), params=params)
@@ -333,10 +347,10 @@ class PolymarketClobClient:
         return current_markets + next_page_markets
 
     def get_recent_history(
-            self,
-            token_id: str,
-            interval: Optional[Literal["1d", "6h", "1h"]] = "1d",
-            fidelity: int = 1,  # resolution in minutes
+        self,
+        token_id: str,
+        interval: Optional[Literal["1d", "6h", "1h"]] = "1d",
+        fidelity: int = 1,  # resolution in minutes
     ) -> PriceHistory:
         """Get the recent price history of a token (up to now) - 1h, 6h, 1d."""
         if fidelity < 1:
@@ -353,17 +367,17 @@ class PolymarketClobClient:
         return PriceHistory(**response.json(), token_id=token_id)
 
     def get_history(
-            self,
-            token_id: str,
-            start_time: Optional[datetime] = None,
-            end_time: Optional[datetime] = None,
-            interval: Optional[Literal["max", "1m", "1w"]] = "max",
-            fidelity: Optional[int] = 2,  # resolution in minutes
+        self,
+        token_id: str,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        interval: Literal["max", "1m", "1w"] = "max",
+        fidelity: int = 2,  # resolution in minutes
     ) -> PriceHistory:
         """Get the price history of a token between selected dates - 1m, 1w, max."""
-        min_fidelities = {"1m": 10, "1w": 5, "max": 2}
+        min_fidelities: dict[str, int] = {"1m": 10, "1w": 5, "max": 2}
 
-        if fidelity < min_fidelities[interval]:
+        if fidelity is None or fidelity < min_fidelities[interval]:
             msg = f"invalid filters: minimum 'fidelity' for '{interval}' range is {min_fidelities[interval]}"
             raise ValueError(msg)
 
@@ -389,7 +403,13 @@ class PolymarketClobClient:
         response.raise_for_status()
         return PriceHistory(**response.json(), token_id=token_id)
 
-    def get_orders(self, order_id: Optional[str] = None, condition_id: Optional[Keccak256] = None, token_id: Optional[str] = None, next_cursor: str ="MA==") -> list[OpenOrder]:
+    def get_orders(
+        self,
+        order_id: Optional[str] = None,
+        condition_id: Optional[Keccak256] = None,
+        token_id: Optional[str] = None,
+        next_cursor: str = "MA==",
+    ) -> list[OpenOrder]:
         """Gets your active orders, filtered by order_id, condition_id, token_id."""
         params = {}
         if order_id:
@@ -406,14 +426,18 @@ class PolymarketClobClient:
         next_cursor = next_cursor if next_cursor is not None else "MA=="
         while next_cursor != END_CURSOR:
             params["next_cursor"] = next_cursor
-            response = self.client.get(self._build_url(ORDERS), headers=headers, params=params)
+            response = self.client.get(
+                self._build_url(ORDERS), headers=headers, params=params
+            )
             response.raise_for_status()
             next_cursor = response.json()["next_cursor"]
             results += [OpenOrder(**order) for order in response.json()["data"]]
 
         return results
 
-    def create_order(self, order_args: OrderArgs, options: Optional[PartialCreateOrderOptions] = None) -> SignedOrder:
+    def create_order(
+        self, order_args: OrderArgs, options: Optional[PartialCreateOrderOptions] = None
+    ) -> SignedOrder:
         """Creates and signs an order."""
         # add resolve_order_options, or similar
         tick_size = self.__resolve_tick_size(
@@ -425,7 +449,6 @@ class PolymarketClobClient:
             msg = f"price ({order_args.price}), min: {tick_size} - max: {1 - float(tick_size)}"
             raise InvalidPriceError(msg)
 
-
         neg_risk = (
             options.neg_risk
             if options and options.neg_risk
@@ -433,7 +456,9 @@ class PolymarketClobClient:
         )
 
         # fee rate
-        fee_rate_bps = self.__resolve_fee_rate(order_args.token_id, order_args.fee_rate_bps)
+        fee_rate_bps = self.__resolve_fee_rate(
+            order_args.token_id, order_args.fee_rate_bps
+        )
         order_args.fee_rate_bps = fee_rate_bps
 
         return self.builder.create_order(
@@ -444,7 +469,9 @@ class PolymarketClobClient:
             ),
         )
 
-    def post_order(self, order: SignedOrder, order_type: OrderType = OrderType.GTC) -> Optional[OrderPostResponse]:
+    def post_order(
+        self, order: SignedOrder, order_type: OrderType = OrderType.GTC
+    ) -> Optional[OrderPostResponse]:
         """Posts a SignedOrder."""
         body = order_to_json(order, self.creds.key, order_type)
         headers = create_level_2_headers(
@@ -467,14 +494,21 @@ class PolymarketClobClient:
             error_json = exc.response.json()
             print("Details:", error_json["error"])
 
-    def create_and_post_order(self, order_args: OrderArgs, options: Optional[PartialCreateOrderOptions] = None, order_type: OrderType = OrderType.GTC) -> OrderPostResponse:
+    def create_and_post_order(
+        self,
+        order_args: OrderArgs,
+        options: Optional[PartialCreateOrderOptions] = None,
+        order_type: OrderType = OrderType.GTC,
+    ) -> OrderPostResponse:
         """Utility function to create and publish an order."""
         order = self.create_order(order_args, options)
         return self.post_order(order=order, order_type=order_type)
 
     def post_orders(self, args: list[PostOrdersArgs]):
         """Posts multiple SignedOrders at once."""
-        body = [order_to_json(arg.order, self.creds.key, arg.order_type) for arg in args]
+        body = [
+            order_to_json(arg.order, self.creds.key, arg.order_type) for arg in args
+        ]
         headers = create_level_2_headers(
             self.signer,
             self.creds,
@@ -493,8 +527,10 @@ class PolymarketClobClient:
                 resp = OrderPostResponse(**item)
                 order_responses.append(resp)
                 if resp.error_msg:
-                    msg = (f"Error posting order in position {index} \n"
-                           f"Details: {resp.error_msg}")
+                    msg = (
+                        f"Error posting order in position {index} \n"
+                        f"Details: {resp.error_msg}"
+                    )
                     logger.warning(msg)
         except httpx.HTTPStatusError as exc:
             msg = f"Client Error '{exc.response.status_code} {exc.response.reason_phrase}' while posting order"
@@ -504,15 +540,22 @@ class PolymarketClobClient:
         else:
             return order_responses
 
-    def create_and_post_orders(self, args: list[OrderArgs], order_types: list[OrderType]) -> list[OrderPostResponse]:
+    def create_and_post_orders(
+        self, args: list[OrderArgs], order_types: list[OrderType]
+    ) -> list[OrderPostResponse]:
         """Utility function to create and publish multiple orders at once."""
         return self.post_orders(
-            [PostOrdersArgs(order=self.create_order(order_args),
-                            order_type=order_type)
-             for order_args, order_type in zip(args, order_types, strict=True)],
+            [
+                PostOrdersArgs(
+                    order=self.create_order(order_args), order_type=order_type
+                )
+                for order_args, order_type in zip(args, order_types, strict=True)
+            ],
         )
 
-    def calculate_market_price(self, token_id: str, side: str, amount: float, order_type: OrderType) -> float:
+    def calculate_market_price(
+        self, token_id: str, side: str, amount: float, order_type: OrderType
+    ) -> float:
         """Calculates the matching price considering an amount and the current orderbook."""
         book = self.get_order_book(token_id)
         if book is None:
@@ -523,19 +566,27 @@ class PolymarketClobClient:
                 msg = "No ask orders available"
                 raise LiquidityError(msg)
             return self.builder.calculate_buy_market_price(
-                book.asks, amount, order_type,
+                book.asks,
+                amount,
+                order_type,
             )
         if side == "SELL":
             if book.bids is None:
                 msg = "No bid orders available"
                 raise LiquidityError(msg)
             return self.builder.calculate_sell_market_price(
-                book.bids, amount, order_type,
+                book.bids,
+                amount,
+                order_type,
             )
         msg = 'Side must be "BUY" or "SELL"'
         raise ValueError(msg)
 
-    def create_market_order(self, order_args: MarketOrderArgs, options: Optional[PartialCreateOrderOptions] = None):
+    def create_market_order(
+        self,
+        order_args: MarketOrderArgs,
+        options: Optional[PartialCreateOrderOptions] = None,
+    ):
         """Creates and signs a market order."""
         tick_size = self.__resolve_tick_size(
             order_args.token_id,
@@ -561,7 +612,9 @@ class PolymarketClobClient:
         )
 
         # fee rate
-        fee_rate_bps = self.__resolve_fee_rate(order_args.token_id, order_args.fee_rate_bps)
+        fee_rate_bps = self.__resolve_fee_rate(
+            order_args.token_id, order_args.fee_rate_bps
+        )
         order_args.fee_rate_bps = fee_rate_bps
 
         return self.builder.create_market_order(
@@ -573,10 +626,10 @@ class PolymarketClobClient:
         )
 
     def create_and_post_market_order(
-            self,
-            order_args: MarketOrderArgs,
-            options: Optional[PartialCreateOrderOptions] = None,
-            order_type: OrderType = OrderType.FOK,
+        self,
+        order_args: MarketOrderArgs,
+        options: Optional[PartialCreateOrderOptions] = None,
+        order_type: OrderType = OrderType.FOK,
     ) -> OrderPostResponse:
         """Utility function to create and publish a market order."""
         order = self.create_market_order(order_args, options)
@@ -589,7 +642,12 @@ class PolymarketClobClient:
         request_args = RequestArgs(method="DELETE", request_path=CANCEL, body=body)
         headers = create_level_2_headers(self.signer, self.creds, request_args)
 
-        response = self.client.request("DELETE", self._build_url(CANCEL), headers=headers, data=json.dumps(body).encode("utf-8"))
+        response = self.client.request(
+            "DELETE",
+            self._build_url(CANCEL),
+            headers=headers,
+            data=json.dumps(body).encode("utf-8"),
+        )
         response.raise_for_status()
         return OrderCancelResponse(**response.json())
 
@@ -598,11 +656,18 @@ class PolymarketClobClient:
         body = order_ids
 
         request_args = RequestArgs(
-            method="DELETE", request_path=CANCEL_ORDERS, body=body,
+            method="DELETE",
+            request_path=CANCEL_ORDERS,
+            body=body,
         )
         headers = create_level_2_headers(self.signer, self.creds, request_args)
 
-        response = self.client.request("DELETE", self._build_url(CANCEL_ORDERS), headers=headers, data=json.dumps(body).encode("utf-8"))
+        response = self.client.request(
+            "DELETE",
+            self._build_url(CANCEL_ORDERS),
+            headers=headers,
+            data=json.dumps(body).encode("utf-8"),
+        )
         response.raise_for_status()
         return OrderCancelResponse(**response.json())
 
@@ -620,7 +685,11 @@ class PolymarketClobClient:
         request_args = RequestArgs(method="GET", request_path=IS_ORDER_SCORING)
         headers = create_level_2_headers(self.signer, self.creds, request_args)
 
-        response = self.client.get(self._build_url(IS_ORDER_SCORING), headers=headers, params={"order_id": order_id})
+        response = self.client.get(
+            self._build_url(IS_ORDER_SCORING),
+            headers=headers,
+            params={"order_id": order_id},
+        )
         response.raise_for_status()
         return response.json()["scoring"]
 
@@ -628,12 +697,16 @@ class PolymarketClobClient:
         """Check if the orders are currently scoring."""
         body = order_ids
         request_args = RequestArgs(
-            method="POST", request_path=ARE_ORDERS_SCORING, body=body,
+            method="POST",
+            request_path=ARE_ORDERS_SCORING,
+            body=body,
         )
         headers = create_level_2_headers(self.signer, self.creds, request_args)
         headers["Content-Type"] = "application/json"
 
-        response = self.client.post(self._build_url(ARE_ORDERS_SCORING), headers=headers, json=body)
+        response = self.client.post(
+            self._build_url(ARE_ORDERS_SCORING), headers=headers, json=body
+        )
         response.raise_for_status()
         return response.json()
 
@@ -646,19 +719,22 @@ class PolymarketClobClient:
         request_args = RequestArgs(method="GET", request_path="/rewards/markets/")
         headers = create_level_2_headers(self.signer, self.creds, request_args)
 
-        response = self.client.get(self._build_url("/rewards/markets/" + condition_id), headers=headers)
+        response = self.client.get(
+            self._build_url("/rewards/markets/" + condition_id), headers=headers
+        )
         response.raise_for_status()
         return next(MarketRewards(**market) for market in response.json()["data"])
 
     def get_trades(
-            self,
-            condition_id: Optional[Keccak256] = None,
-            token_id: Optional[str] = None,
-            trade_id: Optional[str] = None,
-            before: Optional[datetime] = None,
-            after: Optional[datetime] = None,
-            proxy_address: Optional[int] = None,
-            next_cursor="MA==") -> list[PolygonTrade]:
+        self,
+        condition_id: Optional[Keccak256] = None,
+        token_id: Optional[str] = None,
+        trade_id: Optional[str] = None,
+        before: Optional[datetime] = None,
+        after: Optional[datetime] = None,
+        proxy_address: Optional[int] = None,
+        next_cursor="MA==",
+    ) -> list[PolygonTrade]:
         """Fetches the trade history for a user."""
         params = {}
         if condition_id:
@@ -681,7 +757,9 @@ class PolymarketClobClient:
         next_cursor = next_cursor if next_cursor is not None else "MA=="
         while next_cursor != END_CURSOR:
             params["next_cursor"] = next_cursor
-            response =  self.client.get(self._build_url(TRADES), headers=headers, params=params)
+            response = self.client.get(
+                self._build_url(TRADES), headers=headers, params=params
+            )
             response.raise_for_status()
             next_cursor = response.json()["next_cursor"]
             results += [PolygonTrade(**trade) for trade in response.json()["data"]]
@@ -694,14 +772,16 @@ class PolymarketClobClient:
             date = datetime.now(UTC)
         params = {
             "authenticationType": "magic",
-            "date": f"{date.strftime("%Y-%m-%d")}",
+            "date": f"{date.strftime('%Y-%m-%d')}",
         }
 
         request_args = RequestArgs(method="GET", request_path="/rewards/user/total")
         headers = create_level_2_headers(self.signer, self.creds, request_args)
         params["l2Headers"] = json.dumps(headers)
 
-        response = self.client.get("https://polymarket.com/api/rewards/totalEarnings", params=params)
+        response = self.client.get(
+            "https://polymarket.com/api/rewards/totalEarnings", params=params
+        )
         response.raise_for_status()
         if response.json():
             return DailyEarnedReward(**response.json()[0])
@@ -714,14 +794,25 @@ class PolymarketClobClient:
         )
 
     def get_reward_markets(
-            self,
-            sort_by: Optional[Literal["market", "max_spread", "min_size", "rate_per_day", "spread", "price", "earnings", "earning_percentage"]] = "market",
-            sort_direction: Optional[Literal["ASC", "DESC"]] = None,
-            query: Optional[str] = None,
-            show_favorites: bool = False,
-    ) -> list[PolymarketRewardItem]:
+        self,
+        query: Optional[str] = None,
+        sort_by: Optional[
+            Literal[
+                "market",
+                "max_spread",
+                "min_size",
+                "rate_per_day",
+                "spread",
+                "price",
+                "earnings",
+                "earning_percentage",
+            ]
+        ] = "market",
+        sort_direction: Optional[Literal["ASC", "DESC"]] = None,
+        show_favorites: bool = False,
+    ) -> list[RewardMarket]:
         """
-        Get all polymarket.com/rewards items, sorted by different criteria.
+        Search through markets that offer rewards (polymarket.com/rewards items) by query, sorted by different metrics. If query is empty, returns all markets with rewards.
 
          - market start date ("market") - TODO confirm this
          - max spread for rewards in usdc
@@ -753,11 +844,12 @@ class PolymarketClobClient:
         next_cursor = "MA=="
         while next_cursor != END_CURSOR:
             params["nextCursor"] = next_cursor
-            response = self.client.get("https://polymarket.com/api/rewards/markets", params=params)
-            # can probably use clob/rewards/user/markets here but haven't figure out auth
+            response = self.client.get(
+                "https://polymarket.com/api/rewards/markets", params=params
+            )
             response.raise_for_status()
             next_cursor = response.json()["next_cursor"]
-            results += [PolymarketRewardItem(**reward) for reward in response.json()["data"]]
+            results += [RewardMarket(**reward) for reward in response.json()["data"]]
 
         return results
 

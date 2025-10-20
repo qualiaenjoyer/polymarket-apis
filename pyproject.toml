@@ -1,7 +1,7 @@
 [project]
 name = "polymarket-apis"
-version = "0.3.0"
-description = "Unified Polymarket APIs - clob, gamma, data, web3, websockets"
+version = "0.3.1"
+description = "Unified Polymarket APIs with Pydantic data validation - Clob, Gamma, Data, Web3, Websockets, GraphQL clients."
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
@@ -64,7 +64,7 @@ lint.extend-select = [
     "FBT",  # Flake8-boolean-trap – potential pitfalls with booleans
     "B",    # Flake8-bugbear – common bug patterns
     "A",    # Flake8-builtins – misuse of Python built-in names
-    "COM",  # Flake8-commas – trailing/comma issues
+#    "COM",  # Flake8-commas – trailing/comma issues
     # "CPY", # Flake8-copyright – copyright header checks
     "C4",   # Flake8-comprehensions – best practices in comprehensions
     "DTZ",  # Flake8-datetimez – requires timezone-aware datetime objects
