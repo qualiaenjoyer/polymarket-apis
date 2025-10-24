@@ -78,15 +78,36 @@ flowchart LR
   ### PolymarketGammaClient - Market/Event related operations
     - #### Market
       - get **GammaMarket** by `market_id`
+      - get **GammaMarket** by `slug`
       - get **GammaMarkets** with pagination (offset and limit), filter by `slug`s, `market_id`s, `token_id`s, `condition_id`s, `tag_id` or filtered by active, closed, archived, liquidity window, volume window, start date window, end date window and ordered
+      - get **Tags** for a **Market** by `market_id`
     - #### Event
       - get **Event** by `event_id`
+      - get **Event** by `slug`
       - get **Events** with pagination, filter by `slug`s, `event_id`s, `tag_id` or filtered by active, closed, archived, liquidity window, volume window, start date window, end date window and ordered
       - get all **Events** given some filtration
-      - search **Events**, filter by text query, active/resolved, sort by volume/volume_24hr/liquidity/start_date/end_date/competitive (tries to mimic the web app search bar)
-    - #### Miscellaneous
+      - search **Events**, **Tags**, **Profiles**, filter by text query, tags, active/resolved, recurrence, sort by volume/volume_24hr/liquidity/start_date/end_date/competitive
       - grok event summary by **Event** `slug`
       - grok election market explanation by candidate name and election title
+      - get **Tags** for an **Event** by `event_id`
+    - #### Tag
+      - get **Tags** with pagination, order by any **Tag** field
+      - get all **Tags**
+      - get **Tag** by `tag_id`
+      - get **Tag** relations by `tag_id` or `slug`
+      - get **Tags** related to a **Tag** by `tag_id` or `slug`
+    - #### Sport
+      - get **Teams** with pagination, filter by `league`, `name`, `abbreviation`
+      - get all **Teams** given some filtration
+      - get **Sports** with pagination, filter by `name`
+      - get **Sports** metadata
+    - #### Series
+      - get **Series** with pagination, filter by `slug`, closed status, order by any **Series** field
+      - get all **Series** given some filtration
+    - #### Comments
+      - get comments by `parent_entity_type` and `parent_entity_id` with pagination, order by any **Comment** field
+      - get comments by `comment_id` - gets all comments in a thread.
+      - get comments by user base address (not proxy address) with pagination, order by any **Comment** field
 
   ### PolymarketDataClient - Portfolio related operations
   - #### Positions
@@ -102,7 +123,12 @@ flowchart LR
       - `condition_ids` is ***None*** → total value of positions
       - `condition_ids` is ***str*** → value of positions on a market
       - `condition_ids` is ***list[str]*** → sum of values of positions on multiple markets
+  - #### Closed positions
+    - get closed positions, filter by condition_ids
   - #### Miscellaneous
+    - get total number of markets traded by user address
+    - get open interest for a list of condition_ids
+    - get live volume for an event by `event_id`
     - get pnl timeseries by user address for a period (1d, 1w, 1m, all) with frequency (1h, 3h, 12h, 1d)
     - get overall pnl/volume by user address for a recent window (1d, 7d, 30d, all)
     - get user rank on the profit/volume leaderboards by user address for a recent window (1d, 7d, 30d, all)

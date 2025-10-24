@@ -7,7 +7,18 @@ from urllib.parse import urljoin
 
 import httpx
 
-from ..types.gamma_types import Event, EventList, GammaMarket
+from ..types.common import EthAddress
+from ..types.gamma_types import (
+    Comment,
+    Event,
+    GammaMarket,
+    SearchResult,
+    Series,
+    Sport,
+    Tag,
+    TagRelation,
+    Team,
+)
 
 
 def generate_random_id(length=16):
@@ -23,6 +34,73 @@ class PolymarketGammaClient:
 
     def _build_url(self, endpoint: str) -> str:
         return urljoin(self.base_url, endpoint)
+
+    def search(
+        self,
+        query: str,
+        cache: Optional[bool] = None,
+        status: Optional[Literal["active", "resolved"]] = None,
+        limit_per_type: Optional[int] = None,  # max is 50
+        page: Optional[int] = None,
+        tags: Optional[list[str]] = None,
+        keep_closed_markets: Optional[bool] = None,
+        sort: Optional[
+            Literal[
+                "volume",
+                "volume_24hr",
+                "liquidity",
+                "start_date",
+                "end_date",
+                "competitive",
+            ]
+        ] = None,
+        ascending: Optional[bool] = None,
+        search_tags: Optional[bool] = None,
+        search_profiles: Optional[bool] = None,
+        recurrence: Optional[
+            Literal["hourly", "daily", "weekly", "monthly", "annual"]
+        ] = None,
+        exclude_tag_ids: Optional[list[int]] = None,
+        optimized: Optional[bool] = None,
+    ) -> SearchResult:
+        params: dict[str, str | list[str] | int | bool] = {
+            "q": query,
+        }
+        if cache is not None:
+            params["cache"] = str(cache).lower()
+        if status:
+            params["events_status"] = status
+        if limit_per_type:
+            params["limit_per_type"] = limit_per_type
+        if page:
+            params["page"] = page
+        if tags:
+            params["events_tag"] = json.dumps([json.dumps(item) for item in tags])
+        if keep_closed_markets is not None:
+            params["keep_closed_markets"] = keep_closed_markets
+        if sort:
+            params["sort"] = sort
+        if ascending is not None:
+            params["ascending"] = str(ascending).lower()
+        if search_tags is not None:
+            params["search_tags"] = str(search_tags).lower()
+        if search_profiles is not None:
+            params["search_profiles"] = str(search_profiles).lower()
+        if recurrence:
+            params["recurrence"] = recurrence
+        if exclude_tag_ids:
+            params["exclude_tag_id"] = [str(i) for i in exclude_tag_ids]
+        if optimized is not None:
+            params["optimized"] = str(optimized).lower()
+        response = self.client.get(self._build_url("/public-search"), params=params)
+        response.raise_for_status()
+        return SearchResult(**response.json())
+
+    def get_market(self, market_id: str) -> GammaMarket:
+        """Get a GammaMarket by market_id."""
+        response = self.client.get(self._build_url(f"/markets/{market_id}"))
+        response.raise_for_status()
+        return GammaMarket(**response.json())
 
     def get_markets(
         self,
@@ -95,16 +173,39 @@ class PolymarketGammaClient:
         response.raise_for_status()
         return [GammaMarket(**market) for market in response.json()]
 
-    def get_market(self, market_id: str) -> GammaMarket:
-        """Get a GammaMarket by market_id."""
-        response = self.client.get(self._build_url(f"/markets/{market_id}"))
+    def get_market_by_id(
+        self, market_id: str, include_tag: Optional[bool] = None
+    ) -> GammaMarket:
+        params = {}
+        if include_tag:
+            params["include_tag"] = include_tag
+        response = self.client.get(
+            self._build_url(f"/markets/{market_id}"), params=params
+        )
+        response.raise_for_status()
+        return GammaMarket(**response.json())
+
+    def get_market_tags(self, market_id: str) -> list[Tag]:
+        response = self.client.get(self._build_url(f"/markets/{market_id}/tags"))
+        response.raise_for_status()
+        return [Tag(**tag) for tag in response.json()]
+
+    def get_market_by_slug(
+        self, slug: str, include_tag: Optional[bool] = None
+    ) -> GammaMarket:
+        params = {}
+        if include_tag:
+            params["include_tag"] = include_tag
+        response = self.client.get(
+            self._build_url(f"/markets/slug/{slug}"), params=params
+        )
         response.raise_for_status()
         return GammaMarket(**response.json())
 
     def get_events(
         self,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
+        limit: int = 500,
+        offset: int = 0,
         order: Optional[str] = None,
         ascending: bool = True,
         event_ids: Optional[Union[str, list[str]]] = None,
@@ -125,11 +226,10 @@ class PolymarketGammaClient:
         tag_slug: Optional[str] = None,
         related_tags: bool = False,
     ) -> list[Event]:
-        params = {}
-        if limit:
-            params["limit"] = limit
-        if offset:
-            params["offset"] = offset
+        params: dict[str, int | str | list[str] | float] = {
+            "limit": limit,
+            "offset": offset,
+        }
         if order:
             params["order"] = order
             params["ascending"] = ascending
@@ -172,11 +272,6 @@ class PolymarketGammaClient:
         response.raise_for_status()
         return [Event(**event) for event in response.json()]
 
-    def get_event(self, event_id: int) -> Event:
-        response = self.client.get(self._build_url(f"/events/{event_id}"))
-        response.raise_for_status()
-        return Event(**response.json())
-
     def get_all_events(
         self,
         order: Optional[str] = None,
@@ -204,7 +299,6 @@ class PolymarketGammaClient:
 
         while True:
             part = self.get_events(
-                limit=500,
                 offset=offset,
                 order=order,
                 ascending=ascending,
@@ -235,43 +329,413 @@ class PolymarketGammaClient:
 
         return events
 
-    def search_events(
+    def get_event_by_id(
         self,
-        query: str,
-        active: bool = True,
-        status: Optional[Literal["active", "resolved"]] = "active",
-        sort: Literal[
-            "volume",
-            "volume_24hr",
-            "liquidity",
-            "start_date",
-            "end_date",
-            "competitive",
-        ] = "volume_24hr",
-        page: int = 1,
-        limit_per_type: int = 50,  # max is 50
-        presets: Optional[
-            Literal["EventsHybrid", "EventsTitle"]
-            | list[Literal["EventsHybrid", "EventsTitle"]]
-        ] = None,
-    ) -> EventList:
-        """Search for events by query. Should emulate the website search function."""
-        params = {
-            "q": query,
-            "page": page,
-            "limit_per_type": limit_per_type,
-            "events_status": status,
-            "active": active,
-        }
-        if sort:
-            params["sort"] = sort
-        if sort == "end_date":
-            params["ascending"] = "true"
-        if presets:
-            params["presets"] = presets
-        response = self.client.get(self._build_url("/public-search"), params=params)
+        event_id: int,
+        include_chat: Optional[bool] = None,
+        include_template: Optional[bool] = None,
+    ) -> Event:
+        params = {}
+        if include_chat:
+            params["include_chat"] = include_chat
+        if include_template:
+            params["include_template"] = include_template
+        response = self.client.get(
+            self._build_url(f"/events/{event_id}"), params=params
+        )
         response.raise_for_status()
-        return EventList(**response.json())
+        return Event(**response.json())
+
+    def get_event_by_slug(
+        self,
+        slug: str,
+        include_chat: Optional[bool] = None,
+        include_template: Optional[bool] = None,
+    ) -> Event:
+        params = {}
+        if include_chat:
+            params["include_chat"] = include_chat
+        if include_template:
+            params["include_template"] = include_template
+        response = self.client.get(
+            self._build_url(f"/events/slug/{slug}"), params=params
+        )
+        response.raise_for_status()
+        return Event(**response.json())
+
+    def get_event_tags(self, event_id: int) -> list[Tag]:
+        response = self.client.get(self._build_url(f"/events/{event_id}/tags"))
+        response.raise_for_status()
+        return [Tag(**tag) for tag in response.json()]
+
+    def get_teams(
+        self,
+        limit: int = 500,
+        offset: int = 0,
+        order: Optional[
+            Literal[
+                "id",
+                "name",
+                "league",
+                "record",
+                "logo",
+                "abbreviation",
+                "alias",
+                "createdAt",
+                "updatedAt",
+            ]
+        ] = None,
+        ascending: bool = True,
+        league: Optional[str] = None,
+        name: Optional[str] = None,
+        abbreviation: Optional[str] = None,
+    ) -> list[Team]:
+        params: dict[str, int | str] = {
+            "limit": limit,
+            "offset": offset,
+        }
+        if order:
+            params["order"] = order
+            params["ascending"] = str(ascending).lower()
+        if league:
+            params["league"] = league.lower()
+        if name:
+            params["name"] = name
+        if abbreviation:
+            params["abbreviation"] = abbreviation.lower()
+        response = self.client.get(self._build_url("/teams"), params=params)
+        response.raise_for_status()
+        return [Team(**team) for team in response.json()]
+
+    def get_all_teams(
+        self,
+        order: Optional[
+            Literal[
+                "id",
+                "name",
+                "league",
+                "record",
+                "logo",
+                "abbreviation",
+                "alias",
+                "createdAt",
+                "updatedAt",
+            ]
+        ] = None,
+        ascending: bool = True,
+        league: Optional[str] = None,
+        name: Optional[str] = None,
+        abbreviation: Optional[str] = None,
+    ) -> list[Team]:
+        offset = 0
+        teams = []
+
+        while True:
+            part = self.get_teams(
+                offset=offset,
+                order=order,
+                ascending=ascending,
+                league=league,
+                name=name,
+                abbreviation=abbreviation,
+            )
+            teams.extend(part)
+
+            if len(part) < 500:
+                break
+
+            offset += 500
+
+        return teams
+
+    def get_sports_metadata(
+        self,
+    ) -> list[Sport]:
+        response = self.client.get(self._build_url("/sports"))
+        response.raise_for_status()
+        return [Sport(**sport) for sport in response.json()]
+
+    def get_tags(
+        self,
+        limit: int = 300,
+        offset: int = 0,
+        order: Optional[
+            Literal[
+                "id",
+                "label",
+                "slug",
+                "forceShow",
+                "forceHide",
+                "isCarousel",
+                "createdAt",
+                "updatedAt",
+                "createdBy",
+                "updatedBy",
+            ]
+        ] = None,
+        ascending: bool = True,
+        include_templates: Optional[bool] = None,
+        is_carousel: Optional[bool] = None,
+    ) -> list[Tag]:
+        params: dict[str, int | str] = {
+            "limit": limit,
+            "offset": offset,
+        }
+        if order:
+            params["order"] = order
+            params["ascending"] = str(ascending).lower()
+        if include_templates is not None:
+            params["include_templates"] = str(include_templates).lower()
+        if is_carousel is not None:
+            params["is_carousel"] = str(is_carousel).lower()
+        response = self.client.get(self._build_url("/tags"), params=params)
+        response.raise_for_status()
+        return [Tag(**tag) for tag in response.json()]
+
+    def get_all_tags(
+        self,
+        order: Optional[
+            Literal[
+                "id",
+                "label",
+                "slug",
+                "forceShow",
+                "forceHide",
+                "isCarousel",
+                "createdAt",
+                "updatedAt",
+                "createdBy",
+                "updatedBy",
+            ]
+        ] = None,
+        ascending: bool = True,
+        include_templates: Optional[bool] = None,
+        is_carousel: Optional[bool] = None,
+    ) -> list[Tag]:
+        offset = 0
+        tags = []
+
+        while True:
+            part = self.get_tags(
+                offset=offset,
+                order=order,
+                ascending=ascending,
+                include_templates=include_templates,
+                is_carousel=is_carousel,
+            )
+            tags.extend(part)
+
+            if len(part) < 300:
+                break
+
+            offset += 300
+
+        return tags
+
+    def get_tag(self, tag_id: str, include_template: Optional[bool] = None) -> Tag:
+        params = {}
+        if include_template is not None:
+            params = {"include_template": str(include_template).lower()}
+        response = self.client.get(self._build_url(f"/tags/{tag_id}"), params=params)
+        response.raise_for_status()
+        return Tag(**response.json())
+
+    def get_related_tag_ids_by_tag_id(
+        self,
+        tag_id: int,
+        omit_empty: Optional[bool] = None,
+        status: Optional[Literal["active", "closed", "all"]] = None,
+    ) -> list[TagRelation]:
+        params = {}
+        if omit_empty is not None:
+            params["omit_empty"] = str(omit_empty).lower()
+        if status:
+            params["status"] = status
+        response = self.client.get(self._build_url(f"/tags/{tag_id}/related-tags"), params=params)
+        response.raise_for_status()
+        return [TagRelation(**tag) for tag in response.json()]
+
+    def get_related_tag_ids_by_slug(
+        self,
+        slug: str,
+        omit_empty: Optional[bool] = None,
+        status: Optional[Literal["active", "closed", "all"]] = None,
+    ) -> list[TagRelation]:
+        params = {}
+        if omit_empty is not None:
+            params["omit_empty"] = str(omit_empty).lower()
+        if status:
+            params["status"] = status
+        response = self.client.get(self._build_url(f"/tags/slug/{slug}/related-tags"), params=params)
+        response.raise_for_status()
+        return [TagRelation(**tag) for tag in response.json()]
+
+    def get_related_tags_by_tag_id(
+        self,
+        tag_id: int,
+        omit_empty: Optional[bool] = None,
+        status: Optional[Literal["active", "closed", "all"]] = None,
+    ) -> list[Tag]:
+        params = {}
+        if omit_empty is not None:
+            params["omit_empty"] = str(omit_empty).lower()
+        if status:
+            params["status"] = status
+        response = self.client.get(self._build_url(f"/tags/{tag_id}/related-tags/tags"), params=params)
+        response.raise_for_status()
+        return [Tag(**tag) for tag in response.json()]
+
+    def get_related_tags_by_slug(
+        self,
+        slug: str,
+        omit_empty: Optional[bool] = None,
+        status: Optional[Literal["active", "closed", "all"]] = None,
+    ) -> list[Tag]:
+        params = {}
+        if omit_empty is not None:
+            params["omit_empty"] = str(omit_empty).lower()
+        if status:
+            params["status"] = status
+        response = self.client.get(
+            self._build_url(f"/tags/slug/{slug}/related-tags/tags"), params=params
+        )
+        response.raise_for_status()
+        return [Tag(**tag) for tag in response.json()]
+
+    def get_series(
+        self,
+        limit: int = 300,
+        offset: int = 0,
+        order: Optional[str] = None,
+        ascending: bool = True,
+        slug: Optional[str] = None,
+        closed: Optional[bool] = None,
+        include_chat: Optional[bool] = None,
+        recurrence: Optional[
+            Literal[
+                "hourly", "daily", "weekly", "monthly", "annual"
+            ]  # results also contain "15m" but the server returns a 422 Unprocessable Content
+        ] = None,
+    ) -> list[Series]:
+        params: dict[str, str | int | list[int]] = {
+            "limit": limit,
+            "offset": offset,
+        }
+        if order:
+            params["order"] = order
+            params["ascending"] = str(ascending).lower()
+        if slug:
+            params["slug"] = slug
+        if closed is not None:
+            params["closed"] = str(closed).lower()
+        if include_chat is not None:
+            params["include_chat"] = str(include_chat).lower()
+        if recurrence is not None:
+            params["recurrence"] = str(recurrence).lower()
+
+        response = self.client.get(self._build_url("/series"), params=params)
+        response.raise_for_status()
+        return [Series(**series) for series in response.json()]
+
+    def get_all_series(
+        self,
+        order: Optional[str] = None,
+        ascending: bool = True,
+        slug: Optional[str] = None,
+        closed: Optional[bool] = None,
+        include_chat: Optional[bool] = None,
+        recurrence: Optional[
+            Literal["hourly", "daily", "weekly", "monthly", "annual"]
+        ] = None,
+    ) -> list[Series]:
+        offset = 0
+        series = []
+
+        while True:
+            part = self.get_series(
+                offset=offset,
+                order=order,
+                ascending=ascending,
+                slug=slug,
+                closed=closed,
+                include_chat=include_chat,
+                recurrence=recurrence,
+            )
+            series.extend(part)
+
+            if len(part) < 300:
+                break
+
+            offset += 300
+        return series
+
+    def get_series_by_id(self, series_id: str) -> Series:
+        response = self.client.get(self._build_url(f"/series/{series_id}"))
+        response.raise_for_status()
+        return Series(**response.json())
+
+    def get_comments(
+        self,
+        parent_entity_type: Literal["Event", "Series", "market"],
+        parent_entity_id: int,
+        limit=500,
+        offset=0,
+        order: Optional[str] = None,
+        ascending: bool = True,
+        get_positions: Optional[bool] = None,
+        holders_only: Optional[bool] = None,
+    ) -> list[Comment]:
+        """Warning, the server doesn't give back the right amount of comments you asked for."""
+        params: dict[str, str | int] = {
+            "parent_entity_type": parent_entity_type,
+            "parent_entity_id": parent_entity_id,
+            "limit": limit,
+            "offset": offset,
+        }
+        if order:
+            params["order"] = order
+            params["ascending"] = str(ascending).lower()
+        if get_positions is not None:
+            params["get_positions"] = str(get_positions).lower()
+        if holders_only is not None:
+            params["holders_only"] = str(holders_only).lower()
+        response = self.client.get(self._build_url("/comments"), params=params)
+        response.raise_for_status()
+        return [Comment(**comment) for comment in response.json()]
+
+    def get_comments_by_id(
+        self, comment_id: str, get_positions: Optional[bool] = None
+    ) -> list[Comment]:
+        """Returns all comments that belong to the comment's thread."""
+        params = {}
+        if get_positions is not None:
+            params["get_positions"] = str(get_positions).lower()
+        response = self.client.get(
+            self._build_url(f"/comments/{comment_id}"), params=params
+        )
+        response.raise_for_status()
+        return [Comment(**comment) for comment in response.json()]
+
+    def get_comments_by_user_address(
+        self,
+        user_address: EthAddress,  # warning, this is the base address, not the proxy address
+        limit=500,
+        offset=0,
+        order: Optional[str] = None,
+        ascending: bool = True,
+    ) -> list[Comment]:
+        params: dict[str, str | int] = {
+            "limit": limit,
+            "offset": offset,
+        }
+        if order:
+            params["order"] = order
+            params["ascending"] = str(ascending).lower()
+        response = self.client.get(
+            self._build_url(f"/comments/user_address/{user_address}"), params=params
+        )
+        response.raise_for_status()
+        return [Comment(**comment) for comment in response.json()]
 
     def grok_event_summary(self, event_slug: str):
         json_payload = {

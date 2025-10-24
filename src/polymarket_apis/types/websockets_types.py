@@ -5,6 +5,7 @@ from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from ..types.clob_types import MakerOrder, OrderBookSummary, TickSize
 from ..types.common import EthAddress, Keccak256, TimeseriesPoint
+from ..types.gamma_types import Comment, Reaction
 
 # wss://ws-subscriptions-clob.polymarket.com/ws/market types
 
@@ -149,35 +150,6 @@ class ActivityTrade(BaseModel):
     pseudonym: str  # Pseudonym of the user
     profile_image: str = Field(alias="profileImage")  # URL to the user profile image
     profile_image_optimized: Optional[str] = Field(None, alias="profileImageOptimized")
-
-
-class Comment(BaseModel):
-    id: str  # Unique identifier of comment
-    body: str  # Content of the comment
-    parent_entity_type: str = Field(
-        alias="parentEntityType"
-    )  # Type of the parent entity (Event or Series)
-    parent_entity_id: int = Field(alias="parentEntityID")  # ID of the parent entity
-    parent_comment_id: Optional[str] = Field(
-        None, alias="parentCommentID"
-    )  # ID of the parent comment
-    user_address: str = Field(alias="userAddress")  # Address of the user
-    reply_address: Optional[str] = Field(
-        None, alias="replyAddress"
-    )  # Address of the reply user
-    created_at: datetime = Field(alias="createdAt")  # Creation timestamp
-    updated_at: Optional[datetime] = Field(
-        None, alias="updatedAt"
-    )  # Last update timestamp
-
-
-class Reaction(BaseModel):
-    id: str  # Unique identifier of reaction
-    comment_id: int = Field(alias="commentID")  # ID of the comment
-    reaction_type: str = Field(alias="reactionType")  # Type of the reaction
-    icon: Optional[str] = None  # Icon representing the reaction
-    user_address: str = Field(alias="userAddress")  # Address of the user
-    created_at: datetime = Field(alias="createdAt")  # Creation timestamp
 
 
 class Request(BaseModel):

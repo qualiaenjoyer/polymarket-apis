@@ -1,6 +1,6 @@
 [project]
 name = "polymarket-apis"
-version = "0.3.1"
+version = "0.3.2"
 description = "Unified Polymarket APIs with Pydantic data validation - Clob, Gamma, Data, Web3, Websockets, GraphQL clients."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -32,6 +32,7 @@ dev = [
     "jupyter-contrib-nbextensions>=0.7.0",
     "jupyter>=1.1.1",
     "ty>=0.0.1a12",
+    "mypy>=1.18.2",
 ]
 
 [build-system]
@@ -136,3 +137,15 @@ lint.ignore = [
     "A001",      # Flake8-builtins - builtin-variable-shadowing
     "A002",      # Flake8-builtins - builtin-argument-shadowing
 ]
+
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_unimported = true
+no_implicit_optional = true
+check_untyped_defs = true
+warn_unused_ignores = true
+show_error_codes = true

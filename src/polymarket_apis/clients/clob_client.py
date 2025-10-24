@@ -499,7 +499,7 @@ class PolymarketClobClient:
         order_args: OrderArgs,
         options: Optional[PartialCreateOrderOptions] = None,
         order_type: OrderType = OrderType.GTC,
-    ) -> OrderPostResponse:
+    ) -> OrderPostResponse | None:
         """Utility function to create and publish an order."""
         order = self.create_order(order_args, options)
         return self.post_order(order=order, order_type=order_type)
@@ -630,7 +630,7 @@ class PolymarketClobClient:
         order_args: MarketOrderArgs,
         options: Optional[PartialCreateOrderOptions] = None,
         order_type: OrderType = OrderType.FOK,
-    ) -> OrderPostResponse:
+    ) -> OrderPostResponse | None:
         """Utility function to create and publish a market order."""
         order = self.create_market_order(order_args, options)
         return self.post_order(order=order, order_type=order_type)
@@ -646,7 +646,7 @@ class PolymarketClobClient:
             "DELETE",
             self._build_url(CANCEL),
             headers=headers,
-            data=json.dumps(body).encode("utf-8"),
+            content=json.dumps(body).encode("utf-8"),
         )
         response.raise_for_status()
         return OrderCancelResponse(**response.json())
@@ -736,7 +736,7 @@ class PolymarketClobClient:
         next_cursor="MA==",
     ) -> list[PolygonTrade]:
         """Fetches the trade history for a user."""
-        params = {}
+        params: dict[str, str | int] = {}
         if condition_id:
             params["market"] = condition_id
         if token_id:

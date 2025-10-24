@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -162,3 +162,13 @@ class UserMetric(User):
 class UserRank(User):
     amount: float
     rank: int
+
+
+class MarketValue(BaseModel):
+    condition_id: Keccak256 = Field(alias="market")
+    value: float
+
+
+class EventLiveVolume(BaseModel):
+    total: Optional[float]
+    markets: Optional[list[MarketValue]]
