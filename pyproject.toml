@@ -1,6 +1,6 @@
 [project]
 name = "polymarket-apis"
-version = "0.3.3"
+version = "0.3.4"
 description = "Unified Polymarket APIs with Pydantic data validation - Clob, Gamma, Data, Web3, Websockets, GraphQL clients."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -18,6 +18,8 @@ dependencies = [
     "lomond>=0.3.3",
     "wsaccel>=0.6.7",
     "gql[httpx]>=4.0.0",
+    "python-dateutil>=2.9.0",
+
 ]
 
 [dependency-groups]
