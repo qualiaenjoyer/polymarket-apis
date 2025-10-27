@@ -17,7 +17,7 @@ from pydantic import (
 )
 
 from ..types.common import EthAddress, Keccak256, TimeseriesPoint
-from ..utilities.constants import ZERO_ADDRESS
+from ..utilities.constants import ADDRESS_ZERO
 
 logger = logging.getLogger(__name__)
 
@@ -428,7 +428,7 @@ class OrderArgs(BaseModel):
     Timestamp after which the order is expired.
     """
 
-    taker: str = ZERO_ADDRESS
+    taker: str = ADDRESS_ZERO
     """
     Address of the order taker. The zero address is used to indicate a public order.
     """
@@ -466,7 +466,7 @@ class MarketOrderArgs(BaseModel):
     Nonce used for onchain cancellations.
     """
 
-    taker: str = ZERO_ADDRESS
+    taker: str = ADDRESS_ZERO
     """
     Address of the order taker. The zero address is used to indicate a public order.
     """

@@ -551,7 +551,9 @@ class PolymarketGammaClient:
             params["omit_empty"] = str(omit_empty).lower()
         if status:
             params["status"] = status
-        response = self.client.get(self._build_url(f"/tags/{tag_id}/related-tags"), params=params)
+        response = self.client.get(
+            self._build_url(f"/tags/{tag_id}/related-tags"), params=params
+        )
         response.raise_for_status()
         return [TagRelation(**tag) for tag in response.json()]
 
@@ -566,7 +568,9 @@ class PolymarketGammaClient:
             params["omit_empty"] = str(omit_empty).lower()
         if status:
             params["status"] = status
-        response = self.client.get(self._build_url(f"/tags/slug/{slug}/related-tags"), params=params)
+        response = self.client.get(
+            self._build_url(f"/tags/slug/{slug}/related-tags"), params=params
+        )
         response.raise_for_status()
         return [TagRelation(**tag) for tag in response.json()]
 
@@ -581,7 +585,9 @@ class PolymarketGammaClient:
             params["omit_empty"] = str(omit_empty).lower()
         if status:
             params["status"] = status
-        response = self.client.get(self._build_url(f"/tags/{tag_id}/related-tags/tags"), params=params)
+        response = self.client.get(
+            self._build_url(f"/tags/{tag_id}/related-tags/tags"), params=params
+        )
         response.raise_for_status()
         return [Tag(**tag) for tag in response.json()]
 

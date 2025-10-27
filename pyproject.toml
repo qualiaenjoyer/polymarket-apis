@@ -1,6 +1,6 @@
 [project]
 name = "polymarket-apis"
-version = "0.3.2"
+version = "0.3.3
 description = "Unified Polymarket APIs with Pydantic data validation - Clob, Gamma, Data, Web3, Websockets, GraphQL clients."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -131,8 +131,10 @@ lint.ignore = [
     "TC001",     # Flake8-type-checking - typing-only-first-party-import
     "TC003",     # Flake8-type-checking - typing-only-standard-library-import
     "C901",      # McCabe - complex-structure
+    "PLR0911",   # Pylint - too-many-return-statments
     "PLR0912",   # Pylint - too-many-branches
     "PLR0913",   # Pylint - too-many-arguments
+    "PLR0915",   # Pylint - too-many-statements
     "PLR2004",   # Pylint - magic-value-comparison
     "A001",      # Flake8-builtins - builtin-variable-shadowing
     "A002",      # Flake8-builtins - builtin-argument-shadowing

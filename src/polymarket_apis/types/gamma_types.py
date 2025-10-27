@@ -189,6 +189,14 @@ class GammaMarket(BaseModel):
     rfq_enabled: Optional[bool] = Field(None, alias="rfqEnabled")
     event_start_time: Optional[datetime] = Field(None, alias="eventStartTime")
     clob_rewards: Optional[list[ClobReward]] = Field(None, alias="clobRewards")
+    submitted_by: Optional[str] = None
+    approved: Optional[bool] = None
+    pager_duty_notification_enabled: Optional[bool] = Field(
+        None, alias="pagerDutyNotificationEnabled"
+    )
+    holding_rewards_enabled: Optional[bool] = Field(None, alias="holdingRewardsEnabled")
+    fees_enabled: Optional[bool] = Field(None, alias="feesEnabled")
+    cyom: Optional[bool] = Field(None, alias="cyom")
 
     @field_validator("condition_id", mode="wrap")
     @classmethod
@@ -487,6 +495,7 @@ class Event(BaseModel):
     liquidity_amm: Optional[float] = Field(None, alias="liquidityAmm")
     liquidity_clob: Optional[float] = Field(None, alias="liquidityClob")
     neg_risk: Optional[bool] = Field(None, alias="negRisk")
+    neg_risk_augmented: Optional[bool] = Field(None, alias="negRiskAugmented")
     neg_risk_market_id: Optional[str] = Field(None, alias="negRiskMarketID")
     neg_risk_fee_bips: Optional[int] = Field(None, alias="negRiskFeeBips")
     comment_count: Optional[int] = Field(None, alias="commentCount")

@@ -135,6 +135,7 @@ flowchart LR
     - get top users on the profit/volume leaderboards (at most 100) for a recent window (1d, 7d, 30d, all)
 
   ### PolymarketWeb3Client - Blockchain related operations
+  - #### Supporting both Email/Magic wallets (signature_type=1) and Safe/Gnosis wallets (signature_type=2)
   - #### Balance
     - get usdc balance by user address
     - get token balance by `token_id` and user address
