@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from dateutil import parser
-from pydantic import AfterValidator, BaseModel, BeforeValidator, Field
+from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field
 
 
 def validate_keccak256(v: str) -> str:
@@ -30,5 +30,7 @@ EmptyString = Annotated[str, Field(pattern=r"^$", description="An empty string")
 
 
 class TimeseriesPoint(BaseModel):
-    value: float
-    timestamp: datetime
+    model_config = ConfigDict(populate_by_name=True)
+
+    value: float = Field(alias="p")
+    timestamp: datetime = Field(alias="t")
