@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal, Optional
 from urllib.parse import urljoin
 
@@ -349,12 +349,21 @@ class PolymarketClobClient:
     def get_recent_history(
         self,
         token_id: str,
-        interval: Optional[Literal["1d", "6h", "1h"]] = "1d",
+        interval: Literal["1h", "6h", "1d", "1w", "1m", "max"] = "1d",
         fidelity: int = 1,  # resolution in minutes
     ) -> PriceHistory:
-        """Get the recent price history of a token (up to now) - 1h, 6h, 1d."""
-        if fidelity < 1:
-            msg = f"invalid filters: minimum 'fidelity' for '{interval}' range is 1"
+        """Get the recent price history of a token (up to now) - 1h, 6h, 1d, 1w, 1m."""
+        min_fidelities: dict[str, int] = {
+            "1h": 1,
+            "6h": 1,
+            "1d": 1,
+            "1w": 5,
+            "1m": 10,
+            "max": 2,
+        }
+
+        if fidelity < min_fidelities.get(interval):
+            msg = f"invalid filters: minimum 'fidelity' for '{interval}' range is {min_fidelities.get(interval)}"
             raise ValueError(msg)
 
         params = {
@@ -371,37 +380,40 @@ class PolymarketClobClient:
         token_id: str,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
-        interval: Literal["max", "1m", "1w"] = "max",
         fidelity: int = 2,  # resolution in minutes
     ) -> PriceHistory:
-        """Get the price history of a token between selected dates - 1m, 1w, max."""
-        min_fidelities: dict[str, int] = {"1m": 10, "1w": 5, "max": 2}
-
-        if fidelity is None or fidelity < min_fidelities[interval]:
-            msg = f"invalid filters: minimum 'fidelity' for '{interval}' range is {min_fidelities[interval]}"
-            raise ValueError(msg)
-
+        """Get the price history of a token between a selected date range of max 15 days or from start_time to now."""
         if start_time is None and end_time is None:
-            msg = "At least one of 'start_time' or 'end_time' must be provided."
+            msg = "At least 'start_time' or ('start_time' and 'end_time') must be provided"
             raise ValueError(msg)
 
-        # Default values for timestamps if one is not provided
-
-        if start_time is None:
-            start_time = datetime(2020, 1, 1, tzinfo=UTC)  # Default start time
-        if end_time is None:
-            end_time = datetime.now(UTC)  # Default end time
+        if (
+            start_time
+            and end_time
+            and start_time + timedelta(days=15, seconds=1) < end_time
+        ):
+            msg = "'start_time' - 'end_time' range cannot exceed 15 days. Remove 'end_time' to get prices up to now or set a shorter range."
+            raise ValueError(msg)
 
         params = {
             "market": token_id,
-            "startTs": int(start_time.timestamp()),
-            "endTs": int(end_time.timestamp()),
-            "interval": interval,
             "fidelity": fidelity,
         }
+        if start_time:
+            params["startTs"] = int(start_time.timestamp())
+        if end_time:
+            params["endTs"] = int(end_time.timestamp())
+
         response = self.client.get(self._build_url("/prices-history"), params=params)
         response.raise_for_status()
         return PriceHistory(**response.json(), token_id=token_id)
+
+    def get_all_history(self, token_id: str) -> PriceHistory:
+        """Get the full price history of a token."""
+        return self.get_history(
+            token_id=token_id,
+            start_time=datetime(2020, 1, 1, tzinfo=UTC),
+        )
 
     def get_orders(
         self,
