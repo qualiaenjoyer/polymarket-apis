@@ -28,7 +28,7 @@ def _pack_primitive(typ: str, val: Any) -> bytes:
         raw = val
 
     if typ == "string":
-        if not isinstance(raw, (bytes, str)):
+        if not isinstance(raw, bytes | str):
             msg = "string value must be str or bytes"
             raise TypeError(msg)
         return raw.encode() if isinstance(raw, str) else raw
@@ -47,7 +47,7 @@ def _pack_primitive(typ: str, val: Any) -> bytes:
             b = raw.to_bytes(n, "big")
         elif isinstance(raw, str) and raw.startswith("0x"):
             b = bytes.fromhex(raw[2:])
-        elif isinstance(raw, (bytes, bytearray)):
+        elif isinstance(raw, bytes | bytearray):
             b = bytes(raw)
         else:
             msg = f"unsupported value for {typ}"
@@ -63,7 +63,7 @@ def _pack_primitive(typ: str, val: Any) -> bytes:
             addr = raw[2:]
         elif isinstance(raw, str):
             addr = raw
-        elif isinstance(raw, (bytes, bytearray)):
+        elif isinstance(raw, bytes | bytearray):
             return bytes(raw[-20:])
         else:
             msg = "address must be hex string or bytes"
@@ -75,7 +75,7 @@ def _pack_primitive(typ: str, val: Any) -> bytes:
     if m:
         bits = int(m.group(1)) if m.group(1) else 256
         size = bits // 8
-        if isinstance(raw, (bytes, bytearray)):
+        if isinstance(raw, bytes | bytearray):
             intval = int.from_bytes(raw, "big")
         elif isinstance(raw, str) and raw.startswith("0x"):
             intval = int(raw, 16)
