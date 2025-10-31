@@ -1,9 +1,41 @@
 from datetime import UTC, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .common import EmptyString, EthAddress, Keccak256
+
+
+class GQLPosition(BaseModel):
+    user: EthAddress
+    token_id: str
+    complementary_token_id: str
+    condition_id: Keccak256
+    outcome_index: int
+    balance: float
+
+    @model_validator(mode="before")
+    def _flatten(cls, values):
+        asset = values.get("asset")
+        if isinstance(asset, dict):
+            if "id" in asset:
+                values.setdefault("token_id", asset["id"])
+            if "complement" in asset:
+                values.setdefault("complementary_token_id", asset["complement"])
+            condition = asset.get("condition")
+            if isinstance(condition, dict) and "id" in condition:
+                values.setdefault("condition_id", condition["id"])
+            if "outcomeIndex" in asset:
+                values.setdefault("outcome_index", asset["outcomeIndex"])
+            values.pop("asset", None)
+        return values
+
+    @field_validator("balance", mode="before")
+    @classmethod
+    def _parse_balance(cls, value):
+        if isinstance(value, str):
+            value = int(value)
+        return value / 10**6
 
 
 class Position(BaseModel):

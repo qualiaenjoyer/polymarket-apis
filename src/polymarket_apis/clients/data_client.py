@@ -4,10 +4,12 @@ from urllib.parse import urljoin
 
 import httpx
 
+from ..clients.graphql_client import PolymarketGraphQLClient
 from ..types.common import EthAddress, TimeseriesPoint
 from ..types.data_types import (
     Activity,
     EventLiveVolume,
+    GQLPosition,
     HolderResponse,
     MarketValue,
     Position,
@@ -22,6 +24,9 @@ class PolymarketDataClient:
     def __init__(self, base_url: str = "https://data-api.polymarket.com"):
         self.base_url = base_url
         self.client = httpx.Client(http2=True, timeout=30.0)
+        self.gql_positions_client = PolymarketGraphQLClient(
+            endpoint_name="positions_subgraph"
+        )
 
     def _build_url(self, endpoint: str) -> str:
         return urljoin(self.base_url, endpoint)
@@ -30,6 +35,35 @@ class PolymarketDataClient:
         response = self.client.get(self.base_url)
         response.raise_for_status()
         return response.json()["data"]
+
+    def get_all_positions(
+        self,
+        user: EthAddress,
+        size_threshold: float = 0.0,
+    ):
+        # data-api /positions endpoint does not support fetching all positions without filters
+        # a workaround is to use the GraphQL positions subgraph directly
+        query = f"""query {{
+                  userBalances(where: {{
+                  user: "{user.lower()}",
+                  balance_gt: "{int(size_threshold * 10**6)}"
+                  }}) {{
+                    user
+                    asset {{
+                      id
+                      condition {{
+                        id
+                      }}
+                      complement
+                      outcomeIndex
+                    }}
+                    balance
+                  }}
+                }}
+                """
+
+        response = self.gql_positions_client.query(query)
+        return [GQLPosition(**pos) for pos in response["userBalances"]]
 
     def get_positions(
         self,

@@ -93,13 +93,13 @@ class PolymarketClobClient:
     def __init__(
         self,
         private_key: str,
-        proxy_address: EthAddress,
+        address: EthAddress,
         creds: Optional[ApiCreds] = None,
         chain_id: Literal[137, 80002] = POLYGON,
         signature_type: Literal[0, 1, 2] = 1,
         # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet
     ):
-        self.proxy_address = proxy_address
+        self.address = address
         self.client = httpx.Client(http2=True, timeout=30.0)
         self.async_client = httpx.AsyncClient(http2=True, timeout=30.0)
         self.base_url: str = "https://clob.polymarket.com"
@@ -107,7 +107,7 @@ class PolymarketClobClient:
         self.builder = OrderBuilder(
             signer=self.signer,
             sig_type=signature_type,
-            funder=proxy_address,
+            funder=address,
         )
         self.creds = creds if creds else self.create_or_derive_api_creds()
 
@@ -744,7 +744,7 @@ class PolymarketClobClient:
         trade_id: Optional[str] = None,
         before: Optional[datetime] = None,
         after: Optional[datetime] = None,
-        proxy_address: Optional[int] = None,
+        address: Optional[EthAddress] = None,
         next_cursor="MA==",
     ) -> list[PolygonTrade]:
         """Fetches the trade history for a user."""
@@ -759,8 +759,8 @@ class PolymarketClobClient:
             params["before"] = int(before.replace(microsecond=0).timestamp())
         if after:
             params["after"] = int(after.replace(microsecond=0).timestamp())
-        if proxy_address:
-            params["maker_address"] = proxy_address
+        if address:
+            params["maker_address"] = address
 
         request_args = RequestArgs(method="GET", request_path=TRADES)
         headers = create_level_2_headers(self.signer, self.creds, request_args)
@@ -800,7 +800,7 @@ class PolymarketClobClient:
         return DailyEarnedReward(
             date=date,
             asset_address="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
-            maker_address=self.proxy_address,
+            maker_address=self.address,
             earnings=0.0,
             asset_rate=0.0,
         )

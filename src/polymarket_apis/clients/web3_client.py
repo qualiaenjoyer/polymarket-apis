@@ -32,7 +32,7 @@ class PolymarketWeb3Client:
     def __init__(
         self,
         private_key: str,
-        signature_type: Literal[1, 2] = 1,
+        signature_type: Literal[0, 1, 2] = 1,
         chain_id: Literal[137, 80002] = POLYGON,
     ):
         self.w3 = Web3(Web3.HTTPProvider("https://polygon-rpc.com"))
@@ -90,15 +90,14 @@ class PolymarketWeb3Client:
         )
 
         match self.signature_type:
+            case 0:
+                self.address = self.account.address
             case 1:
-                self.proxy_address = self.get_poly_proxy_address()
+                self.address = self.get_poly_proxy_address()
             case 2:
-                self.proxy_address = self.get_safe_proxy_address()
+                self.address = self.get_safe_proxy_address()
                 self.safe_abi = _load_abi("Safe")
-                self.safe = self.contract(self.proxy_address, self.safe_abi)
-            case _:
-                msg = "Invalid signature_type: choose 1 for Magic/Email wallet or 2 for Safe/Gnosis wallet"
-                raise ValueError(msg)
+                self.safe = self.contract(self.address, self.safe_abi)
 
     def _encode_split(self, condition_id: Keccak256, amount: int) -> str:
         return self.conditional_tokens.encode_abi(
@@ -159,23 +158,16 @@ class PolymarketWeb3Client:
         Explicitly passing the proxy address is faster due to only one contract function call.
         """
         if address is None:
-            address = self.get_poly_proxy_address()
+            address = self.address
         balance_res = self.usdc.functions.balanceOf(address).call()
         return float(balance_res / 1e6)
 
     def get_token_balance(
-        self, token_id: str, address: EthAddress | None = None
+        self, token_id: str, address: Optional[EthAddress] = None
     ) -> float:
         """Get the token balance of the given address."""
         if not address:
-            match self.signature_type:
-                case 1:
-                    address = self.get_poly_proxy_address(self.account.address)
-                case 2:
-                    address = self.get_safe_proxy_address(self.account.address)
-                case _:
-                    msg = "Invalid signature_type: choose 1 for Magic/Email wallet or 2 for Safe/Gnosis wallet"
-                    raise ValueError(msg)
+            address = self.address
         balance_res = self.conditional_tokens.functions.balanceOf(
             address, int(token_id)
         ).call()
@@ -214,7 +206,7 @@ class PolymarketWeb3Client:
         )
 
     def split_position(
-        self, condition_id: Keccak256, amount: int, neg_risk: bool = True
+        self, condition_id: Keccak256, amount: float, neg_risk: bool = True
     ):
         """Splits usdc into two complementary positions of equal size."""
         amount = int(amount * 1e6)
@@ -224,40 +216,47 @@ class PolymarketWeb3Client:
             if neg_risk
             else self.conditional_tokens_address
         )
+        nonce = self.w3.eth.get_transaction_count(self.account.address)
+        transaction = {
+            "nonce": nonce,
+            "gasPrice": int(1.05 * self.w3.eth.gas_price),
+            "gas": 1000000,
+            "from": self.account.address,
+        }
 
         match self.signature_type:
+            case 0:
+                contract = (
+                    self.neg_risk_adapter if neg_risk else self.conditional_tokens
+                )
+                txn_data = contract.functions.splitPosition(
+                    self.usdc_address,
+                    HASH_ZERO,
+                    condition_id,
+                    [1, 2],
+                    amount,
+                ).build_transaction(transaction=transaction)
             case 1:
-                nonce = self.w3.eth.get_transaction_count(self.account.address)
                 proxy_txn = {
                     "typeCode": 1,
                     "to": to,
                     "value": 0,
                     "data": data,
                 }
-
                 txn_data = self.proxy_factory.functions.proxy(
                     [proxy_txn]
-                ).build_transaction(
-                    {
-                        "nonce": nonce,
-                        "gasPrice": int(1.05 * self.w3.eth.gas_price),
-                        "gas": 1000000,
-                        "from": self.account.address,
-                    }
-                )
+                ).build_transaction(transaction=transaction)
             case 2:
-                nonce = self.safe.functions.nonce().call()
+                safe_nonce = self.safe.functions.nonce().call()
                 safe_txn = {
                     "to": to,
                     "data": data,
                     "operation": 0,  # 1 for delegatecall, 0 for call
                     "value": 0,
                 }
-
                 packed_sig = sign_safe_transaction(
-                    self.account, self.safe, safe_txn, nonce
+                    self.account, self.safe, safe_txn, safe_nonce
                 )
-
                 txn_data = self.safe.functions.execTransaction(
                     safe_txn["to"],
                     safe_txn["value"],
@@ -269,16 +268,7 @@ class PolymarketWeb3Client:
                     ADDRESS_ZERO,  # gasToken
                     ADDRESS_ZERO,  # refundReceiver
                     packed_sig,
-                ).build_transaction(
-                    {
-                        "nonce": self.w3.eth.get_transaction_count(
-                            self.account.address
-                        ),
-                        "gasPrice": int(1.05 * self.w3.eth.gas_price),
-                        "gas": 1000000,
-                        "from": self.account.address,
-                    }
-                )
+                ).build_transaction(transaction=transaction)
 
         # Sign and send transaction
         signed_txn = self.account.sign_transaction(txn_data)
@@ -293,7 +283,7 @@ class PolymarketWeb3Client:
         print("Done!")
 
     def merge_position(
-        self, condition_id: Keccak256, amount: int, neg_risk: bool = True
+        self, condition_id: Keccak256, amount: float, neg_risk: bool = True
     ):
         """Merges two complementary positions into usdc."""
         amount = int(amount * 1e6)
@@ -303,10 +293,27 @@ class PolymarketWeb3Client:
             if neg_risk
             else self.conditional_tokens_address
         )
+        nonce = self.w3.eth.get_transaction_count(self.account.address)
+        transaction = {
+            "nonce": nonce,
+            "gasPrice": int(1.05 * self.w3.eth.gas_price),
+            "gas": 1000000,
+            "from": self.account.address,
+        }
 
         match self.signature_type:
+            case 0:
+                contract = (
+                    self.neg_risk_adapter if neg_risk else self.conditional_tokens
+                )
+                txn_data = contract.functions.mergePositions(
+                    self.usdc_address,
+                    HASH_ZERO,
+                    condition_id,
+                    [1, 2],
+                    amount,
+                ).build_transaction(transaction=transaction)
             case 1:
-                nonce = self.w3.eth.get_transaction_count(self.account.address)
                 proxy_txn = {
                     "typeCode": 1,
                     "to": to,
@@ -316,25 +323,17 @@ class PolymarketWeb3Client:
 
                 txn_data = self.proxy_factory.functions.proxy(
                     [proxy_txn]
-                ).build_transaction(
-                    {
-                        "nonce": nonce,
-                        "gasPrice": int(1.05 * self.w3.eth.gas_price),
-                        "gas": 1000000,
-                        "from": self.account.address,
-                    }
-                )
+                ).build_transaction(transaction=transaction)
             case 2:
-                nonce = self.safe.functions.nonce().call()
+                safe_nonce = self.safe.functions.nonce().call()
                 safe_txn = {
                     "to": to,
                     "data": data,
                     "operation": 0,  # 1 for delegatecall, 0 for call
                     "value": 0,
                 }
-
                 packed_sig = sign_safe_transaction(
-                    self.account, self.safe, safe_txn, nonce
+                    self.account, self.safe, safe_txn, safe_nonce
                 )
                 txn_data = self.safe.functions.execTransaction(
                     safe_txn["to"],
@@ -347,16 +346,7 @@ class PolymarketWeb3Client:
                     ADDRESS_ZERO,  # gasToken
                     ADDRESS_ZERO,  # refundReceiver
                     packed_sig,
-                ).build_transaction(
-                    {
-                        "nonce": self.w3.eth.get_transaction_count(
-                            self.account.address
-                        ),
-                        "gasPrice": int(1.05 * self.w3.eth.gas_price),
-                        "gas": 1000000,
-                        "from": self.account.address,
-                    }
-                )
+                ).build_transaction(transaction=transaction)
 
         # Sign and send transaction
         signed_txn = self.account.sign_transaction(txn_data)
@@ -380,9 +370,9 @@ class PolymarketWeb3Client:
         where x is the number of shares of the first outcome
               y is the number of shares of the second outcome.
         """
-        amounts = [int(amount * 1e6) for amount in amounts]
+        int_amounts = [int(amount * 1e6) for amount in amounts]
         data = (
-            self._encode_redeem_neg_risk(condition_id, amounts)
+            self._encode_redeem_neg_risk(condition_id, int_amounts)
             if neg_risk
             else self._encode_redeem(condition_id)
         )
@@ -391,38 +381,50 @@ class PolymarketWeb3Client:
             if neg_risk
             else self.conditional_tokens_address
         )
+        nonce = self.w3.eth.get_transaction_count(self.account.address)
+        transaction = {
+            "nonce": nonce,
+            "gasPrice": int(1.05 * self.w3.eth.gas_price),
+            "gas": 1000000,
+            "from": self.account.address,
+        }
 
         match self.signature_type:
+            case 0:
+                contract = (
+                    self.neg_risk_adapter if neg_risk else self.conditional_tokens
+                )
+                if neg_risk:
+                    txn_data = contract.functions.redeemPositions(
+                        condition_id, int_amounts
+                    ).build_transaction(transaction=transaction)
+                else:
+                    txn_data = contract.functions.redeemPositions(
+                        self.usdc_address,
+                        HASH_ZERO,
+                        condition_id,
+                        [1, 2],
+                    ).build_transaction(transaction=transaction)
             case 1:
-                nonce = self.w3.eth.get_transaction_count(self.account.address)
                 proxy_txn = {
                     "typeCode": 1,
                     "to": to,
                     "value": 0,
                     "data": data,
                 }
-
                 txn_data = self.proxy_factory.functions.proxy(
                     [proxy_txn]
-                ).build_transaction(
-                    {
-                        "nonce": nonce,
-                        "gasPrice": int(1.05 * self.w3.eth.gas_price),
-                        "gas": 1000000,
-                        "from": self.account.address,
-                    }
-                )
+                ).build_transaction(transaction=transaction)
             case 2:
-                nonce = self.safe.functions.nonce().call()
+                safe_nonce = self.safe.functions.nonce().call()
                 safe_txn = {
                     "to": to,
                     "data": data,
                     "operation": 0,  # 1 for delegatecall, 0 for call
                     "value": 0,
                 }
-
                 packed_sig = sign_safe_transaction(
-                    self.account, self.safe, safe_txn, nonce
+                    self.account, self.safe, safe_txn, safe_nonce
                 )
                 txn_data = self.safe.functions.execTransaction(
                     safe_txn["to"],
@@ -435,16 +437,7 @@ class PolymarketWeb3Client:
                     ADDRESS_ZERO,  # gasToken
                     ADDRESS_ZERO,  # refundReceiver
                     packed_sig,
-                ).build_transaction(
-                    {
-                        "nonce": self.w3.eth.get_transaction_count(
-                            self.account.address
-                        ),
-                        "gasPrice": int(1.05 * self.w3.eth.gas_price),
-                        "gas": 1000000,
-                        "from": self.account.address,
-                    }
-                )
+                ).build_transaction(transaction=transaction)
 
         # Sign and send transaction
         signed_txn = self.account.sign_transaction(txn_data)
@@ -459,18 +452,32 @@ class PolymarketWeb3Client:
         print("Done!")
 
     def convert_positions(
-        self, question_ids: list[Keccak256], neg_risk_market_id: Keccak256, amount: int
+        self,
+        question_ids: list[Keccak256],
+        amount: float,
     ):
-        nonce = self.w3.eth.get_transaction_count(self.account.address)
         amount = int(amount * 1e6)
+        neg_risk_market_id = question_ids[0][:-2] + "00"
         data = self._encode_convert(
             neg_risk_market_id, get_index_set(question_ids), amount
         )
         to = self.neg_risk_adapter_address
+        nonce = self.w3.eth.get_transaction_count(self.account.address)
+        transaction = {
+            "nonce": nonce,
+            "gasPrice": int(1.05 * self.w3.eth.gas_price),
+            "gas": 1000000,
+            "from": self.account.address,
+        }
 
         match self.signature_type:
+            case 0:
+                txn_data = self.neg_risk_adapter.functions.convertPositions(
+                    neg_risk_market_id,
+                    get_index_set(question_ids),
+                    amount,
+                ).build_transaction(transaction=transaction)
             case 1:
-                nonce = self.w3.eth.get_transaction_count(self.account.address)
                 proxy_txn = {
                     "typeCode": 1,
                     "to": to,
@@ -480,16 +487,9 @@ class PolymarketWeb3Client:
 
                 txn_data = self.proxy_factory.functions.proxy(
                     [proxy_txn]
-                ).build_transaction(
-                    {
-                        "nonce": nonce,
-                        "gasPrice": int(1.05 * self.w3.eth.gas_price),
-                        "gas": 1000000,
-                        "from": self.account.address,
-                    }
-                )
+                ).build_transaction(transaction=transaction)
             case 2:
-                nonce = self.safe.functions.nonce().call()
+                safe_nonce = self.safe.functions.nonce().call()
                 safe_txn = {
                     "to": to,
                     "data": data,
@@ -498,7 +498,7 @@ class PolymarketWeb3Client:
                 }
 
                 packed_sig = sign_safe_transaction(
-                    self.account, self.safe, safe_txn, nonce
+                    self.account, self.safe, safe_txn, safe_nonce
                 )
                 txn_data = self.safe.functions.execTransaction(
                     safe_txn["to"],
@@ -511,16 +511,7 @@ class PolymarketWeb3Client:
                     ADDRESS_ZERO,  # gasToken
                     ADDRESS_ZERO,  # refundReceiver
                     packed_sig,
-                ).build_transaction(
-                    {
-                        "nonce": self.w3.eth.get_transaction_count(
-                            self.account.address
-                        ),
-                        "gasPrice": int(1.05 * self.w3.eth.gas_price),
-                        "gas": 1000000,
-                        "from": self.account.address,
-                    }
-                )
+                ).build_transaction(transaction=transaction)
 
         # Sign and send transaction
         signed_txn = self.account.sign_transaction(txn_data)
