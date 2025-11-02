@@ -1,10 +1,15 @@
 from json import load
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from web3 import Web3
+from web3.constants import MAX_INT
 from web3.exceptions import ContractCustomError
-from web3.middleware import ExtraDataToPOAMiddleware, SignAndSendRawMiddlewareBuilder
+from web3.middleware import (
+    ExtraDataToPOAMiddleware,
+    SignAndSendRawMiddlewareBuilder,
+)
+from web3.types import ChecksumAddress, TxParams, Wei
 
 from ..types.common import EthAddress, Keccak256
 from ..utilities.config import get_contract_config
@@ -36,9 +41,10 @@ class PolymarketWeb3Client:
         chain_id: Literal[137, 80002] = POLYGON,
     ):
         self.w3 = Web3(Web3.HTTPProvider("https://polygon-rpc.com"))
-        self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+        self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)  # type: ignore[arg-type]
         self.w3.middleware_onion.inject(
-            SignAndSendRawMiddlewareBuilder.build(private_key), layer=0
+            SignAndSendRawMiddlewareBuilder.build(private_key),  # type: ignore[arg-type]
+            layer=0,
         )
 
         self.account = self.w3.eth.account.from_key(private_key)
@@ -71,19 +77,25 @@ class PolymarketWeb3Client:
             self.neg_risk_exchange_address, self.neg_risk_exchange_abi
         )
 
-        self.neg_risk_adapter_address = "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"
+        self.neg_risk_adapter_address = Web3.to_checksum_address(
+            "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"
+        )
         self.neg_risk_adapter_abi = _load_abi("NegRiskAdapter")
         self.neg_risk_adapter = self.contract(
             self.neg_risk_adapter_address, self.neg_risk_adapter_abi
         )
 
-        self.proxy_factory_address = "0xaB45c5A4B0c941a2F231C04C3f49182e1A254052"
+        self.proxy_factory_address = Web3.to_checksum_address(
+            "0xaB45c5A4B0c941a2F231C04C3f49182e1A254052"
+        )
         self.proxy_factory_abi = _load_abi("ProxyWalletFactory")
         self.proxy_factory = self.contract(
             self.proxy_factory_address, self.proxy_factory_abi
         )
 
-        self.safe_proxy_factory_address = "0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b"
+        self.safe_proxy_factory_address = Web3.to_checksum_address(
+            "0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b"
+        )
         self.safe_proxy_factory_abi = _load_abi("SafeProxyFactory")
         self.safe_proxy_factory = self.contract(
             self.safe_proxy_factory_address, self.safe_proxy_factory_abi
@@ -98,6 +110,18 @@ class PolymarketWeb3Client:
                 self.address = self.get_safe_proxy_address()
                 self.safe_abi = _load_abi("Safe")
                 self.safe = self.contract(self.address, self.safe_abi)
+
+    def _encode_usdc_approve(self, address: ChecksumAddress) -> str:
+        return self.usdc.encode_abi(
+            abi_element_identifier="approve",
+            args=[address, int(MAX_INT, base=16)],
+        )
+
+    def _encode_condition_tokens_approve(self, address: ChecksumAddress) -> str:
+        return self.conditional_tokens.encode_abi(
+            abi_element_identifier="setApprovalForAll",
+            args=[address, True],
+        )
 
     def _encode_split(self, condition_id: Keccak256, amount: int) -> str:
         return self.conditional_tokens.encode_abi(
@@ -133,6 +157,139 @@ class PolymarketWeb3Client:
             args=[neg_risk_market_id, index_set, amount],
         )
 
+    def _build_transaction(self) -> TxParams:
+        """Build base transaction parameters."""
+        nonce = self.w3.eth.get_transaction_count(self.account.address)
+
+        current_gas_price: int = self.w3.eth.gas_price
+        adjusted_gas_price = Wei(int(current_gas_price * 1.05))
+
+        transaction: TxParams = {
+            "nonce": nonce,
+            "gasPrice": adjusted_gas_price,
+            "gas": 1000000,
+            "from": self.account.address,
+        }
+
+        return transaction
+
+    def _set_collateral_approval(self, spender: ChecksumAddress) -> str:
+        data = self._encode_usdc_approve(address=spender)
+        transaction = self._build_transaction()
+        txn_data: TxParams | None = None
+
+        match self.signature_type:
+            case 0:
+                txn_data = self.usdc.functions.approve(
+                    spender, int(MAX_INT, base=16)
+                ).build_transaction(transaction=transaction)
+            case 1:
+                proxy_txn = {
+                    "typeCode": 1,
+                    "to": self.usdc_address,
+                    "value": 0,
+                    "data": data,
+                }
+                txn_data = self.proxy_factory.functions.proxy(
+                    [proxy_txn]
+                ).build_transaction(transaction=transaction)
+            case 2:
+                safe_nonce = self.safe.functions.nonce().call()
+                safe_txn = {
+                    "to": self.usdc_address,
+                    "data": data,
+                    "operation": 0,  # 1 for delegatecall, 0 for call
+                    "value": 0,
+                }
+                packed_sig = sign_safe_transaction(
+                    self.account, self.safe, safe_txn, safe_nonce
+                )
+                txn_data = self.safe.functions.execTransaction(
+                    safe_txn["to"],
+                    safe_txn["value"],
+                    safe_txn["data"],
+                    safe_txn.get("operation", 0),
+                    0,  # safeTxGas
+                    0,  # baseGas
+                    0,  # gasPrice
+                    ADDRESS_ZERO,  # gasToken
+                    ADDRESS_ZERO,  # refundReceiver
+                    packed_sig,
+                ).build_transaction(transaction=transaction)
+
+        signed_txn = self.account.sign_transaction(txn_data)
+        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+        tx_hash_hex = tx_hash.hex()
+
+        print(f"Txn hash: 0x{tx_hash_hex}")
+
+        # Wait for transaction to be mined
+        self.w3.eth.wait_for_transaction_receipt(tx_hash)
+
+        print("Done!")
+
+        return f"0x{tx_hash_hex}"
+
+    def _set_conditional_tokens_approval(self, spender: ChecksumAddress) -> str:
+        data = self._encode_condition_tokens_approve(address=spender)
+        transaction = self._build_transaction()
+        txn_data: TxParams | None = None
+
+        match self.signature_type:
+            case 0:
+                txn_data = self.conditional_tokens.functions.setApprovalForAll(
+                    spender, True
+                ).build_transaction(transaction=transaction)
+            case 1:
+                proxy_txn = {
+                    "typeCode": 1,
+                    "to": self.conditional_tokens_address,
+                    "value": 0,
+                    "data": data,
+                }
+                txn_data = self.proxy_factory.functions.proxy(
+                    [proxy_txn]
+                ).build_transaction(transaction=transaction)
+            case 2:
+                safe_nonce = self.safe.functions.nonce().call()
+                safe_txn = {
+                    "to": self.conditional_tokens_address,
+                    "data": data,
+                    "operation": 0,  # 1 for delegatecall, 0 for call
+                    "value": 0,
+                }
+                packed_sig = sign_safe_transaction(
+                    self.account,
+                    self.safe,
+                    safe_txn,
+                    safe_nonce,
+                )
+                txn_data = self.safe.functions.execTransaction(
+                    safe_txn["to"],
+                    safe_txn["value"],
+                    safe_txn["data"],
+                    safe_txn.get("operation", 0),
+                    0,  # safeTxGas
+                    0,  # baseGas
+                    0,  # gasPrice
+                    ADDRESS_ZERO,  # gasToken
+                    ADDRESS_ZERO,  # refundReceiver
+                    packed_sig,
+                ).build_transaction(transaction=transaction)
+
+        signed_txn = self.account.sign_transaction(txn_data)
+        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+        tx_hash_hex = tx_hash.hex()
+
+        print(f"Txn hash: 0x{tx_hash_hex}")
+
+        # Wait for transaction to be mined
+        self.w3.eth.wait_for_transaction_receipt(tx_hash)
+
+        print("Done!")
+
+        return f"0x{tx_hash_hex}"
+
     def contract(self, address, abi):
         return self.w3.eth.contract(
             address=Web3.to_checksum_address(address),
@@ -163,7 +320,7 @@ class PolymarketWeb3Client:
         return float(balance_res / 1e6)
 
     def get_token_balance(
-        self, token_id: str, address: Optional[EthAddress] = None
+        self, token_id: str, address: EthAddress | None = None
     ) -> float:
         """Get the token balance of the given address."""
         if not address:
@@ -173,7 +330,7 @@ class PolymarketWeb3Client:
         ).call()
         return float(balance_res / 1e6)
 
-    def get_token_complement(self, token_id: str) -> Optional[str]:
+    def get_token_complement(self, token_id: str) -> str | None:
         """Get the complement of the given token."""
         try:
             return str(
@@ -191,6 +348,8 @@ class PolymarketWeb3Client:
                         raise ContractCustomError(
                             msg,
                         ) from e2
+                    return None
+            return None
 
     def get_condition_id_neg_risk(self, question_id: Keccak256) -> Keccak256:
         """
@@ -205,9 +364,41 @@ class PolymarketWeb3Client:
             + self.neg_risk_adapter.functions.getConditionId(question_id).call().hex()
         )
 
+    def set_all_approvals(self) -> None:
+        """Sets both collateral and conditional tokens approvals."""
+        print("Approving ConditionalTokens as spender on USDC")
+        self._set_collateral_approval(
+            spender=self.conditional_tokens_address,
+        )
+        print("Approving CTFExchange as spender on USDC")
+        self._set_collateral_approval(
+            spender=self.exchange_address,
+        )
+        print("Approving NegRiskCtfExchange as spender on USDC")
+        self._set_collateral_approval(
+            spender=self.neg_risk_exchange_address,
+        )
+        print("Approving NegRiskAdapter as spender on USDC")
+        self._set_collateral_approval(
+            spender=self.neg_risk_adapter_address,
+        )
+        print("Approving CTFExchange as spender on ConditionalTokens")
+        self._set_conditional_tokens_approval(
+            spender=self.exchange_address,
+        )
+        print("Approving NegRiskCtfExchange as spender on ConditionalTokens")
+        self._set_conditional_tokens_approval(
+            spender=self.neg_risk_exchange_address,
+        )
+        print("Approving NegRiskAdapter as spender on ConditionalTokens")
+        self._set_conditional_tokens_approval(
+            spender=self.neg_risk_adapter_address,
+        )
+        print("All approvals set!")
+
     def split_position(
         self, condition_id: Keccak256, amount: float, neg_risk: bool = True
-    ):
+    ) -> str:
         """Splits usdc into two complementary positions of equal size."""
         amount = int(amount * 1e6)
         data = self._encode_split(condition_id, amount)
@@ -216,13 +407,8 @@ class PolymarketWeb3Client:
             if neg_risk
             else self.conditional_tokens_address
         )
-        nonce = self.w3.eth.get_transaction_count(self.account.address)
-        transaction = {
-            "nonce": nonce,
-            "gasPrice": int(1.05 * self.w3.eth.gas_price),
-            "gas": 1000000,
-            "from": self.account.address,
-        }
+        transaction = self._build_transaction()
+        txn_data: TxParams | None = None
 
         match self.signature_type:
             case 0:
@@ -282,9 +468,11 @@ class PolymarketWeb3Client:
 
         print("Done!")
 
+        return f"0x{tx_hash_hex}"
+
     def merge_position(
         self, condition_id: Keccak256, amount: float, neg_risk: bool = True
-    ):
+    ) -> str:
         """Merges two complementary positions into usdc."""
         amount = int(amount * 1e6)
         data = self._encode_merge(condition_id, amount)
@@ -293,13 +481,8 @@ class PolymarketWeb3Client:
             if neg_risk
             else self.conditional_tokens_address
         )
-        nonce = self.w3.eth.get_transaction_count(self.account.address)
-        transaction = {
-            "nonce": nonce,
-            "gasPrice": int(1.05 * self.w3.eth.gas_price),
-            "gas": 1000000,
-            "from": self.account.address,
-        }
+        transaction = self._build_transaction()
+        txn_data: TxParams | None = None
 
         match self.signature_type:
             case 0:
@@ -360,9 +543,11 @@ class PolymarketWeb3Client:
 
         print("Done!")
 
+        return f"0x{tx_hash_hex}"
+
     def redeem_position(
         self, condition_id: Keccak256, amounts: list[float], neg_risk: bool = True
-    ):
+    ) -> str:
         """
         Redeem a position into usdc.
 
@@ -381,13 +566,8 @@ class PolymarketWeb3Client:
             if neg_risk
             else self.conditional_tokens_address
         )
-        nonce = self.w3.eth.get_transaction_count(self.account.address)
-        transaction = {
-            "nonce": nonce,
-            "gasPrice": int(1.05 * self.w3.eth.gas_price),
-            "gas": 1000000,
-            "from": self.account.address,
-        }
+        transaction = self._build_transaction()
+        txn_data: TxParams | None = None
 
         match self.signature_type:
             case 0:
@@ -451,24 +631,21 @@ class PolymarketWeb3Client:
 
         print("Done!")
 
+        return f"0x{tx_hash_hex}"
+
     def convert_positions(
         self,
         question_ids: list[Keccak256],
         amount: float,
-    ):
+    ) -> str:
         amount = int(amount * 1e6)
         neg_risk_market_id = question_ids[0][:-2] + "00"
         data = self._encode_convert(
             neg_risk_market_id, get_index_set(question_ids), amount
         )
         to = self.neg_risk_adapter_address
-        nonce = self.w3.eth.get_transaction_count(self.account.address)
-        transaction = {
-            "nonce": nonce,
-            "gasPrice": int(1.05 * self.w3.eth.gas_price),
-            "gas": 1000000,
-            "from": self.account.address,
-        }
+        transaction = self._build_transaction()
+        txn_data: TxParams | None = None
 
         match self.signature_type:
             case 0:
@@ -524,3 +701,5 @@ class PolymarketWeb3Client:
         self.w3.eth.wait_for_transaction_receipt(tx_hash)
 
         print("Done!")
+
+        return f"0x{tx_hash_hex}"

@@ -8,3 +8,10 @@ repos:
       args: [ --fix ]
     # Run the formatter.
     - id: ruff-format
+
+- repo: https://github.com/facebook/pyrefly-pre-commit
+  rev: 0.0.1
+  hooks:
+    - id: pyrefly-typecheck-system
+      name: Pyrefly (type checking)
+      pass_filenames: false

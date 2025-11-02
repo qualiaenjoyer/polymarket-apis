@@ -1,6 +1,6 @@
 [project]
 name = "polymarket-apis"
-version = "0.3.6"
+version = "0.3.7"
 description = "Unified Polymarket APIs with Pydantic data validation - Clob, Gamma, Data, Web3, Websockets, GraphQL clients."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -10,16 +10,15 @@ authors = [
 
 # PEP 631-compliant dependencies table
 dependencies = [
-    "httpx[http2]>=0.25.1",
+    "python-dateutil>=2.9.0",
     "pydantic>=2.10.5",
     "poly-eip712-structs>=0.0.1",
     "py-order-utils>=0.3.2",
+    "httpx[http2]>=0.25.1",
     "web3>=7.0",
     "lomond>=0.3.3",
     "wsaccel>=0.6.7",
     "gql[httpx]>=4.0.0",
-    "python-dateutil>=2.9.0",
-
 ]
 
 [dependency-groups]
@@ -33,8 +32,9 @@ dev = [
     "plotly>=5.24.1",
     "jupyter-contrib-nbextensions>=0.7.0",
     "jupyter>=1.1.1",
-    "ty>=0.0.1a12",
+    "pyrefly>=0.39.4",
     "mypy>=1.18.2",
+    "types-python-dateutil>=2.9.0.20251008",
 ]
 
 [build-system]
@@ -49,6 +49,13 @@ packages = ["src/polymarket_apis"]
 
 [tool.uv]
 managed = true
+
+[tool.pyrefly]
+python_version = "3.12"
+
+[tool.mypy]
+ignore_missing_imports = true
+
 
 [tool.ruff]
 lint.extend-select = [
@@ -141,18 +148,6 @@ lint.ignore = [
     "A001",      # Flake8-builtins - builtin-variable-shadowing
     "A002",      # Flake8-builtins - builtin-argument-shadowing
 ]
-
-
-[tool.mypy]
-python_version = "3.12"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_any_unimported = true
-no_implicit_optional = true
-check_untyped_defs = true
-warn_unused_ignores = true
-show_error_codes = true
 
 
 [project.urls]

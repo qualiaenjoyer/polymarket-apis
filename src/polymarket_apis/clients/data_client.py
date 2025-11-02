@@ -222,7 +222,11 @@ class PolymarketDataClient:
         min_balance: int = 1,
     ) -> list[HolderResponse]:
         """Takes in a condition_id and returns top holders for each corresponding token_id."""
-        params = {"market": condition_id, "limit": limit, "min_balance": min_balance}
+        params: dict[str, int | str] = {
+            "market": condition_id,
+            "limit": limit,
+            "min_balance": min_balance,
+        }
         response = self.client.get(self._build_url("/holders"), params=params)
         response.raise_for_status()
         return [HolderResponse(**holder_data) for holder_data in response.json()]
@@ -332,7 +336,7 @@ class PolymarketDataClient:
         window: Literal["1d", "7d", "30d", "all"] = "all",
     ):
         """Get a user's overall profit or volume in the last day, week, month or all."""
-        params = {
+        params: dict[str, int | str] = {
             "address": user,
             "window": window,
             "limit": 1,

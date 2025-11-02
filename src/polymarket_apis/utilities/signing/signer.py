@@ -11,7 +11,7 @@ class Signer:
             raise ValueError(msg)
 
         self.private_key = private_key
-        self.account = Account.from_key(private_key)
+        self.account = Account.from_key(private_key)  # type: ignore[misc]
         self.chain_id = chain_id
 
     def address(self):
@@ -22,4 +22,4 @@ class Signer:
 
     def sign(self, message_hash):
         """Signs a message hash."""
-        return Account.unsafe_sign_hash(message_hash, self.private_key).signature.hex()
+        return Account.unsafe_sign_hash(message_hash, self.private_key).signature.hex()  # type: ignore[misc]

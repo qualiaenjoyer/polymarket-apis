@@ -19,7 +19,11 @@ def parse_flexible_datetime(v: str | datetime) -> datetime:
         return datetime.fromtimestamp(0, tz=UTC)
 
     if isinstance(v, str):
-        return parser.parse(v)
+        parsed = parser.parse(v)
+        if not isinstance(parsed, datetime):
+            msg = f"Failed to parse '{v}' as datetime, got {type(parsed)}"
+            raise TypeError(msg)
+        return parsed
     return v
 
 

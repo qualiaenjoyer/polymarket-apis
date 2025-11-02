@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Literal, Optional
+from typing import Literal, cast
 from urllib.parse import urljoin
 
 import httpx
@@ -94,7 +94,7 @@ class PolymarketClobClient:
         self,
         private_key: str,
         address: EthAddress,
-        creds: Optional[ApiCreds] = None,
+        creds: ApiCreds | None = None,
         chain_id: Literal[137, 80002] = POLYGON,
         signature_type: Literal[0, 1, 2] = 1,
         # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet
@@ -112,9 +112,9 @@ class PolymarketClobClient:
         self.creds = creds if creds else self.create_or_derive_api_creds()
 
         # local cache
-        self.__tick_sizes = {}
-        self.__neg_risk = {}
-        self.__fee_rates = {}
+        self.__tick_sizes: dict[str, TickSize] = {}
+        self.__neg_risk: dict[str, bool] = {}
+        self.__fee_rates: dict[str, int] = {}
 
     def _build_url(self, endpoint: str) -> str:
         return urljoin(self.base_url, endpoint)
@@ -124,19 +124,19 @@ class PolymarketClobClient:
         response.raise_for_status()
         return response.json()
 
-    def create_api_creds(self, nonce: Optional[int] = None) -> ApiCreds:
+    def create_api_creds(self, nonce: int | None = None) -> ApiCreds:
         headers = create_level_1_headers(self.signer, nonce)
         response = self.client.post(self._build_url(CREATE_API_KEY), headers=headers)
         response.raise_for_status()
         return ApiCreds(**response.json())
 
-    def derive_api_key(self, nonce: Optional[int] = None) -> ApiCreds:
+    def derive_api_key(self, nonce: int | None = None) -> ApiCreds:
         headers = create_level_1_headers(self.signer, nonce)
         response = self.client.get(self._build_url(DERIVE_API_KEY), headers=headers)
         response.raise_for_status()
         return ApiCreds(**response.json())
 
-    def create_or_derive_api_creds(self, nonce: Optional[int] = None) -> ApiCreds:
+    def create_or_derive_api_creds(self, nonce: int | None = None) -> ApiCreds:
         try:
             return self.create_api_creds(nonce)
         except HTTPStatusError:
@@ -172,7 +172,9 @@ class PolymarketClobClient:
         params = {"token_id": token_id}
         response = self.client.get(self._build_url(GET_TICK_SIZE), params=params)
         response.raise_for_status()
-        self.__tick_sizes[token_id] = str(response.json()["minimum_tick_size"])
+        self.__tick_sizes[token_id] = cast(
+            "TickSize", str(response.json()["minimum_tick_size"])
+        )
 
         return self.__tick_sizes[token_id]
 
@@ -202,7 +204,7 @@ class PolymarketClobClient:
     def __resolve_tick_size(
         self,
         token_id: str,
-        tick_size: TickSize = None,
+        tick_size: TickSize | None = None,
     ) -> TickSize:
         min_tick_size = self.get_tick_size(token_id)
         if tick_size is not None:
@@ -216,7 +218,7 @@ class PolymarketClobClient:
     def __resolve_fee_rate(
         self,
         token_id: str,
-        user_fee_rate: Optional[int] = None,
+        user_fee_rate: int | None = None,
     ) -> int:
         market_fee_rate_bps = self.get_fee_rate_bps(token_id)
         # If both fee rate on the market and the user supplied fee rate are non-zero, validate that they match
@@ -362,11 +364,11 @@ class PolymarketClobClient:
             "max": 2,
         }
 
-        if fidelity < min_fidelities.get(interval):
-            msg = f"invalid filters: minimum 'fidelity' for '{interval}' range is {min_fidelities.get(interval)}"
+        if fidelity < min_fidelities[interval]:
+            msg = f"invalid filters: minimum fidelity' for '{interval}' range is {min_fidelities.get(interval)}"
             raise ValueError(msg)
 
-        params = {
+        params: dict[str, int | str] = {
             "market": token_id,
             "interval": interval,
             "fidelity": fidelity,
@@ -378,8 +380,8 @@ class PolymarketClobClient:
     def get_history(
         self,
         token_id: str,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         fidelity: int = 2,  # resolution in minutes
     ) -> PriceHistory:
         """Get the price history of a token between a selected date range of max 15 days or from start_time to now."""
@@ -395,7 +397,7 @@ class PolymarketClobClient:
             msg = "'start_time' - 'end_time' range cannot exceed 15 days. Remove 'end_time' to get prices up to now or set a shorter range."
             raise ValueError(msg)
 
-        params = {
+        params: dict[str, int | str] = {
             "market": token_id,
             "fidelity": fidelity,
         }
@@ -417,9 +419,9 @@ class PolymarketClobClient:
 
     def get_orders(
         self,
-        order_id: Optional[str] = None,
-        condition_id: Optional[Keccak256] = None,
-        token_id: Optional[str] = None,
+        order_id: str | None = None,
+        condition_id: Keccak256 | None = None,
+        token_id: str | None = None,
         next_cursor: str = "MA==",
     ) -> list[OpenOrder]:
         """Gets your active orders, filtered by order_id, condition_id, token_id."""
@@ -448,7 +450,7 @@ class PolymarketClobClient:
         return results
 
     def create_order(
-        self, order_args: OrderArgs, options: Optional[PartialCreateOrderOptions] = None
+        self, order_args: OrderArgs, options: PartialCreateOrderOptions | None = None
     ) -> SignedOrder:
         """Creates and signs an order."""
         # add resolve_order_options, or similar
@@ -483,7 +485,7 @@ class PolymarketClobClient:
 
     def post_order(
         self, order: SignedOrder, order_type: OrderType = OrderType.GTC
-    ) -> Optional[OrderPostResponse]:
+    ) -> OrderPostResponse | None:
         """Posts a SignedOrder."""
         body = order_to_json(order, self.creds.key, order_type)
         headers = create_level_2_headers(
@@ -505,18 +507,19 @@ class PolymarketClobClient:
             logger.warning(msg)
             error_json = exc.response.json()
             print("Details:", error_json["error"])
+            return None
 
     def create_and_post_order(
         self,
         order_args: OrderArgs,
-        options: Optional[PartialCreateOrderOptions] = None,
+        options: PartialCreateOrderOptions | None = None,
         order_type: OrderType = OrderType.GTC,
     ) -> OrderPostResponse | None:
         """Utility function to create and publish an order."""
         order = self.create_order(order_args, options)
         return self.post_order(order=order, order_type=order_type)
 
-    def post_orders(self, args: list[PostOrdersArgs]):
+    def post_orders(self, args: list[PostOrdersArgs]) -> list[OrderPostResponse] | None:
         """Posts multiple SignedOrders at once."""
         body = [
             order_to_json(arg.order, self.creds.key, arg.order_type) for arg in args
@@ -549,12 +552,13 @@ class PolymarketClobClient:
             logger.warning(msg)
             error_json = exc.response.json()
             print("Details:", error_json["error"])
+            return None
         else:
             return order_responses
 
     def create_and_post_orders(
         self, args: list[OrderArgs], order_types: list[OrderType]
-    ) -> list[OrderPostResponse]:
+    ) -> list[OrderPostResponse] | None:
         """Utility function to create and publish multiple orders at once."""
         return self.post_orders(
             [
@@ -597,7 +601,7 @@ class PolymarketClobClient:
     def create_market_order(
         self,
         order_args: MarketOrderArgs,
-        options: Optional[PartialCreateOrderOptions] = None,
+        options: PartialCreateOrderOptions | None = None,
     ):
         """Creates and signs a market order."""
         tick_size = self.__resolve_tick_size(
@@ -640,7 +644,7 @@ class PolymarketClobClient:
     def create_and_post_market_order(
         self,
         order_args: MarketOrderArgs,
-        options: Optional[PartialCreateOrderOptions] = None,
+        options: PartialCreateOrderOptions | None = None,
         order_type: OrderType = OrderType.FOK,
     ) -> OrderPostResponse | None:
         """Utility function to create and publish a market order."""
@@ -678,7 +682,7 @@ class PolymarketClobClient:
             "DELETE",
             self._build_url(CANCEL_ORDERS),
             headers=headers,
-            data=json.dumps(body).encode("utf-8"),
+            content=json.dumps(body).encode("utf-8"),
         )
         response.raise_for_status()
         return OrderCancelResponse(**response.json())
@@ -739,12 +743,12 @@ class PolymarketClobClient:
 
     def get_trades(
         self,
-        condition_id: Optional[Keccak256] = None,
-        token_id: Optional[str] = None,
-        trade_id: Optional[str] = None,
-        before: Optional[datetime] = None,
-        after: Optional[datetime] = None,
-        address: Optional[EthAddress] = None,
+        condition_id: Keccak256 | None = None,
+        token_id: str | None = None,
+        trade_id: str | None = None,
+        before: datetime | None = None,
+        after: datetime | None = None,
+        address: EthAddress | None = None,
         next_cursor="MA==",
     ) -> list[PolygonTrade]:
         """Fetches the trade history for a user."""
@@ -778,7 +782,7 @@ class PolymarketClobClient:
 
         return results
 
-    def get_total_rewards(self, date: Optional[datetime] = None) -> DailyEarnedReward:
+    def get_total_rewards(self, date: datetime | None = None) -> DailyEarnedReward:
         """Get the total rewards earned on a given date (seems to only hold the 6 most recent data points)."""
         if date is None:
             date = datetime.now(UTC)
@@ -807,20 +811,19 @@ class PolymarketClobClient:
 
     def get_reward_markets(
         self,
-        query: Optional[str] = None,
-        sort_by: Optional[
-            Literal[
-                "market",
-                "max_spread",
-                "min_size",
-                "rate_per_day",
-                "spread",
-                "price",
-                "earnings",
-                "earning_percentage",
-            ]
-        ] = "market",
-        sort_direction: Optional[Literal["ASC", "DESC"]] = None,
+        query: str | None = None,
+        sort_by: Literal[
+            "market",
+            "max_spread",
+            "min_size",
+            "rate_per_day",
+            "spread",
+            "price",
+            "earnings",
+            "earning_percentage",
+        ]
+        | None = "market",
+        sort_direction: Literal["ASC", "DESC"] | None = None,
         show_favorites: bool = False,
     ) -> list[RewardMarket]:
         """
@@ -837,7 +840,7 @@ class PolymarketClobClient:
         """
         results = []
         desc = {"ASC": False, "DESC": True}
-        params = {
+        params: dict[str, bool | str] = {
             "authenticationType": "magic",
             "showFavorites": show_favorites,
         }

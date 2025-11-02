@@ -221,7 +221,7 @@ class ClobMarket(BaseModel):
     @classmethod
     def validate_neg_risk_fields(
         cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
-    ) -> Optional[str]:
+    ) -> str | None:
         try:
             return handler(value)
         except ValidationError as e:
@@ -238,6 +238,7 @@ class ClobMarket(BaseModel):
                         f" Question: {info.data.get('question')}; Market slug: {info.data.get('market_slug')} \n"
                     )
                     logger.warning(msg)
+            return None
 
     @field_validator("condition_id", "question_id", mode="wrap")
     @classmethod
@@ -323,8 +324,8 @@ class DropNotificationParams(BaseModel):
 
 
 class OrderSummary(BaseModel):
-    price: Optional[float] = None
-    size: Optional[float] = None
+    price: float
+    size: float
 
 
 class PriceLevel(OrderSummary):
@@ -505,7 +506,7 @@ class OrderPostResponse(BaseModel):
     order_id: Union[Keccak256, Literal[""]] = Field(alias="orderID")
     taking_amount: str = Field(alias="takingAmount")
     making_amount: str = Field(alias="makingAmount")
-    status: str = Literal["live", "matched", "delayed"]
+    status: Literal["live", "matched", "delayed"]
     success: bool
 
 

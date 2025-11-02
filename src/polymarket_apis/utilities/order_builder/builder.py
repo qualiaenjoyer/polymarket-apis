@@ -221,10 +221,10 @@ class OrderBuilder:
             msg = "No ask orders available"
             raise LiquidityError(msg)
 
-        sum = 0
+        amount = 0.0
         for p in reversed(asks):
-            sum += float(p.size) * float(p.price)
-            if sum >= amount_to_match:
+            amount += float(p.size) * float(p.price)
+            if amount >= amount_to_match:
                 return float(p.price)
 
         if order_type == OrderType.FOK:
@@ -245,10 +245,10 @@ class OrderBuilder:
             msg = "No bid orders available"
             raise LiquidityError(msg)
 
-        sum = 0
+        amount = 0.0
         for p in reversed(bids):
-            sum += float(p.size)
-            if sum >= amount_to_match:
+            amount += float(p.size)
+            if amount >= amount_to_match:
                 return float(p.price)
 
         if order_type == OrderType.FOK:
