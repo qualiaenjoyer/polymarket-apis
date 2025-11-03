@@ -1,6 +1,6 @@
 import re
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, Literal
 
 from eth_account import Account
 from eth_account.messages import encode_defunct
@@ -112,6 +112,88 @@ def abi_encode_packed(*params: dict) -> bytes:
             continue
         parts.append(_pack_primitive(typ, val))
     return b"".join(parts)
+
+
+def split_signature(signature_hex: str) -> dict[str, Any]:
+    """
+    Split a signature into r, s, v components compatible with Safe factory.
+
+    Args:
+        signature_hex: Signature as hex string
+
+    Returns:
+        dict: Dictionary with r, s, v components properly formatted for the contract
+
+    """
+    # Remove 0x prefix if present
+    signature_hex = signature_hex.removeprefix("0x")
+
+    # Convert to bytes
+    signature_bytes = bytes.fromhex(signature_hex)
+
+    if len(signature_bytes) != 65:
+        msg = "Invalid signature length"
+        raise ValueError(msg)
+
+    # Extract r, s, v
+    r = signature_bytes[:32]
+    s = signature_bytes[32:64]
+    v = signature_bytes[64]
+
+    if v < 27:
+        if v in {0, 1}:
+            v += 27
+        else:
+            msg = "Invalid signature v value"
+            raise ValueError(msg)
+
+    # Return properly formatted components for the contract:
+    # - r and s as bytes32 (keep as bytes, web3.py will handle conversion)
+    # - v as uint8 (integer)
+    return {
+        "r": r,  # bytes32
+        "s": s,  # bytes32
+        "v": v,  # uint8
+    }
+
+
+def create_safe_create_signature(
+    account: Account, chain_id: Literal[137, 80002]
+) -> str:
+    """
+    Create EIP-712 signature for Safe creation.
+
+    Returns:
+        str: The signature as hex string
+
+    """
+    # EIP-712 domain
+    domain = {
+        "name": "Polymarket Contract Proxy Factory",
+        "chainId": chain_id,
+        "verifyingContract": "0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b",
+    }
+
+    # EIP-712 types
+    types = {
+        "CreateProxy": [
+            {"name": "paymentToken", "type": "address"},
+            {"name": "payment", "type": "uint256"},
+            {"name": "paymentReceiver", "type": "address"},
+        ]
+    }
+
+    # Values to sign
+    values = {
+        "paymentToken": ADDRESS_ZERO,
+        "payment": 0,
+        "paymentReceiver": ADDRESS_ZERO,
+    }
+
+    # Create the signature using eth_account
+    signature = account.sign_typed_data(domain, types, values)
+
+    return signature.signature.hex()
 
 
 def sign_safe_transaction(

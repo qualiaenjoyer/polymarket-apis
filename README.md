@@ -140,10 +140,13 @@ flowchart LR
   - #### Supporting EOA(signature_type=0), Email/Magic wallets (signature_type=1) and Safe/Gnosis wallets (signature_type=2)
   - #### Approvals
     - set approvals for all needed usdc and conditional token spenders (needed for full trading functionality)
-      - Safe/Gnosis wallets need to be deployed beforehand, either via "Enable Trading" pop-up on the web UI or by calling createProxy on the SafeWalletFactory contract (wip)
+      - Safe/Gnosis wallet holders need to run deploy_safe before setting approvals
   - #### Balance
     - get usdc balance by user address
     - get token balance by `token_id` and user address
+  - #### Transfers
+    - transfer usdc to another address - needs recipient address, amount
+    - transfer token to another address - needs `token_id`, recipient address, amount
   - #### Token/USDC conversions
     - split USDC into complementary tokens - needs `condition_id`, amount, neg_risk bool
     - merge complementary tokens into USDC - needs `condition_id`, amount, neg_risk bool

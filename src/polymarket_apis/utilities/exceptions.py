@@ -20,3 +20,7 @@ class MissingOrderbookError(Exception):
 
 class AuthenticationRequiredError(ValueError):
     """Raised when authentication credentials are required but not provided."""
+
+
+class SafeAlreadyDeployedError(Exception):
+    """Raised when attempting to deploy a Safe that has already been deployed."""

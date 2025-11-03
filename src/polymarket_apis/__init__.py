@@ -10,7 +10,7 @@ This package provides a comprehensive interface to Polymarket's APIs including:
 - GraphQL API for flexible data queries
 """
 
-__version__ = "0.3.7"
+__version__ = "0.3.8"
 __author__ = "Razvan Gheorghe"
 __email__ = "razvan@gheorghe.me"
 
