@@ -24,7 +24,7 @@ def parse_flexible_datetime(v: str | datetime) -> datetime:
 def validate_keccak256(v: str | HexBytes | bytes) -> str:
     """Validate and normalize Keccak256 hash format."""
     # Convert HexBytes/bytes to string
-    if isinstance(v, (HexBytes, bytes)):
+    if isinstance(v, HexBytes | bytes):
         v = v.hex()
 
     # Ensure string and add 0x prefix if missing
@@ -46,7 +46,7 @@ def validate_keccak256(v: str | HexBytes | bytes) -> str:
 def validate_eth_address(v: str | HexBytes | bytes) -> str:
     """Validate and normalize Ethereum address format."""
     # Convert HexBytes/bytes to string
-    if isinstance(v, (HexBytes, bytes)):
+    if isinstance(v, HexBytes | bytes):
         v = v.hex()
 
     # Ensure string and add 0x prefix if missing
@@ -84,7 +84,7 @@ def validate_keccak_or_padded(v: Any) -> str:
     Some log topics are padded addresses, not proper Keccak256 hashes.
     """
     # First convert HexBytes/bytes to string with 0x prefix
-    if isinstance(v, (HexBytes, bytes)):
+    if isinstance(v, HexBytes | bytes):
         v = v.hex()
 
     # Ensure it's a string
