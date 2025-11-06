@@ -12,6 +12,7 @@ from web3.middleware import (
 from web3.types import ChecksumAddress, TxParams, Wei
 
 from ..types.common import EthAddress, Keccak256
+from ..types.web3_types import TransactionReceipt
 from ..utilities.config import get_contract_config
 from ..utilities.constants import ADDRESS_ZERO, HASH_ZERO, POLYGON
 from ..utilities.exceptions import SafeAlreadyDeployedError
@@ -58,25 +59,25 @@ class PolymarketWeb3Client:
 
         self.usdc_address = Web3.to_checksum_address(self.config.collateral)
         self.usdc_abi = _load_abi("UChildERC20Proxy")
-        self.usdc = self.contract(self.usdc_address, self.usdc_abi)
+        self.usdc = self._contract(self.usdc_address, self.usdc_abi)
 
         self.conditional_tokens_address = Web3.to_checksum_address(
             self.config.conditional_tokens
         )
         self.conditional_tokens_abi = _load_abi("ConditionalTokens")
-        self.conditional_tokens = self.contract(
+        self.conditional_tokens = self._contract(
             self.conditional_tokens_address, self.conditional_tokens_abi
         )
 
         self.exchange_address = Web3.to_checksum_address(self.config.exchange)
         self.exchange_abi = _load_abi("CTFExchange")
-        self.exchange = self.contract(self.exchange_address, self.exchange_abi)
+        self.exchange = self._contract(self.exchange_address, self.exchange_abi)
 
         self.neg_risk_exchange_address = Web3.to_checksum_address(
             self.neg_risk_config.exchange
         )
         self.neg_risk_exchange_abi = _load_abi("NegRiskCtfExchange")
-        self.neg_risk_exchange = self.contract(
+        self.neg_risk_exchange = self._contract(
             self.neg_risk_exchange_address, self.neg_risk_exchange_abi
         )
 
@@ -84,7 +85,7 @@ class PolymarketWeb3Client:
             "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"
         )
         self.neg_risk_adapter_abi = _load_abi("NegRiskAdapter")
-        self.neg_risk_adapter = self.contract(
+        self.neg_risk_adapter = self._contract(
             self.neg_risk_adapter_address, self.neg_risk_adapter_abi
         )
 
@@ -92,7 +93,7 @@ class PolymarketWeb3Client:
             "0xaB45c5A4B0c941a2F231C04C3f49182e1A254052"
         )
         self.proxy_factory_abi = _load_abi("ProxyWalletFactory")
-        self.proxy_factory = self.contract(
+        self.proxy_factory = self._contract(
             self.proxy_factory_address, self.proxy_factory_abi
         )
 
@@ -100,7 +101,7 @@ class PolymarketWeb3Client:
             "0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b"
         )
         self.safe_proxy_factory_abi = _load_abi("SafeProxyFactory")
-        self.safe_proxy_factory = self.contract(
+        self.safe_proxy_factory = self._contract(
             self.safe_proxy_factory_address, self.safe_proxy_factory_abi
         )
 
@@ -112,7 +113,13 @@ class PolymarketWeb3Client:
             case 2:
                 self.address = self.get_safe_proxy_address()
                 self.safe_abi = _load_abi("Safe")
-                self.safe = self.contract(self.address, self.safe_abi)
+                self.safe = self._contract(self.address, self.safe_abi)
+
+    def _contract(self, address, abi):
+        return self.w3.eth.contract(
+            address=Web3.to_checksum_address(address),
+            abi=abi,
+        )
 
     def _encode_usdc_approve(self, address: ChecksumAddress) -> str:
         return self.usdc.encode_abi(
@@ -174,144 +181,90 @@ class PolymarketWeb3Client:
             args=[neg_risk_market_id, index_set, amount],
         )
 
-    def _build_transaction(self) -> TxParams:
+    def _build_base_transaction(self) -> TxParams:
         """Build base transaction parameters."""
         nonce = self.w3.eth.get_transaction_count(self.account.address)
 
         current_gas_price: int = self.w3.eth.gas_price
         adjusted_gas_price = Wei(int(current_gas_price * 1.05))
 
-        transaction: TxParams = {
+        base_transaction: TxParams = {
             "nonce": nonce,
             "gasPrice": adjusted_gas_price,
             "gas": 1000000,
             "from": self.account.address,
         }
 
-        return transaction
+        return base_transaction
 
-    def _set_collateral_approval(self, spender: ChecksumAddress) -> str:
-        data = self._encode_usdc_approve(address=spender)
-        transaction = self._build_transaction()
-        txn_data: TxParams | None = None
-
-        match self.signature_type:
-            case 0:
-                txn_data = self.usdc.functions.approve(
-                    spender, int(MAX_INT, base=16)
-                ).build_transaction(transaction=transaction)
-            case 1:
-                proxy_txn = {
-                    "typeCode": 1,
-                    "to": self.usdc_address,
-                    "value": 0,
-                    "data": data,
-                }
-                txn_data = self.proxy_factory.functions.proxy(
-                    [proxy_txn]
-                ).build_transaction(transaction=transaction)
-            case 2:
-                safe_nonce = self.safe.functions.nonce().call()
-                safe_txn = {
-                    "to": self.usdc_address,
-                    "data": data,
-                    "operation": 0,  # 1 for delegatecall, 0 for call
-                    "value": 0,
-                }
-                packed_sig = sign_safe_transaction(
-                    self.account, self.safe, safe_txn, safe_nonce
-                )
-                txn_data = self.safe.functions.execTransaction(
-                    safe_txn["to"],
-                    safe_txn["value"],
-                    safe_txn["data"],
-                    safe_txn.get("operation", 0),
-                    0,  # safeTxGas
-                    0,  # baseGas
-                    0,  # gasPrice
-                    ADDRESS_ZERO,  # gasToken
-                    ADDRESS_ZERO,  # refundReceiver
-                    packed_sig,
-                ).build_transaction(transaction=transaction)
-
-        signed_txn = self.account.sign_transaction(txn_data)
-        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        tx_hash_hex = tx_hash.hex()
-
-        print(f"Txn hash: 0x{tx_hash_hex}")
-
-        # Wait for transaction to be mined
-        self.w3.eth.wait_for_transaction_receipt(tx_hash)
-
-        print("Done!")
-
-        return f"0x{tx_hash_hex}"
-
-    def _set_conditional_tokens_approval(self, spender: ChecksumAddress) -> str:
-        data = self._encode_condition_tokens_approve(address=spender)
-        transaction = self._build_transaction()
-        txn_data: TxParams | None = None
-
-        match self.signature_type:
-            case 0:
-                txn_data = self.conditional_tokens.functions.setApprovalForAll(
-                    spender, True
-                ).build_transaction(transaction=transaction)
-            case 1:
-                proxy_txn = {
-                    "typeCode": 1,
-                    "to": self.conditional_tokens_address,
-                    "value": 0,
-                    "data": data,
-                }
-                txn_data = self.proxy_factory.functions.proxy(
-                    [proxy_txn]
-                ).build_transaction(transaction=transaction)
-            case 2:
-                safe_nonce = self.safe.functions.nonce().call()
-                safe_txn = {
-                    "to": self.conditional_tokens_address,
-                    "data": data,
-                    "operation": 0,  # 1 for delegatecall, 0 for call
-                    "value": 0,
-                }
-                packed_sig = sign_safe_transaction(
-                    self.account,
-                    self.safe,
-                    safe_txn,
-                    safe_nonce,
-                )
-                txn_data = self.safe.functions.execTransaction(
-                    safe_txn["to"],
-                    safe_txn["value"],
-                    safe_txn["data"],
-                    safe_txn.get("operation", 0),
-                    0,  # safeTxGas
-                    0,  # baseGas
-                    0,  # gasPrice
-                    ADDRESS_ZERO,  # gasToken
-                    ADDRESS_ZERO,  # refundReceiver
-                    packed_sig,
-                ).build_transaction(transaction=transaction)
-
-        signed_txn = self.account.sign_transaction(txn_data)
-        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        tx_hash_hex = tx_hash.hex()
-
-        print(f"Txn hash: 0x{tx_hash_hex}")
-
-        # Wait for transaction to be mined
-        self.w3.eth.wait_for_transaction_receipt(tx_hash)
-
-        print("Done!")
-
-        return f"0x{tx_hash_hex}"
-
-    def contract(self, address, abi):
-        return self.w3.eth.contract(
-            address=Web3.to_checksum_address(address),
-            abi=abi,
+    def _build_proxy_transaction(self, to, data, base_transaction) -> TxParams:
+        proxy_txn = {
+            "typeCode": 1,
+            "to": to,
+            "value": 0,
+            "data": data,
+        }
+        txn_data = self.proxy_factory.functions.proxy([proxy_txn]).build_transaction(
+            transaction=base_transaction
         )
+
+        return txn_data
+
+    def _build_safe_transaction(self, to, data, base_transaction) -> TxParams:
+        safe_nonce = self.safe.functions.nonce().call()
+        safe_txn = {
+            "to": to,
+            "data": data,
+            "operation": 0,  # 1 for delegatecall, 0 for call
+            "value": 0,
+        }
+        packed_sig = sign_safe_transaction(
+            self.account,
+            self.safe,
+            safe_txn,
+            safe_nonce,
+        )
+        txn_data = self.safe.functions.execTransaction(
+            safe_txn["to"],
+            safe_txn["value"],
+            safe_txn["data"],
+            safe_txn.get("operation", 0),
+            0,  # safeTxGas
+            0,  # baseGas
+            0,  # gasPrice
+            ADDRESS_ZERO,  # gasToken
+            ADDRESS_ZERO,  # refundReceiver
+            packed_sig,
+        ).build_transaction(transaction=base_transaction)
+
+        return txn_data
+
+    def _execute_transaction(
+        self, txn_data: TxParams, operation_name: str = "Transaction"
+    ) -> TransactionReceipt:
+        """
+        Execute a transaction, wait for receipt, and print status.
+
+        Args:
+            txn_data: Built transaction data
+            operation_name: Name of operation for logging
+
+        """
+        signed_txn = self.account.sign_transaction(txn_data)
+        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+        tx_hash_hex = tx_hash.hex()
+
+        print(f"Txn hash: 0x{tx_hash_hex}")
+
+        # Wait for transaction to be mined and get receipt
+        receipt_dict = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+        receipt = TransactionReceipt.model_validate(receipt_dict)
+
+        print(f"{operation_name} succeeded") if receipt.status == 1 else print(
+            f"{operation_name} failed"
+        )
+
+        return receipt
 
     def get_poly_proxy_address(self, address: EthAddress | None = None) -> EthAddress:
         """Get the polymarket proxy address for the current account."""
@@ -381,7 +334,7 @@ class PolymarketWeb3Client:
             + self.neg_risk_adapter.functions.getConditionId(question_id).call().hex()
         )
 
-    def deploy_safe(self) -> str:
+    def deploy_safe(self) -> TransactionReceipt:
         """Deploy a Safe wallet using the SafeProxyFactory contract."""
         safe_address = self.get_safe_proxy_address()
         if self.w3.eth.get_code(self.w3.to_checksum_address(safe_address)) != b"":
@@ -395,7 +348,7 @@ class PolymarketWeb3Client:
         split_sig = split_signature(sig)
 
         # Build the transaction
-        transaction = self._build_transaction()
+        base_transaction = self._build_base_transaction()
 
         # Execute the createProxy function
         txn_data = self.safe_proxy_factory.functions.createProxy(
@@ -407,134 +360,148 @@ class PolymarketWeb3Client:
                 split_sig["r"],
                 split_sig["s"],
             ),  # createSig tuple (uint8, bytes32, bytes32)
-        ).build_transaction(transaction=transaction)
+        ).build_transaction(transaction=base_transaction)
 
         # Sign and send transaction
-        signed_txn = self.account.sign_transaction(txn_data)
-        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        tx_hash_hex = tx_hash.hex()
+        return self._execute_transaction(
+            txn_data, operation_name="Gnosis Safe Deployment"
+        )
 
-        print(f"txn hash: 0x{tx_hash_hex}")
+    def set_collateral_approval(self, spender: ChecksumAddress) -> TransactionReceipt:
+        to = self.usdc_address
+        data = self._encode_usdc_approve(address=spender)
+        base_transaction = self._build_base_transaction()
+        txn_data: TxParams = {}
 
-        # Wait for transaction to be mined
-        self.w3.eth.wait_for_transaction_receipt(tx_hash)
+        match self.signature_type:
+            case 0:
+                txn_data = self.usdc.functions.approve(
+                    spender, int(MAX_INT, base=16)
+                ).build_transaction(transaction=base_transaction)
+            case 1:
+                txn_data = self._build_proxy_transaction(to, data, base_transaction)
+            case 2:
+                txn_data = self._build_safe_transaction(to, data, base_transaction)
 
-        print("Done!")
+        return self._execute_transaction(txn_data, operation_name="Collateral Approval")
 
-        return f"0x{tx_hash_hex}"
+    def set_conditional_tokens_approval(
+        self, spender: ChecksumAddress
+    ) -> TransactionReceipt:
+        to = self.conditional_tokens_address
+        data = self._encode_condition_tokens_approve(address=spender)
+        base_transaction = self._build_base_transaction()
+        txn_data: TxParams = {}
 
-    def set_all_approvals(self) -> None:
+        match self.signature_type:
+            case 0:
+                txn_data = self.conditional_tokens.functions.setApprovalForAll(
+                    spender, True
+                ).build_transaction(transaction=base_transaction)
+            case 1:
+                txn_data = self._build_proxy_transaction(to, data, base_transaction)
+            case 2:
+                txn_data = self._build_safe_transaction(to, data, base_transaction)
+
+        return self._execute_transaction(
+            txn_data, operation_name="Conditional Tokens Approval"
+        )
+
+    def set_all_approvals(self) -> list[TransactionReceipt]:
         """Sets both collateral and conditional tokens approvals."""
+        receipts = []
         print("Approving ConditionalTokens as spender on USDC")
-        self._set_collateral_approval(
-            spender=self.conditional_tokens_address,
+        receipts.append(
+            self.set_collateral_approval(
+                spender=self.conditional_tokens_address,
+            )
         )
         print("Approving CTFExchange as spender on USDC")
-        self._set_collateral_approval(
-            spender=self.exchange_address,
+        receipts.append(
+            self.set_collateral_approval(
+                spender=self.exchange_address,
+            )
         )
         print("Approving NegRiskCtfExchange as spender on USDC")
-        self._set_collateral_approval(
-            spender=self.neg_risk_exchange_address,
+        receipts.append(
+            self.set_collateral_approval(
+                spender=self.neg_risk_exchange_address,
+            )
         )
         print("Approving NegRiskAdapter as spender on USDC")
-        self._set_collateral_approval(
-            spender=self.neg_risk_adapter_address,
+        receipts.append(
+            self.set_collateral_approval(
+                spender=self.neg_risk_adapter_address,
+            )
         )
         print("Approving CTFExchange as spender on ConditionalTokens")
-        self._set_conditional_tokens_approval(
-            spender=self.exchange_address,
+        receipts.append(
+            self.set_conditional_tokens_approval(
+                spender=self.exchange_address,
+            )
         )
         print("Approving NegRiskCtfExchange as spender on ConditionalTokens")
-        self._set_conditional_tokens_approval(
-            spender=self.neg_risk_exchange_address,
+        receipts.append(
+            self.set_conditional_tokens_approval(
+                spender=self.neg_risk_exchange_address,
+            )
         )
         print("Approving NegRiskAdapter as spender on ConditionalTokens")
-        self._set_conditional_tokens_approval(
-            spender=self.neg_risk_adapter_address,
+        receipts.append(
+            self.set_conditional_tokens_approval(
+                spender=self.neg_risk_adapter_address,
+            )
         )
         print("All approvals set!")
 
-    def transfer_usdc(self, recipient: EthAddress, amount: float) -> str:
+        return receipts
+
+    def transfer_usdc(self, recipient: EthAddress, amount: float) -> TransactionReceipt:
         """Transfers usdc.e from the account to the proxy address."""
         balance = self.get_usdc_balance(address=self.address)
         if balance < amount:
             msg = f"Insufficient USDC.e balance: {balance} < {amount}"
             raise ValueError(msg)
         amount = int(balance * 1e6)
-        transaction = self._build_transaction()
+
+        to = self.usdc_address
         data = self._encode_transfer_usdc(
             self.w3.to_checksum_address(recipient), amount
         )
-        txn_data: TxParams | None = None
+        base_transaction = self._build_base_transaction()
+        txn_data: TxParams = {}
+
         match self.signature_type:
             case 0:
                 txn_data = self.usdc.functions.transfer(
                     recipient,
                     amount,
-                ).build_transaction(transaction=transaction)
+                ).build_transaction(transaction=base_transaction)
             case 1:
-                proxy_txn = {
-                    "typeCode": 1,
-                    "to": self.usdc_address,
-                    "value": 0,
-                    "data": data,
-                }
-                txn_data = self.proxy_factory.functions.proxy(
-                    [proxy_txn]
-                ).build_transaction(transaction=transaction)
+                txn_data = self._build_proxy_transaction(to, data, base_transaction)
             case 2:
-                safe_nonce = self.safe.functions.nonce().call()
-                safe_txn = {
-                    "to": self.usdc_address,
-                    "data": data,
-                    "operation": 0,  # 1 for delegatecall, 0 for call
-                    "value": 0,
-                }
-                packed_sig = sign_safe_transaction(
-                    self.account, self.safe, safe_txn, safe_nonce
-                )
-                txn_data = self.safe.functions.execTransaction(
-                    safe_txn["to"],
-                    safe_txn["value"],
-                    safe_txn["data"],
-                    safe_txn.get("operation", 0),
-                    0,  # safeTxGas
-                    0,  # baseGas
-                    0,  # gasPrice
-                    ADDRESS_ZERO,  # gasToken
-                    ADDRESS_ZERO,  # refundReceiver
-                    packed_sig,
-                ).build_transaction(transaction=transaction)
+                txn_data = self._build_safe_transaction(to, data, base_transaction)
 
         # Sign and send transaction
-        signed_txn = self.account.sign_transaction(txn_data)
-        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        tx_hash_hex = tx_hash.hex()
-
-        print(f"Txn hash: 0x{tx_hash_hex}")
-
-        # Wait for transaction to be mined
-        self.w3.eth.wait_for_transaction_receipt(tx_hash)
-
-        print("Done!")
-
-        return f"0x{tx_hash_hex}"
+        return self._execute_transaction(txn_data, operation_name="USDC Transfer")
 
     def transfer_token(
         self, token_id: str, recipient: EthAddress, amount: float
-    ) -> str:
+    ) -> TransactionReceipt:
         """Transfers conditional tokens from the account to the recipient address."""
         balance = self.get_token_balance(token_id=token_id, address=self.address)
         if balance < amount:
             msg = f"Insufficient token balance: {balance} < {amount}"
             raise ValueError(msg)
         amount = int(balance * 1e6)
-        transaction = self._build_transaction()
+
+        to = self.conditional_tokens_address
         data = self._encode_transfer_token(
             token_id, self.w3.to_checksum_address(recipient), amount
         )
-        txn_data: TxParams | None = None
+        base_transaction = self._build_base_transaction()
+        txn_data: TxParams = {}
+
         match self.signature_type:
             case 0:
                 txn_data = self.conditional_tokens.functions.safeTransferFrom(
@@ -543,207 +510,88 @@ class PolymarketWeb3Client:
                     int(token_id),
                     amount,
                     b"",
-                ).build_transaction(transaction=transaction)
+                ).build_transaction(transaction=base_transaction)
             case 1:
-                proxy_txn = {
-                    "typeCode": 1,
-                    "to": self.conditional_tokens_address,
-                    "value": 0,
-                    "data": data,
-                }
-                txn_data = self.proxy_factory.functions.proxy(
-                    [proxy_txn]
-                ).build_transaction(transaction=transaction)
+                txn_data = self._build_proxy_transaction(to, data, base_transaction)
             case 2:
-                safe_nonce = self.safe.functions.nonce().call()
-                safe_txn = {
-                    "to": self.conditional_tokens_address,
-                    "data": data,
-                    "operation": 0,  # 1 for delegatecall, 0 for call
-                    "value": 0,
-                }
-                packed_sig = sign_safe_transaction(
-                    self.account, self.safe, safe_txn, safe_nonce
-                )
-                txn_data = self.safe.functions.execTransaction(
-                    safe_txn["to"],
-                    safe_txn["value"],
-                    safe_txn["data"],
-                    safe_txn.get("operation", 0),
-                    0,  # safeTxGas
-                    0,  # baseGas
-                    0,  # gasPrice
-                    ADDRESS_ZERO,  # gasToken
-                    ADDRESS_ZERO,  # refundReceiver
-                    packed_sig,
-                ).build_transaction(transaction=transaction)
+                txn_data = self._build_safe_transaction(to, data, base_transaction)
 
         # Sign and send transaction
-        signed_txn = self.account.sign_transaction(txn_data)
-        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        tx_hash_hex = tx_hash.hex()
-
-        print(f"Txn hash: 0x{tx_hash_hex}")
-
-        # Wait for transaction to be mined
-        self.w3.eth.wait_for_transaction_receipt(tx_hash)
-
-        print("Done!")
-
-        return f"0x{tx_hash_hex}"
+        return self._execute_transaction(txn_data, operation_name="Token Transfer")
 
     def split_position(
         self, condition_id: Keccak256, amount: float, neg_risk: bool = True
-    ) -> str:
+    ) -> TransactionReceipt:
         """Splits usdc into two complementary positions of equal size."""
         amount = int(amount * 1e6)
-        data = self._encode_split(condition_id, amount)
+
         to = (
             self.neg_risk_adapter_address
             if neg_risk
             else self.conditional_tokens_address
         )
-        transaction = self._build_transaction()
-        txn_data: TxParams | None = None
+        data = self._encode_split(condition_id, amount)
+        base_transaction = self._build_base_transaction()
+        txn_data: TxParams = {}
 
         match self.signature_type:
             case 0:
-                contract = (
+                _contract = (
                     self.neg_risk_adapter if neg_risk else self.conditional_tokens
                 )
-                txn_data = contract.functions.splitPosition(
+                txn_data = _contract.functions.splitPosition(
                     self.usdc_address,
                     HASH_ZERO,
                     condition_id,
                     [1, 2],
                     amount,
-                ).build_transaction(transaction=transaction)
+                ).build_transaction(transaction=base_transaction)
             case 1:
-                proxy_txn = {
-                    "typeCode": 1,
-                    "to": to,
-                    "value": 0,
-                    "data": data,
-                }
-                txn_data = self.proxy_factory.functions.proxy(
-                    [proxy_txn]
-                ).build_transaction(transaction=transaction)
+                txn_data = self._build_proxy_transaction(to, data, base_transaction)
             case 2:
-                safe_nonce = self.safe.functions.nonce().call()
-                safe_txn = {
-                    "to": to,
-                    "data": data,
-                    "operation": 0,  # 1 for delegatecall, 0 for call
-                    "value": 0,
-                }
-                packed_sig = sign_safe_transaction(
-                    self.account, self.safe, safe_txn, safe_nonce
-                )
-                txn_data = self.safe.functions.execTransaction(
-                    safe_txn["to"],
-                    safe_txn["value"],
-                    safe_txn["data"],
-                    safe_txn.get("operation", 0),
-                    0,  # safeTxGas
-                    0,  # baseGas
-                    0,  # gasPrice
-                    ADDRESS_ZERO,  # gasToken
-                    ADDRESS_ZERO,  # refundReceiver
-                    packed_sig,
-                ).build_transaction(transaction=transaction)
+                txn_data = self._build_safe_transaction(to, data, base_transaction)
 
         # Sign and send transaction
-        signed_txn = self.account.sign_transaction(txn_data)
-        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        tx_hash_hex = tx_hash.hex()
-
-        print(f"Txn hash: 0x{tx_hash_hex}")
-
-        # Wait for transaction to be mined
-        self.w3.eth.wait_for_transaction_receipt(tx_hash)
-
-        print("Done!")
-
-        return f"0x{tx_hash_hex}"
+        return self._execute_transaction(txn_data, operation_name="Split Position")
 
     def merge_position(
         self, condition_id: Keccak256, amount: float, neg_risk: bool = True
-    ) -> str:
+    ) -> TransactionReceipt:
         """Merges two complementary positions into usdc."""
         amount = int(amount * 1e6)
-        data = self._encode_merge(condition_id, amount)
+
         to = (
             self.neg_risk_adapter_address
             if neg_risk
             else self.conditional_tokens_address
         )
-        transaction = self._build_transaction()
-        txn_data: TxParams | None = None
+        data = self._encode_merge(condition_id, amount)
+        base_transaction = self._build_base_transaction()
+        txn_data: TxParams = {}
 
         match self.signature_type:
             case 0:
-                contract = (
+                _contract = (
                     self.neg_risk_adapter if neg_risk else self.conditional_tokens
                 )
-                txn_data = contract.functions.mergePositions(
+                txn_data = _contract.functions.mergePositions(
                     self.usdc_address,
                     HASH_ZERO,
                     condition_id,
                     [1, 2],
                     amount,
-                ).build_transaction(transaction=transaction)
+                ).build_transaction(transaction=base_transaction)
             case 1:
-                proxy_txn = {
-                    "typeCode": 1,
-                    "to": to,
-                    "value": 0,
-                    "data": data,
-                }
-
-                txn_data = self.proxy_factory.functions.proxy(
-                    [proxy_txn]
-                ).build_transaction(transaction=transaction)
+                txn_data = self._build_proxy_transaction(to, data, base_transaction)
             case 2:
-                safe_nonce = self.safe.functions.nonce().call()
-                safe_txn = {
-                    "to": to,
-                    "data": data,
-                    "operation": 0,  # 1 for delegatecall, 0 for call
-                    "value": 0,
-                }
-                packed_sig = sign_safe_transaction(
-                    self.account, self.safe, safe_txn, safe_nonce
-                )
-                txn_data = self.safe.functions.execTransaction(
-                    safe_txn["to"],
-                    safe_txn["value"],
-                    safe_txn["data"],
-                    safe_txn.get("operation", 0),
-                    0,  # safeTxGas
-                    0,  # baseGas
-                    0,  # gasPrice
-                    ADDRESS_ZERO,  # gasToken
-                    ADDRESS_ZERO,  # refundReceiver
-                    packed_sig,
-                ).build_transaction(transaction=transaction)
+                txn_data = self._build_safe_transaction(to, data, base_transaction)
 
         # Sign and send transaction
-        signed_txn = self.account.sign_transaction(txn_data)
-        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        tx_hash_hex = tx_hash.hex()
-
-        print(f"Txn hash: 0x{tx_hash_hex}")
-
-        # Wait for transaction to be mined
-        self.w3.eth.wait_for_transaction_receipt(tx_hash)
-
-        print("Done!")
-
-        return f"0x{tx_hash_hex}"
+        return self._execute_transaction(txn_data, operation_name="Merge Position")
 
     def redeem_position(
         self, condition_id: Keccak256, amounts: list[float], neg_risk: bool = True
-    ) -> str:
+    ) -> TransactionReceipt:
         """
         Redeem a position into usdc.
 
@@ -752,96 +600,58 @@ class PolymarketWeb3Client:
               y is the number of shares of the second outcome.
         """
         int_amounts = [int(amount * 1e6) for amount in amounts]
-        data = (
-            self._encode_redeem_neg_risk(condition_id, int_amounts)
-            if neg_risk
-            else self._encode_redeem(condition_id)
-        )
+
         to = (
             self.neg_risk_adapter_address
             if neg_risk
             else self.conditional_tokens_address
         )
-        transaction = self._build_transaction()
-        txn_data: TxParams | None = None
+        data = (
+            self._encode_redeem_neg_risk(condition_id, int_amounts)
+            if neg_risk
+            else self._encode_redeem(condition_id)
+        )
+        base_transaction = self._build_base_transaction()
+        txn_data: TxParams = {}
 
         match self.signature_type:
             case 0:
-                contract = (
+                _contract = (
                     self.neg_risk_adapter if neg_risk else self.conditional_tokens
                 )
                 if neg_risk:
-                    txn_data = contract.functions.redeemPositions(
+                    txn_data = _contract.functions.redeemPositions(
                         condition_id, int_amounts
-                    ).build_transaction(transaction=transaction)
+                    ).build_transaction(transaction=base_transaction)
                 else:
-                    txn_data = contract.functions.redeemPositions(
+                    txn_data = _contract.functions.redeemPositions(
                         self.usdc_address,
                         HASH_ZERO,
                         condition_id,
                         [1, 2],
-                    ).build_transaction(transaction=transaction)
+                    ).build_transaction(transaction=base_transaction)
             case 1:
-                proxy_txn = {
-                    "typeCode": 1,
-                    "to": to,
-                    "value": 0,
-                    "data": data,
-                }
-                txn_data = self.proxy_factory.functions.proxy(
-                    [proxy_txn]
-                ).build_transaction(transaction=transaction)
+                txn_data = self._build_proxy_transaction(to, data, base_transaction)
             case 2:
-                safe_nonce = self.safe.functions.nonce().call()
-                safe_txn = {
-                    "to": to,
-                    "data": data,
-                    "operation": 0,  # 1 for delegatecall, 0 for call
-                    "value": 0,
-                }
-                packed_sig = sign_safe_transaction(
-                    self.account, self.safe, safe_txn, safe_nonce
-                )
-                txn_data = self.safe.functions.execTransaction(
-                    safe_txn["to"],
-                    safe_txn["value"],
-                    safe_txn["data"],
-                    safe_txn.get("operation", 0),
-                    0,  # safeTxGas
-                    0,  # baseGas
-                    0,  # gasPrice
-                    ADDRESS_ZERO,  # gasToken
-                    ADDRESS_ZERO,  # refundReceiver
-                    packed_sig,
-                ).build_transaction(transaction=transaction)
+                txn_data = self._build_safe_transaction(to, data, base_transaction)
 
         # Sign and send transaction
-        signed_txn = self.account.sign_transaction(txn_data)
-        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        tx_hash_hex = tx_hash.hex()
-
-        print(f"Txn hash: 0x{tx_hash_hex}")
-
-        # Wait for transaction to be mined
-        self.w3.eth.wait_for_transaction_receipt(tx_hash)
-
-        print("Done!")
-
-        return f"0x{tx_hash_hex}"
+        return self._execute_transaction(txn_data, operation_name="Redeem Position")
 
     def convert_positions(
         self,
         question_ids: list[Keccak256],
         amount: float,
-    ) -> str:
+    ) -> TransactionReceipt:
         amount = int(amount * 1e6)
         neg_risk_market_id = question_ids[0][:-2] + "00"
+
+        to = self.neg_risk_adapter_address
         data = self._encode_convert(
             neg_risk_market_id, get_index_set(question_ids), amount
         )
-        to = self.neg_risk_adapter_address
-        transaction = self._build_transaction()
-        txn_data: TxParams | None = None
+        base_transaction = self._build_base_transaction()
+        txn_data: TxParams = {}
 
         match self.signature_type:
             case 0:
@@ -849,53 +659,11 @@ class PolymarketWeb3Client:
                     neg_risk_market_id,
                     get_index_set(question_ids),
                     amount,
-                ).build_transaction(transaction=transaction)
+                ).build_transaction(transaction=base_transaction)
             case 1:
-                proxy_txn = {
-                    "typeCode": 1,
-                    "to": to,
-                    "value": 0,
-                    "data": data,
-                }
-
-                txn_data = self.proxy_factory.functions.proxy(
-                    [proxy_txn]
-                ).build_transaction(transaction=transaction)
+                txn_data = self._build_proxy_transaction(to, data, base_transaction)
             case 2:
-                safe_nonce = self.safe.functions.nonce().call()
-                safe_txn = {
-                    "to": to,
-                    "data": data,
-                    "operation": 0,  # 1 for delegatecall, 0 for call
-                    "value": 0,
-                }
-
-                packed_sig = sign_safe_transaction(
-                    self.account, self.safe, safe_txn, safe_nonce
-                )
-                txn_data = self.safe.functions.execTransaction(
-                    safe_txn["to"],
-                    safe_txn["value"],
-                    safe_txn["data"],
-                    safe_txn.get("operation", 0),
-                    0,  # safeTxGas
-                    0,  # baseGas
-                    0,  # gasPrice
-                    ADDRESS_ZERO,  # gasToken
-                    ADDRESS_ZERO,  # refundReceiver
-                    packed_sig,
-                ).build_transaction(transaction=transaction)
+                txn_data = self._build_safe_transaction(to, data, base_transaction)
 
         # Sign and send transaction
-        signed_txn = self.account.sign_transaction(txn_data)
-        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        tx_hash_hex = tx_hash.hex()
-
-        print(f"Txn hash: 0x{tx_hash_hex}")
-
-        # Wait for transaction to be mined
-        self.w3.eth.wait_for_transaction_receipt(tx_hash)
-
-        print("Done!")
-
-        return f"0x{tx_hash_hex}"
+        return self._execute_transaction(txn_data, operation_name="Convert Positions")
