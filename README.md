@@ -1,4 +1,4 @@
-# polymarket-apis [![PyPI version](https://img.shields.io/pypi/v/polymarket-apis.svg)](https://pypi.org/project/polymarket-apis/) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/qualiaenjoyer/polymarket-apis)
+# polymarket-apis [![PyPI version](https://img.shields.io/pypi/v/polymarket-apis.svg)](https://pypi.org/project/polymarket-apis/)
 
 Unified Polymarket APIs with Pydantic data validation - Clob, Gamma, Data, Web3, Websockets, GraphQL clients.
 
