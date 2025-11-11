@@ -48,6 +48,7 @@ from ..utilities.endpoints import (
     DELETE_API_KEY,
     DERIVE_API_KEY,
     GET_API_KEYS,
+    GET_BALANCE_ALLOWANCE,
     GET_FEE_RATE,
     GET_LAST_TRADE_PRICE,
     GET_LAST_TRADES_PRICES,
@@ -104,6 +105,7 @@ class PolymarketClobClient:
         self.async_client = httpx.AsyncClient(http2=True, timeout=30.0)
         self.base_url: str = "https://clob.polymarket.com"
         self.signer = Signer(private_key=private_key, chain_id=chain_id)
+        self.signature_type = signature_type
         self.builder = OrderBuilder(
             signer=self.signer,
             sig_type=signature_type,
@@ -416,6 +418,33 @@ class PolymarketClobClient:
             token_id=token_id,
             start_time=datetime(2020, 1, 1, tzinfo=UTC),
         )
+
+    def get_usdc_balance(self) -> float:
+        params = {
+            "asset_type": "COLLATERAL",
+            "signature_type": self.signature_type,
+        }
+        request_args = RequestArgs(method="GET", request_path=GET_BALANCE_ALLOWANCE)
+        headers = create_level_2_headers(self.signer, self.creds, request_args)
+        response = self.client.get(
+            self._build_url(GET_BALANCE_ALLOWANCE), headers=headers, params=params
+        )
+        response.raise_for_status()
+        return int(response.json()["balance"]) / 10**6
+
+    def get_token_balance(self, token_id: str) -> float:
+        params = {
+            "asset_type": "CONDITIONAL",
+            "token_id": token_id,
+            "signature_type": self.signature_type,
+        }
+        request_args = RequestArgs(method="GET", request_path=GET_BALANCE_ALLOWANCE)
+        headers = create_level_2_headers(self.signer, self.creds, request_args)
+        response = self.client.get(
+            self._build_url(GET_BALANCE_ALLOWANCE), headers=headers, params=params
+        )
+        response.raise_for_status()
+        return int(response.json()["balance"]) / 10**6
 
     def get_orders(
         self,

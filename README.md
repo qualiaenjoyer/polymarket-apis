@@ -71,6 +71,8 @@ flowchart LR
     - check if a **Market** offers rewards by `condition_id` - **get_market_rewards()**
     - get all active markets that offer rewards sorted by different metrics and ordered, filtered by a query, show your favourites from the web app  - **get_reward_markets()** (*naming would do with some work*)
   - #### Miscellaneous
+    - get usdc balance
+    - get token balance by `token_id`
     - get recent price history by `token_id` in the last 1h, 6h, 1d, 1w, 1m
     - get price history by `token_id` in start/end interval
     - get all price history by `token_id` in 2 min increments

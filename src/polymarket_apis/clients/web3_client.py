@@ -197,6 +197,30 @@ class PolymarketWeb3Client:
 
         return base_transaction
 
+    def _build_eoa_transaction(
+        self, contract_function, base_transaction: TxParams
+    ) -> TxParams:
+        """
+        Build EOA transaction with gas estimation.
+
+        Args:
+            contract_function: Web3 ContractFunction instance with arguments
+            base_transaction: Base transaction parameters
+
+        Returns:
+            Complete transaction data with estimated gas
+
+        """
+        estimation_txn: TxParams = {
+            "from": self.address,
+        }
+
+        estimated = contract_function.estimate_gas(estimation_txn)
+        base_transaction["gas"] = int(estimated * 1.05)
+
+        # Build transaction with estimated gas
+        return contract_function.build_transaction(transaction=base_transaction)
+
     def _build_proxy_transaction(self, to, data, base_transaction) -> TxParams:
         proxy_txn = {
             "typeCode": 1,
@@ -204,10 +228,18 @@ class PolymarketWeb3Client:
             "value": 0,
             "data": data,
         }
+
+        estimation_txn: TxParams = {
+            "from": self.address,
+            "to": to,
+            "data": data,
+        }
+        estimated = self.w3.eth.estimate_gas(estimation_txn)
+        base_transaction["gas"] = int(estimated * 1.05) + 100000
+
         txn_data = self.proxy_factory.functions.proxy([proxy_txn]).build_transaction(
             transaction=base_transaction
         )
-
         return txn_data
 
     def _build_safe_transaction(self, to, data, base_transaction) -> TxParams:
@@ -224,6 +256,15 @@ class PolymarketWeb3Client:
             safe_txn,
             safe_nonce,
         )
+
+        estimation_txn: TxParams = {
+            "from": self.address,
+            "to": to,
+            "data": data,
+        }
+        estimated = self.w3.eth.estimate_gas(estimation_txn)
+        base_transaction["gas"] = int(estimated * 1.05) + 100000
+
         txn_data = self.safe.functions.execTransaction(
             safe_txn["to"],
             safe_txn["value"],
@@ -243,7 +284,7 @@ class PolymarketWeb3Client:
         self, txn_data: TxParams, operation_name: str = "Transaction"
     ) -> TransactionReceipt:
         """
-        Execute a transaction, wait for receipt, and print status.
+        Execute a transaction, wait for receipt.
 
         Args:
             txn_data: Built transaction data
@@ -263,8 +304,15 @@ class PolymarketWeb3Client:
         print(f"{operation_name} succeeded") if receipt.status == 1 else print(
             f"{operation_name} failed"
         )
+        print(
+            f"Paid {round((receipt.gas_used * receipt.effective_gas_price) / 10**18, 3)} POL for gas"
+        )
 
         return receipt
+
+    def get_base_address(self) -> EthAddress:
+        """Get the base address for the current account."""
+        return self.account.address
 
     def get_poly_proxy_address(self, address: EthAddress | None = None) -> EthAddress:
         """Get the polymarket proxy address for the current account."""
@@ -375,9 +423,12 @@ class PolymarketWeb3Client:
 
         match self.signature_type:
             case 0:
-                txn_data = self.usdc.functions.approve(
+                approve_function = self.usdc.functions.approve(
                     spender, int(MAX_INT, base=16)
-                ).build_transaction(transaction=base_transaction)
+                )
+                txn_data = self._build_eoa_transaction(
+                    approve_function, base_transaction
+                )
             case 1:
                 txn_data = self._build_proxy_transaction(to, data, base_transaction)
             case 2:
@@ -395,9 +446,12 @@ class PolymarketWeb3Client:
 
         match self.signature_type:
             case 0:
-                txn_data = self.conditional_tokens.functions.setApprovalForAll(
-                    spender, True
-                ).build_transaction(transaction=base_transaction)
+                set_approval_function = (
+                    self.conditional_tokens.functions.setApprovalForAll(spender, True)
+                )
+                txn_data = self._build_eoa_transaction(
+                    set_approval_function, base_transaction
+                )
             case 1:
                 txn_data = self._build_proxy_transaction(to, data, base_transaction)
             case 2:
@@ -462,7 +516,7 @@ class PolymarketWeb3Client:
         if balance < amount:
             msg = f"Insufficient USDC.e balance: {balance} < {amount}"
             raise ValueError(msg)
-        amount = int(balance * 1e6)
+        amount = int(amount * 1e6)
 
         to = self.usdc_address
         data = self._encode_transfer_usdc(
@@ -473,10 +527,13 @@ class PolymarketWeb3Client:
 
         match self.signature_type:
             case 0:
-                txn_data = self.usdc.functions.transfer(
+                transfer_usdc_function = self.usdc.functions.transfer(
                     recipient,
                     amount,
-                ).build_transaction(transaction=base_transaction)
+                )
+                txn_data = self._build_eoa_transaction(
+                    transfer_usdc_function, base_transaction
+                )
             case 1:
                 txn_data = self._build_proxy_transaction(to, data, base_transaction)
             case 2:
@@ -493,7 +550,7 @@ class PolymarketWeb3Client:
         if balance < amount:
             msg = f"Insufficient token balance: {balance} < {amount}"
             raise ValueError(msg)
-        amount = int(balance * 1e6)
+        amount = int(amount * 1e6)
 
         to = self.conditional_tokens_address
         data = self._encode_transfer_token(
@@ -504,13 +561,18 @@ class PolymarketWeb3Client:
 
         match self.signature_type:
             case 0:
-                txn_data = self.conditional_tokens.functions.safeTransferFrom(
-                    self.address,
-                    recipient,
-                    int(token_id),
-                    amount,
-                    b"",
-                ).build_transaction(transaction=base_transaction)
+                transfer_token_function = (
+                    self.conditional_tokens.functions.safeTransferFrom(
+                        self.address,
+                        recipient,
+                        int(token_id),
+                        amount,
+                        b"",
+                    )
+                )
+                txn_data = self._build_eoa_transaction(
+                    transfer_token_function, base_transaction
+                )
             case 1:
                 txn_data = self._build_proxy_transaction(to, data, base_transaction)
             case 2:
@@ -536,16 +598,19 @@ class PolymarketWeb3Client:
 
         match self.signature_type:
             case 0:
-                _contract = (
+                contract = (
                     self.neg_risk_adapter if neg_risk else self.conditional_tokens
                 )
-                txn_data = _contract.functions.splitPosition(
+
+                split_function = contract.functions.splitPosition(
                     self.usdc_address,
                     HASH_ZERO,
                     condition_id,
                     [1, 2],
                     amount,
-                ).build_transaction(transaction=base_transaction)
+                )
+
+                txn_data = self._build_eoa_transaction(split_function, base_transaction)
             case 1:
                 txn_data = self._build_proxy_transaction(to, data, base_transaction)
             case 2:
@@ -571,16 +636,17 @@ class PolymarketWeb3Client:
 
         match self.signature_type:
             case 0:
-                _contract = (
+                contract = (
                     self.neg_risk_adapter if neg_risk else self.conditional_tokens
                 )
-                txn_data = _contract.functions.mergePositions(
+                merge_function = contract.functions.mergePositions(
                     self.usdc_address,
                     HASH_ZERO,
                     condition_id,
                     [1, 2],
                     amount,
-                ).build_transaction(transaction=base_transaction)
+                )
+                txn_data = self._build_eoa_transaction(merge_function, base_transaction)
             case 1:
                 txn_data = self._build_proxy_transaction(to, data, base_transaction)
             case 2:
@@ -616,20 +682,23 @@ class PolymarketWeb3Client:
 
         match self.signature_type:
             case 0:
-                _contract = (
+                contract = (
                     self.neg_risk_adapter if neg_risk else self.conditional_tokens
                 )
                 if neg_risk:
-                    txn_data = _contract.functions.redeemPositions(
+                    redeem_function = contract.functions.redeemPositions(
                         condition_id, int_amounts
-                    ).build_transaction(transaction=base_transaction)
+                    )
                 else:
-                    txn_data = _contract.functions.redeemPositions(
+                    redeem_function = contract.functions.redeemPositions(
                         self.usdc_address,
                         HASH_ZERO,
                         condition_id,
                         [1, 2],
-                    ).build_transaction(transaction=base_transaction)
+                    )
+                txn_data = self._build_eoa_transaction(
+                    redeem_function, base_transaction
+                )
             case 1:
                 txn_data = self._build_proxy_transaction(to, data, base_transaction)
             case 2:
@@ -643,6 +712,14 @@ class PolymarketWeb3Client:
         question_ids: list[Keccak256],
         amount: float,
     ) -> TransactionReceipt:
+        """
+        Convert a set of No position in a negative risk event into a collection of Yes positions and USDC.
+
+        Args:
+            question_ids: Array of question_ids representing the positions to convert
+            amount: Number of shares to convert
+
+        """
         amount = int(amount * 1e6)
         neg_risk_market_id = question_ids[0][:-2] + "00"
 
@@ -655,11 +732,14 @@ class PolymarketWeb3Client:
 
         match self.signature_type:
             case 0:
-                txn_data = self.neg_risk_adapter.functions.convertPositions(
+                convert_function = self.neg_risk_adapter.functions.convertPositions(
                     neg_risk_market_id,
                     get_index_set(question_ids),
                     amount,
-                ).build_transaction(transaction=base_transaction)
+                )
+                txn_data = self._build_eoa_transaction(
+                    convert_function, base_transaction
+                )
             case 1:
                 txn_data = self._build_proxy_transaction(to, data, base_transaction)
             case 2:
