@@ -457,6 +457,7 @@ class PolymarketWeb3Client(BaseWeb3Client):
             "gasPrice": adjusted_gas_price,
             "gas": 1000000,
             "from": self.account.address,
+            "chainId": 137,  # EIP-155 replay protection for Polygon
         }
 
     def _build_eoa_transaction(
