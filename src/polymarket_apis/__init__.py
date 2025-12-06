@@ -10,7 +10,7 @@ This package provides a comprehensive interface to Polymarket's APIs including:
 - GraphQL API for flexible data queries
 """
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 __author__ = "Razvan Gheorghe"
 __email__ = "razvan@gheorghe.me"
 
@@ -19,13 +19,15 @@ from .clients import (
     PolymarketClobClient,
     PolymarketDataClient,
     PolymarketGammaClient,
+    PolymarketGaslessWeb3Client,
     PolymarketGraphQLClient,
     PolymarketWeb3Client,
     PolymarketWebsocketsClient,
 )
-from .types.clob_types import MarketOrderArgs, OrderArgs, OrderType
+from .types.clob_types import ApiCreds, MarketOrderArgs, OrderArgs, OrderType
 
 __all__ = [
+    "ApiCreds",
     "AsyncPolymarketGraphQLClient",
     "MarketOrderArgs",
     "OrderArgs",
@@ -33,6 +35,7 @@ __all__ = [
     "PolymarketClobClient",
     "PolymarketDataClient",
     "PolymarketGammaClient",
+    "PolymarketGaslessWeb3Client",
     "PolymarketGraphQLClient",
     "PolymarketWeb3Client",
     "PolymarketWebsocketsClient",

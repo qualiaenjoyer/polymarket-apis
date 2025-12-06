@@ -71,7 +71,7 @@ flowchart LR
     - check if a **Market** offers rewards by `condition_id` - **get_market_rewards()**
     - get all active markets that offer rewards sorted by different metrics and ordered, filtered by a query, show your favourites from the web app  - **get_reward_markets()** (*naming would do with some work*)
   - #### Miscellaneous
-    - get usdc balance
+    - get USDC balance
     - get token balance by `token_id`
     - get recent price history by `token_id` in the last 1h, 6h, 1d, 1w, 1m
     - get price history by `token_id` in start/end interval
@@ -138,22 +138,34 @@ flowchart LR
     - get user rank on the profit/volume leaderboards by user address for a recent window (1d, 7d, 30d, all)
     - get top users on the profit/volume leaderboards (at most 100) for a recent window (1d, 7d, 30d, all)
 
-  ### PolymarketWeb3Client - Blockchain related operations
-  - #### Supporting EOA(signature_type=0), Email/Magic wallets (signature_type=1) and Safe/Gnosis wallets (signature_type=2)
-  - #### Approvals
-    - set approvals for all needed usdc and conditional token spenders (needed for full trading functionality)
+  ### PolymarketWeb3Client - Blockchain operations (pays gas)
+  - #### Supported wallet types:
+    - EOA(signature_type=0)
+    - Email/Magic wallets (signature_type=1)
+    - Safe/Gnosis wallets (signature_type=2)
+  - #### Setup and deployment
+    - set approvals for all needed USDC and conditional token spenders (needed for full trading functionality)
       - Safe/Gnosis wallet holders need to run deploy_safe before setting approvals
   - #### Balance
-    - get usdc balance by user address
+    - get POL balance by user address
+    - get USDC balance by user address
     - get token balance by `token_id` and user address
   - #### Transfers
-    - transfer usdc to another address - needs recipient address, amount
+    - transfer USDC to another address - needs recipient address, amount
     - transfer token to another address - needs `token_id`, recipient address, amount
   - #### Token/USDC conversions
     - split USDC into complementary tokens - needs `condition_id`, amount, neg_risk bool
     - merge complementary tokens into USDC - needs `condition_id`, amount, neg_risk bool
     - redeem token into USDC - needs `condition_id`, amounts array [`Yes` shares, `No` shares], neg_risk bool
     - convert 1 or more `No` tokens in a *negative risk* **Event** into a collection of USDC and `Yes` tokens on the other **Markets** in the **Event**
+
+  ### PolymarketGaslessWeb3Client - Relayed blockchain operations (doesn't pay gas)
+  - #### Supported wallet types:
+    - Safe/Gnosis wallets (signature_type=2)
+    - Email/Magic wallets (signature_type=1) *Coming soon*
+  - #### Available operations
+    - balance methods from PolymarketWeb3Client (read only)
+    - split / merge / convert / redeem (gasless)
 
   ### PolymarketWebsocketsClient - Real time data subscriptions
   - subscribe to **market socket** with `token_ids` list, receive different event types:

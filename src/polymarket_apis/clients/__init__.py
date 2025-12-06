@@ -9,7 +9,7 @@ from .clob_client import PolymarketClobClient
 from .data_client import PolymarketDataClient
 from .gamma_client import PolymarketGammaClient
 from .graphql_client import AsyncPolymarketGraphQLClient, PolymarketGraphQLClient
-from .web3_client import PolymarketWeb3Client
+from .web3_client import PolymarketGaslessWeb3Client, PolymarketWeb3Client
 from .websockets_client import PolymarketWebsocketsClient
 
 __all__ = [
@@ -17,6 +17,7 @@ __all__ = [
     "PolymarketClobClient",
     "PolymarketDataClient",
     "PolymarketGammaClient",
+    "PolymarketGaslessWeb3Client",
     "PolymarketGraphQLClient",
     "PolymarketWeb3Client",
     "PolymarketWebsocketsClient",

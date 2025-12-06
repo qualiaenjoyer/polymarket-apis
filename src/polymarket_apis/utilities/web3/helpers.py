@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from typing import Any, Literal
 
 from eth_account import Account
+from eth_account.datastructures import SignedMessage
 from eth_account.messages import encode_defunct
 from web3.constants import ADDRESS_ZERO
 from web3.contract import Contract
@@ -198,7 +199,7 @@ def create_safe_create_signature(
 
 def sign_safe_transaction(
     account: Account, safe: Contract, safe_txn: dict, nonce: int
-) -> bytes:
+) -> SignedMessage:
     safe_tx_gas = 0
     base_gas = 0
     gas_price = 0
@@ -220,7 +221,10 @@ def sign_safe_transaction(
 
     tx_hash_hex = tx_hash_bytes.hex()
     message = encode_defunct(hexstr=tx_hash_hex)
-    signed = account.sign_message(message)
+    return account.sign_message(message)
+
+
+def get_packed_signature(signed: SignedMessage) -> bytes:
     r = signed.r
     s = signed.s
     v = signed.v
