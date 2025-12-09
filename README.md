@@ -161,8 +161,8 @@ flowchart LR
 
   ### PolymarketGaslessWeb3Client - Relayed blockchain operations (doesn't pay gas)
   - #### Supported wallet types:
+    - Email/Magic wallets (signature_type=1)
     - Safe/Gnosis wallets (signature_type=2)
-    - Email/Magic wallets (signature_type=1) *Coming soon*
   - #### Available operations
     - balance methods from PolymarketWeb3Client (read only)
     - split / merge / convert / redeem (gasless)

@@ -4,23 +4,27 @@ from pathlib import Path
 from typing import Literal
 
 import httpx
+from eth_account.messages import encode_defunct
 from web3 import Web3
 from web3.constants import MAX_INT
-from web3.exceptions import ContractCustomError
+from web3.exceptions import ContractCustomError, TimeExhausted
 from web3.middleware import (
     ExtraDataToPOAMiddleware,
     SignAndSendRawMiddlewareBuilder,
 )
 from web3.types import ChecksumAddress, HexStr, TxParams, Wei
 
+from ..types.clob_types import ApiCreds, RequestArgs
 from ..types.common import EthAddress, Keccak256
 from ..types.web3_types import TransactionReceipt
 from ..utilities.config import get_contract_config
 from ..utilities.constants import ADDRESS_ZERO, HASH_ZERO, POLYGON
 from ..utilities.exceptions import SafeAlreadyDeployedError
+from ..utilities.headers import create_level_2_headers
 from ..utilities.signing.signer import Signer
 from ..utilities.web3.abis.custom_contract_errors import CUSTOM_ERROR_DICT
 from ..utilities.web3.helpers import (
+    create_proxy_struct,
     create_safe_create_signature,
     get_index_set,
     get_packed_signature,
@@ -68,7 +72,7 @@ class BaseWeb3Client(ABC):
 
         self.config = get_contract_config(chain_id, neg_risk=False)
         self.neg_risk_config = get_contract_config(chain_id, neg_risk=True)
-
+        self.chain_id = chain_id
         self._setup_contracts()
         self._setup_address()
 
@@ -176,13 +180,6 @@ class BaseWeb3Client(ABC):
         return self.conditional_tokens.encode_abi(
             abi_element_identifier="splitPosition",
             args=[self.usdc_address, HASH_ZERO, condition_id, [1, 2], amount],
-        )
-
-    def _encode_split_nr(self, condition_id: Keccak256, amount: int) -> str:
-        """Encode split position transaction for neg risk."""
-        return self.neg_risk_adapter.encode_abi(
-            abi_element_identifier="splitPosition",
-            args=[condition_id, amount],
         )
 
     def _encode_merge(self, condition_id: Keccak256, amount: int) -> str:
@@ -330,11 +327,7 @@ class BaseWeb3Client(ABC):
             if neg_risk
             else self.conditional_tokens_address
         )
-        data = (
-            self._encode_split_nr(condition_id, amount_int)
-            if neg_risk
-            else self._encode_split(condition_id, amount_int)
-        )
+        data = self._encode_split(condition_id, amount_int)
 
         return self._execute(to, data, "Split Position", metadata="split")
 
@@ -457,7 +450,7 @@ class PolymarketWeb3Client(BaseWeb3Client):
             "gasPrice": adjusted_gas_price,
             "gas": 1000000,
             "from": self.account.address,
-            "chainId": 137,  # EIP-155 replay protection for Polygon
+            "chainId": self.chain_id,
         }
 
     def _build_eoa_transaction(
@@ -666,23 +659,17 @@ class PolymarketWeb3Client(BaseWeb3Client):
 
 
 class PolymarketGaslessWeb3Client(BaseWeb3Client):
-    """
-    Polymarket Web3 client for gasless transactions via relay.
-
-    Only supports Safe/Gnosis wallets (signature_type=2) currently.
-    Poly proxy support (signature_type=1) coming soon.
-
-    Requires builder API credentials for relay authentication.
-    """
+    """Polymarket Web3 client for gasless transactions via relay."""
 
     def __init__(
         self,
         private_key: str,
-        signature_type: Literal[2] = 2,
+        signature_type: Literal[1, 2] = 1,
+        builder_creds: ApiCreds | None = None,
         chain_id: Literal[137, 80002] = POLYGON,
     ):
-        if signature_type != 2:
-            msg = "PolymarketGaslessWeb3Client currently only supports signature_type=2 (Safe wallets). Poly proxy support (signature_type=1) coming soon."
+        if signature_type not in {1, 2}:
+            msg = "PolymarketGaslessWeb3Client only supports signature_type=1 (Poly proxy wallets) and signature_type=2 (Safe wallets)."
             raise ValueError(msg)
 
         super().__init__(private_key, signature_type, chain_id)
@@ -691,6 +678,9 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         self.signer = Signer(private_key=private_key, chain_id=chain_id)
         self.relay_url = "https://relayer-v2.polymarket.com"
         self.sign_url = "https://builder-signing-server.vercel.app/sign"
+        self.relay_hub = "0xD216153c06E857cD7f72665E0aF1d7D82172F494"
+        self.relay_address = "0x7db63fe6d62eb73fb01f8009416f4c2bb4fbda6a"
+        self.builder_creds = builder_creds if builder_creds else None
 
     def _execute(
         self,
@@ -700,7 +690,14 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         metadata: str | None = None,
     ) -> TransactionReceipt:
         """Execute transaction via gasless relay."""
-        body = self._build_safe_relay_transaction(to, data, metadata or "")
+        match self.signature_type:
+            case 1:
+                body = self._build_proxy_relay_transaction(to, data, metadata or "")
+            case 2:
+                body = self._build_safe_relay_transaction(to, data, metadata or "")
+            case _:
+                msg = f"Invalid signature_type: {self.signature_type}"
+                raise ValueError(msg)
 
         payload = {
             "method": "POST",
@@ -708,10 +705,19 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             "body": dumps(body),
         }
 
-        headers_response = self.client.post(self.sign_url, json=payload)
-        headers_response.raise_for_status()
-
-        headers = headers_response.json()
+        if not self.builder_creds:
+            headers_response = self.client.post(self.sign_url, json=payload)
+            headers_response.raise_for_status()
+            headers = headers_response.json()
+        else:
+            headers = create_level_2_headers(
+                signer=self.signer,
+                creds=self.builder_creds,
+                request_args=RequestArgs(
+                    method="POST", request_path="/submit", body=body
+                ),
+                builder=True,
+            )
 
         url = f"{self.relay_url}/submit"
         response = self.client.post(
@@ -753,6 +759,73 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         response = self.client.get(url, params=params)
         response.raise_for_status()
         return int(response.json()["nonce"])
+
+    def _build_proxy_relay_transaction(
+        self, to: ChecksumAddress, data: str, metadata: str
+    ) -> dict:
+        """Build Proxy relay transaction body."""
+        proxy_nonce = self._get_relay_nonce(wallet_type="PROXY")
+        gas_price = "0"
+        relayer_fee = "0"
+
+        proxy_txn = {
+            "typeCode": 1,
+            "to": to,
+            "value": 0,
+            "data": data,
+        }
+
+        encoded_txn = self._encode_proxy(proxy_txn)
+
+        try:
+            estimation_txn: TxParams = {
+                "from": self.get_base_address(),
+                "to": self.proxy_factory_address,
+                "data": HexStr(encoded_txn),
+            }
+            estimated_gas = self.w3.eth.estimate_gas(estimation_txn)
+            gas_limit = str(int(estimated_gas * 1.3 + 100000))
+        except TimeExhausted as e:
+            print(
+                f"Timeout during gas estimation for proxy transaction, using default: {e}"
+            )
+            gas_limit = str(10_000_000)
+
+        struct = create_proxy_struct(
+            from_address=self.get_base_address(),
+            to=self.proxy_factory_address,
+            data=encoded_txn,
+            tx_fee=relayer_fee,
+            gas_price=gas_price,
+            gas_limit=gas_limit,
+            nonce=str(proxy_nonce),
+            relay_hub_address=self.relay_hub,
+            relay_address=self.relay_address,
+        )
+
+        struct_hash = "0x" + self.w3.keccak(struct).hex()
+
+        signature = self.account.sign_message(
+            encode_defunct(hexstr=struct_hash)
+        ).signature.hex()
+
+        return {
+            "data": encoded_txn,
+            "from": self.get_base_address(),
+            "metadata": metadata,
+            "nonce": str(proxy_nonce),
+            "proxyWallet": self.get_poly_proxy_address(),
+            "signature": "0x" + signature,
+            "signatureParams": {
+                "gasPrice": gas_price,
+                "gasLimit": gas_limit,
+                "relayerFee": relayer_fee,
+                "relayHub": self.relay_hub,
+                "relay": self.relay_address,
+            },
+            "to": self.proxy_factory_address,
+            "type": "PROXY",
+        }
 
     def _build_safe_relay_transaction(
         self, to: ChecksumAddress, data: str, metadata: str

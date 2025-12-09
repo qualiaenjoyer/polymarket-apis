@@ -12,6 +12,10 @@ POLY_TIMESTAMP = "POLY_TIMESTAMP"
 POLY_NONCE = "POLY_NONCE"
 POLY_API_KEY = "POLY_API_KEY"
 POLY_PASSPHRASE = "POLY_PASSPHRASE"
+POLY_BUILDER_API_KEY = "POLY_BUILDER_API_KEY"
+POLY_BUILDER_PASSPHRASE = "POLY_BUILDER_PASSPHRASE"
+POLY_BUILDER_SIGNATURE = "POLY_BUILDER_SIGNATURE"
+POLY_BUILDER_TIMESTAMP = "POLY_BUILDER_TIMESTAMP"
 
 
 def create_level_1_headers(signer: Signer, nonce: Optional[int] = None):
@@ -33,7 +37,9 @@ def create_level_1_headers(signer: Signer, nonce: Optional[int] = None):
     return headers
 
 
-def create_level_2_headers(signer: Signer, creds: ApiCreds, request_args: RequestArgs):
+def create_level_2_headers(
+    signer: Signer, creds: ApiCreds, request_args: RequestArgs, builder=False
+):
     """Creates Level 2 Poly headers for a request."""
     timestamp = str(int(datetime.now(tz=UTC).timestamp()))
 
@@ -44,6 +50,14 @@ def create_level_2_headers(signer: Signer, creds: ApiCreds, request_args: Reques
         request_args.request_path,
         request_args.body,
     )
+
+    if builder:
+        return {
+            POLY_BUILDER_SIGNATURE: hmac_sig,
+            POLY_BUILDER_TIMESTAMP: timestamp,
+            POLY_BUILDER_API_KEY: creds.key,
+            POLY_BUILDER_PASSPHRASE: creds.passphrase,
+        }
 
     return {
         POLY_ADDRESS: signer.address(),

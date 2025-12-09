@@ -245,3 +245,43 @@ def get_packed_signature(signed: SignedMessage) -> bytes:
     )
 
     return packed_sig
+
+
+def create_proxy_struct(
+    from_address: str,
+    to: str,
+    data: str,
+    tx_fee: str,
+    gas_price: str,
+    gas_limit: str,
+    nonce: str,
+    relay_hub_address: str,
+    relay_address: str,
+) -> bytes:
+    """Create struct hash for proxy wallet signature."""
+    relay_hub_prefix = b"rlx:"
+
+    encoded_from = bytes.fromhex(from_address[2:])
+    encoded_to = bytes.fromhex(to[2:])
+    encoded_data = bytes.fromhex(data.removeprefix("0x"))
+    encoded_tx_fee = int(tx_fee).to_bytes(32, byteorder="big")
+    encoded_gas_price = int(gas_price).to_bytes(32, byteorder="big")
+    encoded_gas_limit = int(gas_limit).to_bytes(32, byteorder="big")
+    encoded_nonce = int(nonce).to_bytes(32, byteorder="big")
+    encoded_relay_hub = bytes.fromhex(relay_hub_address[2:])
+    encoded_relay = bytes.fromhex(relay_address[2:])
+
+    struct = (
+        relay_hub_prefix
+        + encoded_from
+        + encoded_to
+        + encoded_data
+        + encoded_tx_fee
+        + encoded_gas_price
+        + encoded_gas_limit
+        + encoded_nonce
+        + encoded_relay_hub
+        + encoded_relay
+    )
+
+    return struct

@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 
 class ApiCreds(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     key: str = Field(alias="apiKey")
     secret: str
     passphrase: str
