@@ -8,6 +8,7 @@ from ..clients.graphql_client import PolymarketGraphQLClient
 from ..types.common import EthAddress, TimeseriesPoint
 from ..types.data_types import (
     Activity,
+    ClosedPosition,
     EventLiveVolume,
     GQLPosition,
     HolderResponse,
@@ -258,17 +259,43 @@ class PolymarketDataClient:
         self,
         user: EthAddress,
         condition_ids: Optional[Union[str, list[str]]] = None,
-    ) -> list[Position]:
+        event_ids: Optional[Union[int, list[int]]] = None,
+        title: Optional[str] = None,
+        limit: int = 10,
+        offset: int = 0,
+        sort_by: Literal["REALIZEDPNL", "TITLE", "PRICE", "AVGPRICE", "TIMESTAMP"] = "REALIZEDPNL",
+        sort_direction: Literal["ASC", "DESC"] = "DESC",
+    ) -> list[ClosedPosition]:
         """Get all closed positions."""
-        params = {"user": user}
+        if not 0 <= limit <= 50:
+            raise ValueError("limit must be between 0 and 50")
+        if not 0 <= offset <= 100000:
+            raise ValueError("offset must be between 0 and 100000")
+
+        if condition_ids is not None and event_ids is not None:
+            raise ValueError("condition_ids and event_ids cannot both be set")
+
+        params: dict[str, str | int] = {
+            "user": user,
+            "limit": limit,
+            "offset": offset,
+            "sortBy": sort_by,
+            "sortDirection": sort_direction,
+        }
         if isinstance(condition_ids, str):
             params["market"] = condition_ids
         if isinstance(condition_ids, list):
             params["market"] = ",".join(condition_ids)
+        if title:
+            params["title"] = title
+        if isinstance(event_ids, int):
+            params["eventId"] = str(event_ids)
+        if isinstance(event_ids, list):
+            params["eventId"] = ",".join(str(i) for i in event_ids)
 
         response = self.client.get(self._build_url("/closed-positions"), params=params)
         response.raise_for_status()
-        return [Position(**pos) for pos in response.json()]
+        return [ClosedPosition(**pos) for pos in response.json()]
 
     def get_total_markets_traded(
         self,

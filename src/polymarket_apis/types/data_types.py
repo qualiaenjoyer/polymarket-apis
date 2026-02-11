@@ -73,10 +73,59 @@ class Position(BaseModel):
     end_date: datetime = Field(alias="endDate")
     negative_risk: bool = Field(alias="negativeRisk")
 
+    # Close information
+    timestamp: Optional[datetime] = Field(default=None, alias="timestamp")
+
     @field_validator("end_date", mode="before")
-    def handle_empty_end_date(cls, v):
+    def _handle_empty_end_date(cls, v):
         if v == "":
             return datetime(2099, 12, 31, tzinfo=UTC)
+        return v
+
+    @field_validator("timestamp", mode="before")
+    def _handle_int_timestamp(cls, v):
+        if v is None or v == "":
+            return None
+        if isinstance(v, (int, float)):
+            return datetime.fromtimestamp(int(v), tz=UTC)
+        return v
+
+
+class ClosedPosition(BaseModel):
+    proxy_wallet: EthAddress = Field(alias="proxyWallet")
+
+    token_id: str = Field(alias="asset")
+    complementary_token_id: str = Field(alias="oppositeAsset")
+    condition_id: Keccak256 = Field(alias="conditionId")
+
+    avg_price: float = Field(alias="avgPrice")
+    total_bought: float = Field(alias="totalBought")
+    realized_pnl: float = Field(alias="realizedPnl")
+    current_price: float = Field(alias="curPrice")
+
+    title: str
+    slug: str
+    icon: str
+    event_slug: str = Field(alias="eventSlug")
+    outcome: str
+    outcome_index: int = Field(alias="outcomeIndex")
+    complementary_outcome: str = Field(alias="oppositeOutcome")
+    end_date: datetime = Field(alias="endDate")
+
+    timestamp: Optional[datetime] = Field(default=None, alias="timestamp")
+
+    @field_validator("end_date", mode="before")
+    def _handle_empty_end_date(cls, v):
+        if v == "":
+            return datetime(2099, 12, 31, tzinfo=UTC)
+        return v
+
+    @field_validator("timestamp", mode="before")
+    def _handle_int_timestamp(cls, v):
+        if v is None or v == "":
+            return None
+        if isinstance(v, (int, float)):
+            return datetime.fromtimestamp(int(v), tz=UTC)
         return v
 
 

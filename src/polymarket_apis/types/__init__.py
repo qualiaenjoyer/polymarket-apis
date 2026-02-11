@@ -48,6 +48,7 @@ from .common import (
 )
 from .data_types import (
     Activity,
+    ClosedPosition,
     Holder,
     HolderResponse,
     Position,
@@ -138,6 +139,7 @@ __all__ = [
     "Pagination",
     "PartialCreateOrderOptions",
     "PolygonTrade",
+    "ClosedPosition",
     "Position",
     "PostOrdersArgs",
     "Price",
