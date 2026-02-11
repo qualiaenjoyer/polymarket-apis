@@ -171,9 +171,9 @@ class PolymarketDataClient:
         event_id: Optional[Union[int, list[int]]] = None,
         type: Optional[
             Union[
-                Literal["TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION"],
+                Literal["TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION", "YIELD"],
                 list[
-                    Literal["TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION"]
+                    Literal["TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION", "YIELD"]
                 ],
             ]
         ] = None,

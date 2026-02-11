@@ -118,7 +118,7 @@ class Activity(BaseModel):
     # Activity details
     timestamp: datetime
     condition_id: Keccak256 | EmptyString = Field(alias="conditionId")
-    type: Literal["TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION"]
+    type: Literal["TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION", "YIELD"]
     size: float
     usdc_size: float = Field(alias="usdcSize")
     price: float
