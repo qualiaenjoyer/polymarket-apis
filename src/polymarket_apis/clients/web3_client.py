@@ -60,7 +60,7 @@ class BaseWeb3Client(ABC):
         chain_id: Literal[137, 80002] = POLYGON,
     ):
         self.client = httpx.Client(http2=True, timeout=30.0)
-        self.w3 = Web3(Web3.HTTPProvider("https://polygon-rpc.com"))
+        self.w3 = Web3(Web3.HTTPProvider("https://polygon.drpc.org"))
         self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)  # type: ignore[arg-type]
         self.w3.middleware_onion.inject(
             SignAndSendRawMiddlewareBuilder.build(private_key),  # type: ignore[arg-type]
