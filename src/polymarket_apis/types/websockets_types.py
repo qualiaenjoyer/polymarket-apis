@@ -97,6 +97,8 @@ class OrderEvent(BaseModel):  # type: ignore[no-redef] # event_owner is the same
     ) -> Optional[datetime]:
         if v == "0":
             return None
+        if isinstance(v, datetime):
+            return v
         return cast("Optional[datetime]", v)
 
 

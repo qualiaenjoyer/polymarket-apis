@@ -84,6 +84,8 @@ class Position(BaseModel):
     def handle_empty_end_date(cls, v: datetime | Literal[""]) -> datetime:
         if v == "":
             return datetime(2099, 12, 31, tzinfo=UTC)
+        if isinstance(v, datetime):
+            return v
         return cast("datetime", v)
 
 
@@ -118,6 +120,8 @@ class ClosedPosition(BaseModel):
     def handle_empty_end_date(cls, v: datetime | Literal[""]) -> datetime:
         if v == "":
             return datetime(2099, 12, 31, tzinfo=UTC)
+        if isinstance(v, datetime):
+            return v
         return cast("datetime", v)
 
 

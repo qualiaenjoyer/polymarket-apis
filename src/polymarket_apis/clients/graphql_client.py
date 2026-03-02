@@ -1,4 +1,4 @@
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from gql import Client, gql
 from gql.transport.httpx import HTTPXAsyncTransport, HTTPXTransport
@@ -30,7 +30,8 @@ class PolymarketGraphQLClient:
 
     def query(self, query_string: str) -> dict[str, Any]:
         with self.client as session:
-            return cast("dict[str, Any]", session.execute(gql(query_string)))
+            result: dict[str, Any] = session.execute(gql(query_string))
+            return result
 
 
 class AsyncPolymarketGraphQLClient:
@@ -57,4 +58,5 @@ class AsyncPolymarketGraphQLClient:
 
     async def query(self, query_string: str) -> dict[str, Any]:
         async with self.client as session:
-            return cast("dict[str, Any]", await session.execute(gql(query_string)))
+            result: dict[str, Any] = await session.execute(gql(query_string))
+            return result
