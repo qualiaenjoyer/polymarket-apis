@@ -150,12 +150,12 @@ class PolymarketClobClient:
     def set_api_creds(self, creds: ApiCreds) -> None:
         self.creds = creds
 
-    def get_api_keys(self) -> dict[str, list[str]]:
+    def get_api_keys(self) -> list[str]:
         request_args = RequestArgs(method="GET", request_path=GET_API_KEYS)
         headers = create_level_2_headers(self.signer, self.creds, request_args)
         response = self.client.get(self._build_url(GET_API_KEYS), headers=headers)
         response.raise_for_status()
-        return cast("dict[str, list[str]]", response.json())
+        return cast("list[str]", response.json()["apiKeys"])
 
     def delete_api_keys(self) -> Literal["OK"]:
         request_args = RequestArgs(method="DELETE", request_path=DELETE_API_KEY)
