@@ -1,7 +1,8 @@
 import re
 from collections.abc import Iterable
-from typing import Any, Literal
+from typing import Any, Literal, NotRequired, TypedDict, cast
 
+from ens.ens import ChecksumAddress
 from eth_account import Account
 from eth_account.datastructures import SignedMessage
 from eth_account.messages import encode_defunct
@@ -93,7 +94,12 @@ def _pack_primitive(typ: str, val: Any) -> bytes:
     raise ValueError(msg)
 
 
-def abi_encode_packed(*params: dict) -> bytes:
+class AbiPackedParam(TypedDict):
+    type: str
+    value: Any
+
+
+def abi_encode_packed(*params: AbiPackedParam) -> bytes:
     """
     Takes in sequence of {'type': str, 'value': any}.
 
@@ -192,13 +198,20 @@ def create_safe_create_signature(
     }
 
     # Create the signature using eth_account
-    signature = account.sign_typed_data(domain, types, values)
+    signature: SignedMessage = account.sign_typed_data(domain, types, values)
 
     return signature.signature.hex()
 
 
+class SafeTxn(TypedDict):
+    to: ChecksumAddress
+    value: int
+    data: str
+    operation: NotRequired[int]
+
+
 def sign_safe_transaction(
-    account: Account, safe: Contract, safe_txn: dict, nonce: int
+    account: Account, safe: Contract, safe_txn: SafeTxn, nonce: int
 ) -> SignedMessage:
     safe_tx_gas = 0
     base_gas = 0
@@ -221,7 +234,7 @@ def sign_safe_transaction(
 
     tx_hash_hex = tx_hash_bytes.hex()
     message = encode_defunct(hexstr=tx_hash_hex)
-    return account.sign_message(message)
+    return cast("SignedMessage", account.sign_message(message))
 
 
 def get_packed_signature(signed: SignedMessage) -> bytes:

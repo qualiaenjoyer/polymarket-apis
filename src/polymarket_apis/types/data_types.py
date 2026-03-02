@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Literal, Optional
+from typing import Literal, Optional, cast
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -12,6 +12,7 @@ class AccountingSnapshotCSVs(BaseModel):
     positions_csv: str
     equity_csv: str
 
+
 class GQLPosition(BaseModel):
     user: EthAddress
     token_id: str
@@ -21,7 +22,7 @@ class GQLPosition(BaseModel):
     balance: float
 
     @model_validator(mode="before")
-    def _flatten(cls, values):
+    def _flatten(cls, values: dict[str, object]) -> dict[str, object]:
         asset = values.get("asset")
         if isinstance(asset, dict):
             if "id" in asset:
@@ -38,7 +39,7 @@ class GQLPosition(BaseModel):
 
     @field_validator("balance", mode="before")
     @classmethod
-    def _parse_balance(cls, value):
+    def _parse_balance(cls, value: str | float) -> float:
         if isinstance(value, str):
             value = int(value)
         return value / 10**6
@@ -80,10 +81,13 @@ class Position(BaseModel):
     negative_risk: bool = Field(alias="negativeRisk")
 
     @field_validator("end_date", mode="before")
-    def handle_empty_end_date(cls, v):
+    def handle_empty_end_date(cls, v: datetime | Literal[""]) -> datetime:
         if v == "":
             return datetime(2099, 12, 31, tzinfo=UTC)
-        return v
+        if isinstance(v, datetime):
+            return v
+        return cast("datetime", v)
+
 
 class ClosedPosition(BaseModel):
     # User identification
@@ -113,10 +117,12 @@ class ClosedPosition(BaseModel):
     end_date: datetime = Field(alias="endDate")
 
     @field_validator("end_date", mode="before")
-    def handle_empty_end_date(cls, v):
+    def handle_empty_end_date(cls, v: datetime | Literal[""]) -> datetime:
         if v == "":
             return datetime(2099, 12, 31, tzinfo=UTC)
-        return v
+        if isinstance(v, datetime):
+            return v
+        return cast("datetime", v)
 
 
 class Trade(BaseModel):
@@ -234,6 +240,7 @@ class UserRank(User):
     amount: float
     rank: int
 
+
 class LeaderboardUser(BaseModel):
     rank: int
     proxy_wallet: EthAddress = Field(alias="proxyWallet")
@@ -246,7 +253,7 @@ class LeaderboardUser(BaseModel):
 
 
 class BuilderLeaderboardUser(BaseModel):
-    date: Optional[datetime] = Field(None, alias="dt") # period end date
+    date: Optional[datetime] = Field(None, alias="dt")  # period end date
     rank: int
     builder: str
     volume: float

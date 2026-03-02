@@ -21,7 +21,7 @@ from ..types.gamma_types import (
 )
 
 
-def generate_random_id(length=16):
+def generate_random_id(length: int = 16) -> str:
     characters = string.ascii_letters + string.digits
     random_id = "".join(random.choices(characters, k=length))
     return random_id
@@ -684,8 +684,8 @@ class PolymarketGammaClient:
         self,
         parent_entity_type: Literal["Event", "Series", "market"],
         parent_entity_id: int,
-        limit=500,
-        offset=0,
+        limit: int = 500,
+        offset: int = 0,
         order: Optional[str] = None,
         ascending: bool = True,
         get_positions: Optional[bool] = None,
@@ -725,8 +725,8 @@ class PolymarketGammaClient:
     def get_comments_by_user_address(
         self,
         user_address: EthAddress,  # warning, this is the base address, not the proxy address
-        limit=500,
-        offset=0,
+        limit: int = 500,
+        offset: int = 0,
         order: Optional[str] = None,
         ascending: bool = True,
     ) -> list[Comment]:
@@ -743,7 +743,7 @@ class PolymarketGammaClient:
         response.raise_for_status()
         return [Comment(**comment) for comment in response.json()]
 
-    def grok_event_summary(self, event_slug: str):
+    def grok_event_summary(self, event_slug: str) -> None:
         json_payload = {
             "id": generate_random_id(),
             "messages": [{"role": "user", "content": "", "parts": []}],
@@ -790,7 +790,7 @@ class PolymarketGammaClient:
 
     def grok_election_market_explanation(
         self, candidate_name: str, election_title: str
-    ):
+    ) -> None:
         text = f"Provide candidate information for {candidate_name} in the {election_title} on Polymarket."
         json_payload = {
             "id": generate_random_id(),
@@ -815,8 +815,8 @@ class PolymarketGammaClient:
                 print()
             print(part)
 
-    def __enter__(self):
+    def __enter__(self) -> object:
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         self.client.close()

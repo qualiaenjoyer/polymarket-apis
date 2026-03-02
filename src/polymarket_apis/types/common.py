@@ -1,8 +1,9 @@
 import re
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from dateutil import parser
+from eth_typing import ChecksumAddress, HexStr
 from hexbytes import HexBytes
 from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field
 
@@ -43,7 +44,7 @@ def validate_keccak256(v: str | HexBytes | bytes) -> str:
     return v
 
 
-def validate_eth_address(v: str | HexBytes | bytes) -> str:
+def validate_eth_address(v: str | HexBytes | bytes) -> ChecksumAddress:
     """Validate and normalize Ethereum address format."""
     # Convert HexBytes/bytes to string
     if isinstance(v, HexBytes | bytes):
@@ -62,22 +63,22 @@ def validate_eth_address(v: str | HexBytes | bytes) -> str:
         msg = f"Invalid Ethereum address format: {v}"
         raise ValueError(msg)
 
-    return v
+    return cast("ChecksumAddress", v)
 
 
-def hexbytes_to_str(v: Any) -> str:
+def hexbytes_to_str(v: HexBytes | bytes | str) -> HexStr:
     """Convert HexBytes to hex string with 0x prefix."""
     if isinstance(v, HexBytes):
         hex_str = v.hex()
-        return hex_str if hex_str.startswith("0x") else f"0x{hex_str}"
+        return cast("HexStr", hex_str if hex_str.startswith("0x") else f"0x{hex_str}")
     if isinstance(v, bytes):
-        return "0x" + v.hex()
+        return cast("HexStr", "0x" + v.hex())
     if isinstance(v, str) and not v.startswith("0x"):
-        return f"0x{v}"
-    return v
+        return cast("HexStr", f"0x{v}")
+    return cast("HexStr", v)
 
 
-def validate_keccak_or_padded(v: Any) -> str:
+def validate_keccak_or_padded(v: Any) -> HexStr:
     """
     Validate Keccak256 or accept padded addresses (32 bytes with leading zeros).
 
@@ -93,21 +94,18 @@ def validate_keccak_or_padded(v: Any) -> str:
         raise TypeError(msg)
 
     # Add 0x prefix if missing
-    if not v.startswith("0x"):
-        v = "0x" + v
+    v_str: HexStr = cast("HexStr", "0x" + v if not v.startswith("0x") else v)
 
     # Accept 66 character hex strings (0x + 64 hex chars)
-    if len(v) == 66 and all(c in "0123456789abcdefABCDEF" for c in v[2:]):
-        return v
+    if len(v_str) == 66 and all(c in "0123456789abcdefABCDEF" for c in v_str[2:]):
+        return v_str
 
-    msg = (
-        f"Invalid hash format: expected 66 characters (0x + 64 hex), got {len(v)}: {v}"
-    )
+    msg = f"Invalid hash format: expected 66 characters (0x + 64 hex), got {len(v_str)}: {v_str}"
     raise ValueError(msg)
 
 
 FlexibleDatetime = Annotated[datetime, BeforeValidator(parse_flexible_datetime)]
-EthAddress = Annotated[str, AfterValidator(validate_eth_address)]
+EthAddress = Annotated[ChecksumAddress, AfterValidator(validate_eth_address)]
 Keccak256 = Annotated[str, AfterValidator(validate_keccak256)]
 HexString = Annotated[str, BeforeValidator(hexbytes_to_str)]
 Keccak256OrPadded = Annotated[str, BeforeValidator(validate_keccak_or_padded)]

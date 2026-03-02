@@ -1,7 +1,9 @@
 import hashlib
 from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 
-from ...types.clob_types import OrderBookSummary, TickSize
+from py_order_utils.model import SignedOrder
+
+from ...types.clob_types import OrderBookSummary, OrderType, TickSize
 
 
 def round_down(x: float, sig_digits: int) -> float:
@@ -50,7 +52,9 @@ def generate_orderbook_summary_hash(orderbook: OrderBookSummary) -> str:
     return computed_hash
 
 
-def order_to_json(order, owner, order_type) -> dict:
+def order_to_json(
+    order: SignedOrder, owner: str, order_type: OrderType
+) -> dict[str, object]:
     return {"order": order.dict(), "owner": owner, "orderType": order_type.value}
 
 

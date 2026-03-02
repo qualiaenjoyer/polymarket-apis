@@ -1,8 +1,9 @@
 from collections.abc import Callable
 from json import JSONDecodeError
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from lomond import WebSocket
+from lomond.events import Text
 from lomond.persist import persist
 from pydantic import ValidationError
 
@@ -33,7 +34,7 @@ from ..types.websockets_types import (
 from ..utilities.exceptions import AuthenticationRequiredError
 
 
-def _process_market_event(event):
+def _process_market_event(event: Text) -> None:
     try:
         message = event.json
         if isinstance(message, list):
@@ -62,7 +63,7 @@ def _process_market_event(event):
         print(event.json)
 
 
-def _process_user_event(event):
+def _process_user_event(event: Text) -> None:
     try:
         message = event.json
         match message["event_type"]:
@@ -77,7 +78,7 @@ def _process_user_event(event):
         print(e.errors(), "\n")
 
 
-def _process_live_data_event(event):
+def _process_live_data_event(event: Text) -> None:
     try:
         message = event.json
         match message["type"]:
@@ -126,14 +127,16 @@ def _process_live_data_event(event):
 
 
 class PolymarketWebsocketsClient:
-    def __init__(self):
+    def __init__(self) -> None:
         self.url_market = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
         self.url_user = "wss://ws-subscriptions-clob.polymarket.com/ws/user"
         self.url_live_data = "wss://ws-live-data.polymarket.com"
 
     def market_socket(
-        self, token_ids: list[str], process_event: Callable = _process_market_event
-    ):
+        self,
+        token_ids: list[str],
+        process_event: Callable[[Text], None] = _process_market_event,
+    ) -> None:
         """
         Connect to the market websocket and subscribe to market events for specific token IDs.
 
@@ -150,11 +153,13 @@ class PolymarketWebsocketsClient:
                     assets_ids=token_ids,
                 )
             elif event.name == "text":
-                process_event(event)
+                process_event(cast("Text", event))
 
     def user_socket(
-        self, creds: ApiCreds, process_event: Callable = _process_user_event
-    ):
+        self,
+        creds: ApiCreds,
+        process_event: Callable[[Text], None] = _process_user_event,
+    ) -> None:
         """
         Connect to the user websocket and subscribe to user events.
 
@@ -171,14 +176,14 @@ class PolymarketWebsocketsClient:
                     auth=creds.model_dump(by_alias=True),
                 )
             elif event.name == "text":
-                process_event(event)
+                process_event(cast("Text", event))
 
     def live_data_socket(
         self,
         subscriptions: list[dict[str, Any]],
-        process_event: Callable = _process_live_data_event,
+        process_event: Callable[[Text], None] = _process_live_data_event,
         creds: Optional[ApiCreds] = None,
-    ):
+    ) -> None:
         # info on how to subscribe found at https://github.com/Polymarket/real-time-data-client?tab=readme-ov-file#subscribe
         """
         Connect to the live data websocket and subscribe to specified events.
@@ -217,4 +222,4 @@ class PolymarketWebsocketsClient:
                 websocket.send_json(**payload)
 
             elif event.name == "text":
-                process_event(event)
+                process_event(cast("Text", event))

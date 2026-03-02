@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Literal, Optional, TypeVar, Union
+from typing import Any, Literal, Optional, TypeVar, Union, cast
 
 from py_order_utils.model import SignedOrder
 from pydantic import (
@@ -49,8 +49,7 @@ class Spread(TokenValue):
     pass
 
 
-class TokenValueDict(RootModel):
-    root: dict[str, float]
+TokenValueDict = RootModel[dict[str, float]]
 
 
 class BookParams(BaseModel):
@@ -71,8 +70,7 @@ class TokenBidAsk(BidAsk):
     token_id: str
 
 
-class TokenBidAskDict(RootModel):
-    root: dict[str, BidAsk]
+TokenBidAskDict = RootModel[dict[str, BidAsk]]
 
 
 class Token(BaseModel):
@@ -114,7 +112,7 @@ class RewardConfig(BaseModel):
     total_days: Optional[int] = None
 
     @field_validator("reward_id", mode="before")
-    def convert_id_to_str(cls, v):
+    def convert_id_to_str(cls, v: int | Optional[str]) -> Optional[str]:
         if isinstance(v, int):
             return str(v)
         return v
@@ -225,7 +223,7 @@ class ClobMarket(BaseModel):
         cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
     ) -> str | None:
         try:
-            return handler(value)
+            return cast("str | None", handler(value))
         except ValidationError as e:
             neg_risk = info.data.get("neg_risk", False)
             active = info.data.get("active", False)
@@ -248,7 +246,7 @@ class ClobMarket(BaseModel):
         cls, value: str, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
     ) -> str:
         try:
-            return handler(value)
+            return cast("str", handler(value))
         except ValueError:
             active = info.data.get("active", False)
             if not active:
@@ -285,7 +283,7 @@ class MakerOrder(BaseModel):
     fee_rate_bps: float
 
 
-class PolygonTrade(BaseModel):
+class PolygonTrade(BaseModel):  # type: ignore[no-redef] # id is the same as trade_id
     trade_id: str = Field(alias="id")
     taker_order_id: Keccak256
     condition_id: Keccak256 = Field(alias="market")
@@ -343,7 +341,7 @@ class OrderBookSummary(BaseModel):
     asks: Optional[list[OrderSummary]] = None
 
     @field_serializer("bids", "asks")
-    def serialize_sizes(self, orders: list[OrderSummary]) -> list[dict]:
+    def serialize_sizes(self, orders: list[OrderSummary]) -> list[dict[str, str]]:
         return [
             {
                 "price": f"{order.price:.3f}".rstrip("0").rstrip("."),

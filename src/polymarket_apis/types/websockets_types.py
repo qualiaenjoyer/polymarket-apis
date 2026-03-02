@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal, Optional, cast
 
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
@@ -65,7 +65,7 @@ class LastTradePriceEvent(LastTradePrice):
 # wss://ws-subscriptions-clob.polymarket.com/ws/user types
 
 
-class OrderEvent(BaseModel):
+class OrderEvent(BaseModel):  # type: ignore[no-redef] # event_owner is the same as order_owner
     token_id: str = Field(alias="asset_id")
     condition_id: Keccak256 = Field(alias="market")
     order_id: Keccak256 = Field(alias="id")
@@ -91,13 +91,17 @@ class OrderEvent(BaseModel):
     status: Literal["LIVE", "CANCELED", "MATCHED"]
 
     @field_validator("expiration", mode="before")
-    def validate_expiration(cls, v):
+    def validate_expiration(
+        cls, v: Optional[datetime] | Literal["0"]
+    ) -> Optional[datetime]:
         if v == "0":
             return None
-        return v
+        if isinstance(v, datetime):
+            return v
+        return cast("Optional[datetime]", v)
 
 
-class TradeEvent(BaseModel):
+class TradeEvent(BaseModel):  # type: ignore[no-redef] # event_owner is the same as order_owner
     token_id: str = Field(alias="asset_id")
     condition_id: Keccak256 = Field(alias="market")
     taker_order_id: Keccak256

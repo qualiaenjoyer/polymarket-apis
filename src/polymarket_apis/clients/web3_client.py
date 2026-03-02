@@ -2,18 +2,21 @@ import re
 from abc import ABC, abstractmethod
 from json import dumps, load
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 import httpx
 from eth_account.messages import encode_defunct
+from eth_typing import ABI, AnyAddress, ChecksumAddress, HexStr
 from web3 import Web3
 from web3.constants import MAX_INT
+from web3.eth import Contract
 from web3.exceptions import ContractCustomError, TimeExhausted
 from web3.middleware import (
     ExtraDataToPOAMiddleware,
+    Middleware,
     SignAndSendRawMiddlewareBuilder,
 )
-from web3.types import ChecksumAddress, HexStr, TxParams, Wei
+from web3.types import TxParams, Wei
 
 from ..types.clob_types import ApiCreds, RequestArgs
 from ..types.common import EthAddress, Keccak256
@@ -25,6 +28,7 @@ from ..utilities.headers import create_level_2_headers
 from ..utilities.signing.signer import Signer
 from ..utilities.web3.abis.custom_contract_errors import CUSTOM_ERROR_DICT
 from ..utilities.web3.helpers import (
+    SafeTxn,
     create_proxy_struct,
     create_safe_create_signature,
     get_index_set,
@@ -34,7 +38,7 @@ from ..utilities.web3.helpers import (
 )
 
 
-def _load_abi(contract_name: str) -> list:
+def _load_abi(contract_name: str) -> ABI:
     abi_path = (
         Path(__file__).parent.parent
         / "utilities"
@@ -43,7 +47,8 @@ def _load_abi(contract_name: str) -> list:
         / f"{contract_name}.json"
     )
     with Path.open(abi_path) as f:
-        return load(f)
+        return cast("ABI", load(f))
+
 
 def _parse_reset_seconds(error_message: str) -> int:
     m = re.search(r"resets in\s+(\d+)\s+seconds", error_message)
@@ -51,6 +56,7 @@ def _parse_reset_seconds(error_message: str) -> int:
         msg = f"Could not parse reset seconds from: {error_message}"
         raise ValueError(msg)
     return int(m.group(1))
+
 
 class BaseWeb3Client(ABC):
     """
@@ -62,16 +68,16 @@ class BaseWeb3Client(ABC):
 
     def __init__(
         self,
-        private_key: str,
+        private_key: HexStr,
         signature_type: Literal[0, 1, 2],
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://polygon.drpc.org",
     ):
         self.client = httpx.Client(http2=True, timeout=30.0)
         self.w3 = Web3(Web3.HTTPProvider(rpc_url))
-        self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)  # type: ignore[arg-type]
+        self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
         self.w3.middleware_onion.inject(
-            SignAndSendRawMiddlewareBuilder.build(private_key),  # type: ignore[arg-type]
+            cast("Middleware", SignAndSendRawMiddlewareBuilder.build(private_key)),
             layer=0,
         )
 
@@ -84,7 +90,7 @@ class BaseWeb3Client(ABC):
         self._setup_contracts()
         self._setup_address()
 
-    def _setup_contracts(self):
+    def _setup_contracts(self) -> None:
         """Initialize all contract instances."""
         self.usdc_address = Web3.to_checksum_address(self.config.collateral)
         self.usdc_abi = _load_abi("UChildERC20Proxy")
@@ -134,7 +140,7 @@ class BaseWeb3Client(ABC):
             self.safe_proxy_factory_address, self.safe_proxy_factory_abi
         )
 
-    def _setup_address(self):
+    def _setup_address(self) -> None:
         """Setup address based on signature type."""
         match self.signature_type:
             case 0:
@@ -146,7 +152,7 @@ class BaseWeb3Client(ABC):
                 self.safe_abi = _load_abi("Safe")
                 self.safe = self._contract(self.address, self.safe_abi)
 
-    def _contract(self, address, abi):
+    def _contract(self, address: AnyAddress | str | bytes, abi: ABI) -> Contract:
         """Create contract instance."""
         return self.w3.eth.contract(
             address=Web3.to_checksum_address(address),
@@ -155,93 +161,105 @@ class BaseWeb3Client(ABC):
 
     def _encode_usdc_approve(self, address: ChecksumAddress) -> str:
         """Encode USDC approval transaction."""
-        return self.usdc.encode_abi(
+        abi = self.usdc.encode_abi(
             abi_element_identifier="approve",
             args=[address, int(MAX_INT, base=16)],
         )
+        return cast("str", abi)
 
     def _encode_condition_tokens_approve(self, address: ChecksumAddress) -> str:
         """Encode conditional tokens approval transaction."""
-        return self.conditional_tokens.encode_abi(
+        abi = self.conditional_tokens.encode_abi(
             abi_element_identifier="setApprovalForAll",
             args=[address, True],
         )
+        return cast("str", abi)
 
     def _encode_transfer_usdc(self, address: ChecksumAddress, amount: int) -> str:
         """Encode USDC transfer transaction."""
-        return self.usdc.encode_abi(
+        abi = self.usdc.encode_abi(
             abi_element_identifier="transfer",
             args=[address, amount],
         )
+        return cast("str", abi)
 
     def _encode_transfer_token(
         self, token_id: str, address: ChecksumAddress, amount: int
     ) -> str:
         """Encode token transfer transaction."""
-        return self.conditional_tokens.encode_abi(
+        abi = self.conditional_tokens.encode_abi(
             abi_element_identifier="safeTransferFrom",
             args=[self.address, address, int(token_id), amount, HASH_ZERO],
         )
+        return cast("str", abi)
 
     def _encode_split(self, condition_id: Keccak256, amount: int) -> str:
         """Encode split position transaction."""
-        return self.conditional_tokens.encode_abi(
+        abi = self.conditional_tokens.encode_abi(
             abi_element_identifier="splitPosition",
             args=[self.usdc_address, HASH_ZERO, condition_id, [1, 2], amount],
         )
+        return cast("str", abi)
 
     def _encode_merge(self, condition_id: Keccak256, amount: int) -> str:
         """Encode merge positions transaction."""
-        return self.conditional_tokens.encode_abi(
+        abi = self.conditional_tokens.encode_abi(
             abi_element_identifier="mergePositions",
             args=[self.usdc_address, HASH_ZERO, condition_id, [1, 2], amount],
         )
+        return cast("str", abi)
 
     def _encode_redeem(self, condition_id: Keccak256) -> str:
         """Encode redeem positions transaction."""
-        return self.conditional_tokens.encode_abi(
+        abi = self.conditional_tokens.encode_abi(
             abi_element_identifier="redeemPositions",
             args=[self.usdc_address, HASH_ZERO, condition_id, [1, 2]],
         )
+        return cast("str", abi)
 
     def _encode_redeem_neg_risk(
         self, condition_id: Keccak256, amounts: list[int]
     ) -> str:
         """Encode redeem positions transaction for neg risk."""
-        return self.neg_risk_adapter.encode_abi(
+        abi = self.neg_risk_adapter.encode_abi(
             abi_element_identifier="redeemPositions",
             args=[condition_id, amounts],
         )
+        return cast("str", abi)
 
     def _encode_convert(
         self, neg_risk_market_id: Keccak256, index_set: int, amount: int
     ) -> str:
         """Encode convert positions transaction."""
-        return self.neg_risk_adapter.encode_abi(
+        abi = self.neg_risk_adapter.encode_abi(
             abi_element_identifier="convertPositions",
             args=[neg_risk_market_id, index_set, amount],
         )
+        return cast("str", abi)
 
-    def _encode_proxy(self, proxy_txn) -> str:
+    def _encode_proxy(self, proxy_txn: dict[str, object]) -> str:
         """Encode proxy transaction."""
-        return self.proxy_factory.encode_abi(
+        abi = self.proxy_factory.encode_abi(
             abi_element_identifier="proxy",
             args=[[proxy_txn]],
         )
+        return cast("str", abi)
 
     def get_base_address(self) -> EthAddress:
         """Get the base EOA address."""
-        return self.account.address
+        return cast("EthAddress", self.account.address)
 
     def get_poly_proxy_address(self, address: EthAddress | None = None) -> EthAddress:
         """Get the Polymarket proxy address."""
         address = address or self.account.address
-        return self.exchange.functions.getPolyProxyWalletAddress(address).call()
+        result = self.exchange.functions.getPolyProxyWalletAddress(address).call()
+        return cast("EthAddress", result)
 
     def get_safe_proxy_address(self, address: EthAddress | None = None) -> EthAddress:
         """Get the Safe proxy address."""
         address = address or self.account.address
-        return self.safe_proxy_factory.functions.computeProxyAddress(address).call()
+        result = self.safe_proxy_factory.functions.computeProxyAddress(address).call()
+        return cast("EthAddress", result)
 
     def get_pol_balance(self) -> float:
         """Get POL balance for the base address associated with the private key."""
@@ -294,10 +312,12 @@ class BaseWeb3Client(ABC):
 
         Returns a keccak256 hash of the oracle and question id.
         """
-        return (
+        keccak = (
             "0x"
             + self.neg_risk_adapter.functions.getConditionId(question_id).call().hex()
         )
+
+        return cast("Keccak256", keccak)
 
     @abstractmethod
     def _execute(
@@ -418,7 +438,7 @@ class PolymarketWeb3Client(BaseWeb3Client):
 
     def __init__(
         self,
-        private_key: str,
+        private_key: HexStr,
         signature_type: Literal[0, 1, 2] = 1,
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://polygon.drpc.org",
@@ -508,7 +528,7 @@ class PolymarketWeb3Client(BaseWeb3Client):
     ) -> TxParams:
         """Build transaction for Safe wallet."""
         safe_nonce = self.safe.functions.nonce().call()
-        safe_txn = {
+        safe_txn: SafeTxn = {
             "to": to,
             "data": data,
             "operation": 0,
@@ -672,7 +692,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
 
     def __init__(
         self,
-        private_key: str,
+        private_key: HexStr,
         signature_type: Literal[1, 2] = 1,
         builder_creds: ApiCreds | None = None,
         chain_id: Literal[137, 80002] = POLYGON,
@@ -690,7 +710,6 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         self.relay_hub = "0xD216153c06E857cD7f72665E0aF1d7D82172F494"
         self.relay_address = "0x7db63fe6d62eb73fb01f8009416f4c2bb4fbda6a"
         self.builder_creds = builder_creds if builder_creds else None
-
 
     def _execute(
         self,
@@ -790,13 +809,13 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
 
     def _build_proxy_relay_transaction(
         self, to: ChecksumAddress, data: str, metadata: str
-    ) -> dict:
+    ) -> dict[str, object]:
         """Build Proxy relay transaction body."""
         proxy_nonce = self._get_relay_nonce(wallet_type="PROXY")
         gas_price = "0"
         relayer_fee = "0"
 
-        proxy_txn = {
+        proxy_txn: dict[str, object] = {
             "typeCode": 1,
             "to": to,
             "value": 0,
@@ -857,11 +876,11 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
 
     def _build_safe_relay_transaction(
         self, to: ChecksumAddress, data: str, metadata: str
-    ) -> dict:
+    ) -> dict[str, object]:
         """Build Safe relay transaction body."""
         safe_nonce = self._get_relay_nonce(wallet_type="SAFE")
 
-        safe_txn = {
+        safe_txn: SafeTxn = {
             "to": to,
             "data": data,
             "operation": 0,

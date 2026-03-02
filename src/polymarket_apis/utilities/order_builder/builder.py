@@ -1,3 +1,6 @@
+from typing import Literal
+
+from ens.ens import ChecksumAddress
 from py_order_utils.builders import OrderBuilder as UtilsOrderBuilder
 from py_order_utils.model import (
     BUY as UTILS_BUY,
@@ -42,7 +45,12 @@ ROUNDING_CONFIG: dict[TickSize, RoundConfig] = {
 
 
 class OrderBuilder:
-    def __init__(self, signer: Signer, sig_type=None, funder=None):
+    def __init__(
+        self,
+        signer: Signer,
+        sig_type: int | None = None,
+        funder: ChecksumAddress | None = None,
+    ):
         self.signer = signer
 
         # Signature type used sign orders, defaults to EOA type
@@ -59,7 +67,7 @@ class OrderBuilder:
         size: float,
         price: float,
         round_config: RoundConfig,
-    ):
+    ) -> tuple[Literal[0, 1], int, int]:
         raw_price = round_normal(price, round_config.price)
 
         if side == BUY:
@@ -97,7 +105,7 @@ class OrderBuilder:
         amount: float,
         price: float,
         round_config: RoundConfig,
-    ):
+    ) -> tuple[Literal[0, 1], int, int]:
         raw_price = round_normal(price, round_config.price)
 
         if side == BUY:

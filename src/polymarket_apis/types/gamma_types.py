@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal, Optional, cast
 
 from pydantic import (
     BaseModel,
@@ -208,7 +208,7 @@ class GammaMarket(BaseModel):
     ) -> str:
         try:
             # First attempt standard Keccak256 validation
-            return handler(value)
+            return cast("str", handler(value))
         except ValueError:
             active = info.data.get("active", False)
 
@@ -440,7 +440,7 @@ class Sport(BaseModel):
 
     @field_validator("tags", mode="before")
     @classmethod
-    def split_string_to_int_list(cls, v):
+    def split_string_to_int_list(cls, v: str | list[int]) -> list[int]:
         if isinstance(v, str):
             return [int(i) for i in v.split(",")]
         return v
@@ -556,7 +556,7 @@ class ProfilePosition(BaseModel):
 
     @field_validator("size", mode="before")
     @classmethod
-    def normalize_size(cls, v) -> float:
+    def normalize_size(cls, v: str | float) -> float:
         if isinstance(v, str):
             return int(v) / 10**6
         return v

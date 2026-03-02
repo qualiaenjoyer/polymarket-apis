@@ -2,7 +2,7 @@ import io
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import Literal, Optional, Union, cast
 from urllib.parse import urljoin
 
 import httpx
@@ -41,13 +41,13 @@ class PolymarketDataClient:
     def get_ok(self) -> str:
         response = self.client.get(self.base_url)
         response.raise_for_status()
-        return response.json()["data"]
+        return cast("str", response.json()["data"])
 
     def get_all_positions_gql(
         self,
         user: EthAddress,
         size_threshold: float = 0.0,
-    ):
+    ) -> list[GQLPosition]:
         query = f"""query {{
                   userBalances(where: {{
                   user: "{user.lower()}",
@@ -131,10 +131,7 @@ class PolymarketDataClient:
         self,
         user: EthAddress,
     ) -> list[Position]:
-        params: dict[str, str | int] = {
-            "user": user,
-            "sizeThreshold": 0
-        }
+        params: dict[str, str | int] = {"user": user, "sizeThreshold": 0}
 
         response = self.client.get(self._build_url("/positions"), params=params)
         response.raise_for_status()
@@ -262,7 +259,7 @@ class PolymarketDataClient:
             - str       --> value of position
             - list[str] --> sum of the values of positions.
         """
-        params = {"user": user}
+        params: dict[str, str] = {"user": user}
         if isinstance(condition_ids, str):
             params["market"] = condition_ids
         if isinstance(condition_ids, list):
@@ -278,7 +275,7 @@ class PolymarketDataClient:
         condition_ids: Optional[Union[str, list[str]]] = None,
     ) -> list[ClosedPosition]:
         """Get all closed positions."""
-        params = {"user": user}
+        params: dict[str, str] = {"user": user}
         if isinstance(condition_ids, str):
             params["market"] = condition_ids
         if isinstance(condition_ids, list):
@@ -297,7 +294,7 @@ class PolymarketDataClient:
 
         response = self.client.get(self._build_url("/traded"), params=params)
         response.raise_for_status()
-        return response.json()["traded"]
+        return cast("int", response.json()["traded"])
 
     def get_open_interest(
         self,
@@ -326,11 +323,15 @@ class PolymarketDataClient:
         response.raise_for_status()
         return EventLiveVolume(**response.json()[0])
 
-    def get_accounting_snapshot_zip(self, user: EthAddress, save_to: Optional[str | Path] = None) -> bytes:
+    def get_accounting_snapshot_zip(
+        self, user: EthAddress, save_to: Optional[str | Path] = None
+    ) -> bytes:
         """Download the accounting snapshot ZIP (CSV bundle) as bytes."""
         params = {"user": user}
 
-        response = self.client.get(self._build_url("/v1/accounting/snapshot"), params=params)
+        response = self.client.get(
+            self._build_url("/v1/accounting/snapshot"), params=params
+        )
         response.raise_for_status()
         data = response.content
 
@@ -338,23 +339,38 @@ class PolymarketDataClient:
             Path(save_to).write_bytes(data)
 
         return data
+
     def get_accounting_snapshot_csvs(self, user: EthAddress) -> AccountingSnapshotCSVs:
         """Get the accounting snapshot as a list of dicts (one per row)."""
         raw = self.get_accounting_snapshot_zip(user)
         with zipfile.ZipFile(io.BytesIO(raw)) as zf:
             positions_csv = zf.read("positions.csv").decode()
             equity_csv = zf.read("equity.csv").decode()
-        return AccountingSnapshotCSVs(positions_csv=positions_csv, equity_csv=equity_csv)
+        return AccountingSnapshotCSVs(
+            positions_csv=positions_csv, equity_csv=equity_csv
+        )
 
-    def get_leaderboard_rankings(self,
-                                 address: Optional[EthAddress] = None,
-                                 username: Optional[str] = None,
-                                 category: Literal["OVERALL", "POLITICS", "SPORTS", "CRYPTO", "CULTURE", "MENTIONS", "WEATHER", "ECONOMICS", "TECH", "FINANCE"] = "OVERALL",
-                                 time_period: Literal["DAY", "WEEK", "MONTH", "ALL"] = "DAY",
-                                 order_by: Literal["PNL", "VOL"] = "PNL",
-                                 limit: int = 25, # 1 <= x <= 50
-                                 offset: int = 0, # 0 <= x <= 1000
-                                 ) -> list[LeaderboardUser]:
+    def get_leaderboard_rankings(
+        self,
+        address: Optional[EthAddress] = None,
+        username: Optional[str] = None,
+        category: Literal[
+            "OVERALL",
+            "POLITICS",
+            "SPORTS",
+            "CRYPTO",
+            "CULTURE",
+            "MENTIONS",
+            "WEATHER",
+            "ECONOMICS",
+            "TECH",
+            "FINANCE",
+        ] = "OVERALL",
+        time_period: Literal["DAY", "WEEK", "MONTH", "ALL"] = "DAY",
+        order_by: Literal["PNL", "VOL"] = "PNL",
+        limit: int = 25,  # 1 <= x <= 50
+        offset: int = 0,  # 0 <= x <= 1000
+    ) -> list[LeaderboardUser]:
         """Get the leaderboard rankings with optional filters and pagination."""
         params: dict[str, str | int] = {
             "category": category,
@@ -372,19 +388,27 @@ class PolymarketDataClient:
         response.raise_for_status()
         return [LeaderboardUser(**user) for user in response.json()]
 
-    def get_builder_leaderboard_aggregated(self, time_period: Literal["DAY", "WEEK", "MONTH", "ALL"] = "DAY") -> list[BuilderLeaderboardUser]:
+    def get_builder_leaderboard_aggregated(
+        self, time_period: Literal["DAY", "WEEK", "MONTH", "ALL"] = "DAY"
+    ) -> list[BuilderLeaderboardUser]:
         """Get the aggregated builder volume leaderboard rankings for a given time period."""
         params = {"timePeriod": time_period}
-        response = self.client.get(self._build_url("/v1/builders/leaderboard"), params=params)
+        response = self.client.get(
+            self._build_url("/v1/builders/leaderboard"), params=params
+        )
         response.raise_for_status()
         return [BuilderLeaderboardUser(**user) for user in response.json()]
 
-    def get_builder_leaderboard_timeseries(self, granularity: Literal["DAY", "WEEK", "MONTH", "ALL"] = "DAY") -> list[BuilderLeaderboardUser]:
+    def get_builder_leaderboard_timeseries(
+        self, granularity: Literal["DAY", "WEEK", "MONTH", "ALL"] = "DAY"
+    ) -> list[BuilderLeaderboardUser]:
         """Get the builder volume leaderboard timeseries with a given granularity."""
         params = {"timePeriod": granularity}
-        response = self.client.get(self._build_url("/v1/builders/volume"), params=params)
+        response = self.client.get(
+            self._build_url("/v1/builders/volume"), params=params
+        )
         response.raise_for_status()
-        return response.json()
+        return cast("list[BuilderLeaderboardUser]", response.json())
 
     # website endpoints
 
@@ -412,7 +436,7 @@ class PolymarketDataClient:
         user: EthAddress,
         metric: Literal["profit", "volume"] = "profit",
         window: Literal["1d", "7d", "30d", "all"] = "all",
-    ):
+    ) -> UserMetric:
         """Get a user's overall profit or volume in the last day, week, month or all."""
         params: dict[str, int | str] = {
             "address": user,
@@ -430,7 +454,7 @@ class PolymarketDataClient:
         user: EthAddress,
         metric: Literal["profit", "volume"] = "profit",
         window: Literal["1d", "7d", "30d", "all"] = "all",
-    ):
+    ) -> UserRank:
         """Get a user's rank on the leaderboard by profit or volume."""
         params = {
             "address": user,
@@ -446,7 +470,7 @@ class PolymarketDataClient:
         metric: Literal["profit", "volume"] = "profit",
         window: Literal["1d", "7d", "30d", "all"] = "all",
         limit: int = 100,
-    ):
+    ) -> list[UserMetric]:
         """Get the leaderboard of the top at most 100 users by profit or volume."""
         params = {
             "window": window,
@@ -458,8 +482,8 @@ class PolymarketDataClient:
         response.raise_for_status()
         return [UserMetric(**user) for user in response.json()]
 
-    def __enter__(self):
+    def __enter__(self) -> object:
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         self.client.close()

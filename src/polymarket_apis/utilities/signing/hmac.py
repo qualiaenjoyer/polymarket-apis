@@ -8,8 +8,8 @@ def build_hmac_signature(
     timestamp: str,
     method: str,
     request_path: str,
-    body=None,
-):
+    body: object | None = None,
+) -> str:
     """Creates an HMAC signature by signing a payload with the secret."""
     base64_secret = base64.urlsafe_b64decode(secret)
     message = str(timestamp) + str(method) + str(request_path)

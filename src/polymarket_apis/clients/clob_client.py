@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Literal, cast
+from typing import Literal, Self, cast
 from urllib.parse import urljoin
 
 import httpx
@@ -127,7 +127,7 @@ class PolymarketClobClient:
     def get_ok(self) -> str:
         response = self.client.get(self.base_url)
         response.raise_for_status()
-        return response.json()
+        return cast("str", response.json())
 
     def create_api_creds(self, nonce: int | None = None) -> ApiCreds:
         headers = create_level_1_headers(self.signer, nonce)
@@ -150,19 +150,19 @@ class PolymarketClobClient:
     def set_api_creds(self, creds: ApiCreds) -> None:
         self.creds = creds
 
-    def get_api_keys(self) -> dict:
+    def get_api_keys(self) -> list[str]:
         request_args = RequestArgs(method="GET", request_path=GET_API_KEYS)
         headers = create_level_2_headers(self.signer, self.creds, request_args)
         response = self.client.get(self._build_url(GET_API_KEYS), headers=headers)
         response.raise_for_status()
-        return response.json()
+        return cast("list[str]", response.json()["apiKeys"])
 
     def delete_api_keys(self) -> Literal["OK"]:
         request_args = RequestArgs(method="DELETE", request_path=DELETE_API_KEY)
         headers = create_level_2_headers(self.signer, self.creds, request_args)
         response = self.client.delete(self._build_url(DELETE_API_KEY), headers=headers)
         response.raise_for_status()
-        return response.json()
+        return cast("Literal['OK']", response.json())
 
     def create_readonly_api_key(self) -> str:
         request_args = RequestArgs(method="POST", request_path=CREATE_READONLY_API_KEY)
@@ -172,7 +172,7 @@ class PolymarketClobClient:
             self._build_url(CREATE_READONLY_API_KEY), headers=headers
         )
         response.raise_for_status()
-        return response.json()["apiKey"]
+        return cast("str", response.json()["apiKey"])
 
     def get_readonly_api_keys(self) -> list[str]:
         request_args = RequestArgs(method="GET", request_path=GET_READONLY_API_KEYS)
@@ -182,7 +182,7 @@ class PolymarketClobClient:
             self._build_url(GET_READONLY_API_KEYS), headers=headers
         )
         response.raise_for_status()
-        return response.json()["readonlyApiKeys"]
+        return cast("list[str]", response.json()["readonlyApiKeys"])
 
     def delete_readonly_api_key(self, key: str) -> str:
         body = {"key": key}
@@ -201,7 +201,7 @@ class PolymarketClobClient:
             content=json.dumps(body).encode("utf-8"),
         )
         response.raise_for_status()
-        return response.json()
+        return cast("str", response.json())
 
     def get_utc_time(self) -> datetime:
         # parse server timestamp into utc datetime
@@ -284,7 +284,7 @@ class PolymarketClobClient:
         response.raise_for_status()
         return Midpoint(token_id=token_id, value=float(response.json()["mid"]))
 
-    def get_midpoints(self, token_ids: list[str]) -> dict:
+    def get_midpoints(self, token_ids: list[str]) -> dict[str, float]:
         """Get the mid-market prices for a set of tokens."""
         data = [{"token_id": token_id} for token_id in token_ids]
         response = self.client.post(self._build_url(MID_POINTS), json=data)
@@ -298,7 +298,7 @@ class PolymarketClobClient:
         response.raise_for_status()
         return Spread(token_id=token_id, value=float(response.json()["mid"]))
 
-    def get_spreads(self, token_ids: list[str]) -> dict:
+    def get_spreads(self, token_ids: list[str]) -> dict[str, float]:
         """Get the spreads for a set of tokens."""
         data = [{"token_id": token_id} for token_id in token_ids]
         response = self.client.post(self._build_url(GET_SPREADS), json=data)
@@ -319,7 +319,7 @@ class PolymarketClobClient:
         response.raise_for_status()
         return TokenBidAskDict(**response.json()).root
 
-    def get_last_trade_price(self, token_id) -> Price:
+    def get_last_trade_price(self, token_id: str) -> Price:
         """Fetches the last trade price for a token_id."""
         params = {"token_id": token_id}
         response = self.client.get(self._build_url(GET_LAST_TRADE_PRICE), params=params)
@@ -333,7 +333,7 @@ class PolymarketClobClient:
         response.raise_for_status()
         return [Price(**price) for price in response.json()]
 
-    def get_order_book(self, token_id) -> OrderBookSummary:
+    def get_order_book(self, token_id: str) -> OrderBookSummary:
         """Get the orderbook for the given token."""
         params = {"token_id": token_id}
         response = self.client.get(self._build_url(GET_ORDER_BOOK), params=params)
@@ -358,20 +358,20 @@ class PolymarketClobClient:
         response.raise_for_status()
         return [OrderBookSummary(**obs) for obs in response.json()]
 
-    def get_market(self, condition_id) -> ClobMarket:
+    def get_market(self, condition_id: Keccak256) -> ClobMarket:
         """Get a ClobMarket by condition_id."""
         response = self.client.get(self._build_url(GET_MARKET + condition_id))
         response.raise_for_status()
         return ClobMarket(**response.json())
 
-    def get_markets(self, next_cursor="MA==") -> PaginatedResponse[ClobMarket]:
+    def get_markets(self, next_cursor: str = "MA==") -> PaginatedResponse[ClobMarket]:
         """Get paginated ClobMarkets."""
         params = {"next_cursor": next_cursor}
         response = self.client.get(self._build_url(GET_MARKETS), params=params)
         response.raise_for_status()
         return PaginatedResponse[ClobMarket](**response.json())
 
-    def get_all_markets(self, next_cursor="MA==") -> list[ClobMarket]:
+    def get_all_markets(self, next_cursor: str = "MA==") -> list[ClobMarket]:
         """Recursively fetch all ClobMarkets using pagination."""
         # Base case: Stop recursion if next_cursor indicates the last page
         if next_cursor == "LTE=":
@@ -673,7 +673,7 @@ class PolymarketClobClient:
         self,
         order_args: MarketOrderArgs,
         options: PartialCreateOrderOptions | None = None,
-    ):
+    ) -> SignedOrder:
         """Creates and signs a market order."""
         tick_size = self.__resolve_tick_size(
             order_args.token_id,
@@ -778,7 +778,7 @@ class PolymarketClobClient:
             params={"order_id": order_id},
         )
         response.raise_for_status()
-        return response.json()["scoring"]
+        return cast("bool", response.json()["scoring"])
 
     def are_orders_scoring(self, order_ids: list[Keccak256]) -> dict[Keccak256, bool]:
         """Check if the orders are currently scoring."""
@@ -795,7 +795,7 @@ class PolymarketClobClient:
             self._build_url(ARE_ORDERS_SCORING), headers=headers, json=body
         )
         response.raise_for_status()
-        return response.json()
+        return cast("dict[Keccak256, bool]", response.json())
 
     def get_market_rewards(self, condition_id: Keccak256) -> MarketRewards:
         """
@@ -820,7 +820,7 @@ class PolymarketClobClient:
         before: datetime | None = None,
         after: datetime | None = None,
         address: EthAddress | None = None,
-        next_cursor="MA==",
+        next_cursor: str | None = "MA==",
     ) -> list[PolygonTrade]:
         """Fetches the trade history for a user."""
         params: dict[str, str | int] = {}
@@ -841,9 +841,9 @@ class PolymarketClobClient:
         headers = create_level_2_headers(self.signer, self.creds, request_args)
 
         results = []
-        next_cursor = next_cursor if next_cursor is not None else "MA=="
+        next_cursor_str: str = next_cursor if next_cursor is not None else "MA=="
         while next_cursor != END_CURSOR:
-            params["next_cursor"] = next_cursor
+            params["next_cursor"] = next_cursor_str
             response = self.client.get(
                 self._build_url(TRADES), headers=headers, params=params
             )
@@ -939,15 +939,17 @@ class PolymarketClobClient:
 
         return results
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         self.client.close()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self, exc_type: object, exc_val: object, exc_tb: object
+    ) -> None:
         self.client.close()
         await self.async_client.aclose()
