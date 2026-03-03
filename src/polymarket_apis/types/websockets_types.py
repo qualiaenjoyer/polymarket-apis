@@ -213,12 +213,12 @@ class Quote(BaseModel):
     expiry: Optional[datetime] = None
 
 
-class CryptoPriceSubscribe(BaseModel):
+class AssetPriceSubscribe(BaseModel):
     data: list[TimeseriesPoint]
     symbol: str
 
 
-class CryptoPriceUpdate(TimeseriesPoint):
+class AssetPriceUpdate(TimeseriesPoint):
     symbol: str
     full_accuracy_value: str
 
@@ -276,19 +276,19 @@ class QuoteEvent(BaseModel):
     topic: Literal["rfq"]
 
 
-class CryptoPriceUpdateEvent(BaseModel):
-    payload: CryptoPriceUpdate
+class AssetPriceUpdateEvent(BaseModel):
+    payload: AssetPriceUpdate
     timestamp: datetime
     connection_id: str
     type: Literal["update"]
-    topic: Literal["crypto_prices", "crypto_prices_chainlink"]
+    topic: Literal["crypto_prices", "crypto_prices_chainlink", "equity_prices"]
 
 
-class CryptoPriceSubscribeEvent(BaseModel):
-    payload: CryptoPriceSubscribe
+class AssetPriceSubscribeEvent(BaseModel):
+    payload: AssetPriceSubscribe
     timestamp: datetime
     type: Literal["subscribe"]
-    topic: Literal["crypto_prices", "crypto_prices_chainlink"]
+    topic: Literal["crypto_prices", "crypto_prices_chainlink", "equity_prices"]
 
 
 class ErrorEvent(BaseModel):

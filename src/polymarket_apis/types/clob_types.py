@@ -331,14 +331,19 @@ class OrderSummary(BaseModel):
 class PriceLevel(OrderSummary):
     side: Literal["BUY", "SELL"]
 
+TickSize = Literal["0.1", "0.01", "0.001", "0.0001"]
 
 class OrderBookSummary(BaseModel):
-    condition_id: Optional[Keccak256] = Field(None, alias="market")
-    token_id: Optional[str] = Field(None, alias="asset_id")
-    timestamp: Optional[datetime] = None
-    hash: Optional[str] = None
-    bids: Optional[list[OrderSummary]] = None
-    asks: Optional[list[OrderSummary]] = None
+    condition_id: Keccak256 = Field(alias="market")
+    token_id: str = Field(alias="asset_id")
+    timestamp: datetime
+    hash: str
+    bids: list[OrderSummary]
+    asks: list[OrderSummary]
+    tick_size: TickSize
+    last_trade_price: float
+    min_order_size: Optional[float] = None
+    neg_risk: Optional[bool] = None
 
     @field_serializer("bids", "asks")
     def serialize_sizes(self, orders: list[OrderSummary]) -> list[dict[str, str]]:
@@ -372,9 +377,6 @@ class OrderType(StrEnum):
     GTD = "GTD"  # Good Till Date
     FOK = "FOK"  # Fill or Kill
     FAK = "FAK"  # Fill and Kill
-
-
-TickSize = Literal["0.1", "0.01", "0.001", "0.0001"]
 
 
 class CreateOrderOptions(BaseModel):

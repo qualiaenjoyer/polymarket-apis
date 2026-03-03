@@ -11,9 +11,9 @@ from ..types.clob_types import ApiCreds
 from ..types.websockets_types import (
     ActivityOrderMatchEvent,
     ActivityTradeEvent,
+    AssetPriceSubscribeEvent,
+    AssetPriceUpdateEvent,
     CommentEvent,
-    CryptoPriceSubscribeEvent,
-    CryptoPriceUpdateEvent,
     LastTradePriceEvent,
     OrderBookSummaryEvent,
     OrderEvent,
@@ -92,9 +92,9 @@ def _process_live_data_event(event: Text) -> None:
             case "quote_created" | "quote_edited" | "quote_canceled" | "quote_expired":
                 print(QuoteEvent(**message), "\n")
             case "subscribe":
-                print(CryptoPriceSubscribeEvent(**message), "\n")
+                print(AssetPriceSubscribeEvent(**message), "\n")
             case "update":
-                print(CryptoPriceUpdateEvent(**message), "\n")
+                print(AssetPriceUpdateEvent(**message), "\n")
             case _:
                 print(message)
     except JSONDecodeError:
