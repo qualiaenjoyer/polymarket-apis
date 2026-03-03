@@ -173,16 +173,17 @@ flowchart LR
     - price change
     - tick size change
     - last trade price
+    - best bid/ask price change
+    - market created
+    - market resolved
   - subscribe to **user socket** with **ApiCreds**, receive different event types:
     - order (status - live, canceled, matched)
     - trade (status - matched, mined, confirmed, retrying, failed)
-  - subscribe to **live data socket** with any combination described [here](https://github.com/Polymarket/real-time-data-client?tab=readme-ov-file#subscribe) - ***newest endpoint*** - includes the other sockets, receive:
-    - all of the above event types
-    - market (created, resolved)
+  - subscribe to **live data socket** with any combination described [here](https://github.com/Polymarket/real-time-data-client?tab=readme-ov-file#subscribe) - ***newest endpoint*** - receive:
     - comment/reaction (created, removed)
     - trades/orders_matched (all, not just yours) - filter by **Event** `slug` or **Market** `slug`
-    - crypto price
-    - request/quote (created, edited, canceled, expired) - rqf not public yet
+    - crypto/equity prices
+    - rfq - request/quote (created, edited, canceled, expired)
 
   ### PolymarketGraphQLClient/AsyncPolymarketGraphQLClient - Goldsky hosted Subgraphs queries
   - instantiate with an endpoint name from:
