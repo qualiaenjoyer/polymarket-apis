@@ -443,7 +443,7 @@ class PolymarketWeb3Client(BaseWeb3Client):
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://polygon.drpc.org",
     ):
-        super().__init__(private_key, signature_type, chain_id, rpc_url)
+        super().__init__(private_key, signature_type, chain_id=chain_id, rpc_url=rpc_url)
 
     def _execute(
         self,
@@ -696,12 +696,13 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         signature_type: Literal[1, 2] = 1,
         builder_creds: ApiCreds | None = None,
         chain_id: Literal[137, 80002] = POLYGON,
+        rpc_url: str = "https://polygon.drpc.org",
     ):
         if signature_type not in {1, 2}:
             msg = "PolymarketGaslessWeb3Client only supports signature_type=1 (Poly proxy wallets) and signature_type=2 (Safe wallets)."
             raise ValueError(msg)
 
-        super().__init__(private_key, signature_type, chain_id)
+        super().__init__(private_key, signature_type, chain_id=chain_id, rpc_url=rpc_url)
 
         # Setup for gasless transactions
         self.signer = Signer(private_key=private_key, chain_id=chain_id)
