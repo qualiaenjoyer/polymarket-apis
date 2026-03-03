@@ -224,9 +224,7 @@ class CryptoPriceUpdate(TimeseriesPoint):
 
 
 class AggOrderBookSummary(OrderBookSummary):
-    min_order_size: float
-    tick_size: TickSize
-    neg_risk: bool
+    pass
 
 
 class LiveDataClobMarket(BaseModel):
