@@ -223,12 +223,6 @@ class CryptoPriceUpdate(TimeseriesPoint):
     full_accuracy_value: str
 
 
-class AggOrderBookSummary(OrderBookSummary):
-    min_order_size: float
-    tick_size: TickSize
-    neg_risk: bool
-
-
 class LiveDataClobMarket(BaseModel):
     token_ids: list[str] = Field(alias="asset_ids")
     condition_id: Keccak256 = Field(alias="market")
@@ -295,62 +289,6 @@ class CryptoPriceSubscribeEvent(BaseModel):
     timestamp: datetime
     type: Literal["subscribe"]
     topic: Literal["crypto_prices", "crypto_prices_chainlink"]
-
-
-class LiveDataOrderBookSummaryEvent(BaseModel):
-    payload: list[AggOrderBookSummary] | AggOrderBookSummary
-    timestamp: datetime
-    connection_id: str
-    type: Literal["agg_orderbook"]
-    topic: Literal["clob_market"]
-
-
-class LiveDataPriceChangeEvent(BaseModel):
-    payload: PriceChanges
-    timestamp: datetime
-    connection_id: str
-    type: Literal["price_change"]
-    topic: Literal["clob_market"]
-
-
-class LiveDataLastTradePriceEvent(BaseModel):
-    payload: LastTradePrice
-    timestamp: datetime
-    connection_id: str
-    type: Literal["last_trade_price"]
-    topic: Literal["clob_market"]
-
-
-class LiveDataTickSizeChangeEvent(BaseModel):
-    payload: TickSizeChange
-    timestamp: datetime
-    connection_id: str
-    type: Literal["tick_size_change"]
-    topic: Literal["clob_market"]
-
-
-class MarketStatusChangeEvent(BaseModel):
-    payload: LiveDataClobMarket
-    timestamp: datetime
-    connection_id: str
-    type: Literal["market_created", "market_resolved"]
-    topic: Literal["clob_market"]
-
-
-class LiveDataOrderEvent(BaseModel):
-    payload: OrderEvent
-    timestamp: datetime
-    connection_id: str
-    type: Literal["order"]
-    topic: Literal["clob_user"]
-
-
-class LiveDataTradeEvent(BaseModel):
-    payload: TradeEvent
-    timestamp: datetime
-    connection_id: str
-    type: Literal["trade"]
-    topic: Literal["clob_user"]
 
 
 class ErrorEvent(BaseModel):

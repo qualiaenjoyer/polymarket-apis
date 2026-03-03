@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from json import JSONDecodeError
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from lomond import WebSocket
 from lomond.events import Text
@@ -15,13 +15,6 @@ from ..types.websockets_types import (
     CryptoPriceSubscribeEvent,
     CryptoPriceUpdateEvent,
     LastTradePriceEvent,
-    LiveDataLastTradePriceEvent,
-    LiveDataOrderBookSummaryEvent,
-    LiveDataOrderEvent,
-    LiveDataPriceChangeEvent,
-    LiveDataTickSizeChangeEvent,
-    LiveDataTradeEvent,
-    MarketStatusChangeEvent,
     OrderBookSummaryEvent,
     OrderEvent,
     PriceChangeEvent,
@@ -31,7 +24,6 @@ from ..types.websockets_types import (
     TickSizeChangeEvent,
     TradeEvent,
 )
-from ..utilities.exceptions import AuthenticationRequiredError
 
 
 def _process_market_event(event: Text) -> None:
@@ -103,20 +95,6 @@ def _process_live_data_event(event: Text) -> None:
                 print(CryptoPriceSubscribeEvent(**message), "\n")
             case "update":
                 print(CryptoPriceUpdateEvent(**message), "\n")
-            case "agg_orderbook":
-                print(LiveDataOrderBookSummaryEvent(**message), "\n")
-            case "price_change":
-                print(LiveDataPriceChangeEvent(**message), "\n")
-            case "last_trade_price":
-                print(LiveDataLastTradePriceEvent(**message), "\n")
-            case "tick_size_change":
-                print(LiveDataTickSizeChangeEvent(**message), "\n")
-            case "market_created" | "market_resolved":
-                print(MarketStatusChangeEvent(**message), "\n")
-            case "order":
-                print(LiveDataOrderEvent(**message), "\n")
-            case "trade":
-                print(LiveDataTradeEvent(**message), "\n")
             case _:
                 print(message)
     except JSONDecodeError:
@@ -182,7 +160,6 @@ class PolymarketWebsocketsClient:
         self,
         subscriptions: list[dict[str, Any]],
         process_event: Callable[[Text], None] = _process_live_data_event,
-        creds: Optional[ApiCreds] = None,
     ) -> None:
         # info on how to subscribe found at https://github.com/Polymarket/real-time-data-client?tab=readme-ov-file#subscribe
         """
@@ -191,29 +168,12 @@ class PolymarketWebsocketsClient:
         Args:
             subscriptions: List of subscription configurations
             process_event: Callback function to process received events
-            creds: ApiCreds for authentication if subscribing to clob_user topic
 
         """
         websocket = WebSocket(self.url_live_data)
 
-        needs_auth = any(sub.get("topic") == "clob_user" for sub in subscriptions)
-
         for event in persist(websocket):
             if event.name == "ready":
-                if needs_auth:
-                    if creds is None:
-                        msg = "ApiCreds credentials are required for the clob_user topic subscriptions"
-                        raise AuthenticationRequiredError(msg)
-                    subscriptions_with_creds = []
-                    for sub in subscriptions:
-                        if sub.get("topic") == "clob_user":
-                            sub_copy = sub.copy()
-                            sub_copy["clob_auth"] = creds.model_dump()
-                            subscriptions_with_creds.append(sub_copy)
-                        else:
-                            subscriptions_with_creds.append(sub)
-                    subscriptions = subscriptions_with_creds
-
                 payload = {
                     "action": "subscribe",
                     "subscriptions": subscriptions,
