@@ -17,7 +17,6 @@ dependencies = [
     "httpx[http2]>=0.25.1",
     "web3>=7.0",
     "lomond>=0.3.3",
-    "wsaccel>=0.6.7",
     "gql[httpx]>=4.0.0",
 ]
 
