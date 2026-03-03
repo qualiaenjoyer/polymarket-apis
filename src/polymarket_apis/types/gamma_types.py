@@ -21,7 +21,7 @@ class OptimizedImage(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="id")
+    id: Optional[str] = None
     image_url_source: Optional[str] = Field(None, alias="imageUrlSource")
     image_url_optimized: Optional[str] = Field(None, alias="imageUrlOptimized")
     image_size_kb_source: Optional[int] = Field(None, alias="imageSizeKbSource")
@@ -42,7 +42,7 @@ class GammaMarket(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    id: Optional[str] = Field(None, alias="id")
+    id: Optional[str] = None
     condition_id: Optional[Keccak256] = Field(None, alias="conditionId")
     question_id: Optional[Keccak256] = Field(None, alias="questionID")
     slug: Optional[str] = Field(None, alias="slug")

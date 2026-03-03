@@ -13,8 +13,11 @@ from ..types.websockets_types import (
     ActivityTradeEvent,
     AssetPriceSubscribeEvent,
     AssetPriceUpdateEvent,
+    BestBidAskEvent,
     CommentEvent,
     LastTradePriceEvent,
+    MarketResolvedEvent,
+    NewMarketEvent,
     OrderBookSummaryEvent,
     OrderEvent,
     PriceChangeEvent,
@@ -46,6 +49,12 @@ def _process_market_event(event: Text) -> None:
                 print(TickSizeChangeEvent(**message), "\n")
             case "last_trade_price":
                 print(LastTradePriceEvent(**message), "\n")
+            case "best_bid_ask":
+                print(BestBidAskEvent(**message), "\n")
+            case "new_market":
+                print(NewMarketEvent(**message), "\n")
+            case "market_resolved":
+                print(MarketResolvedEvent(**message), "\n")
             case _:
                 print(message)
     except JSONDecodeError:
@@ -113,6 +122,7 @@ class PolymarketWebsocketsClient:
     def market_socket(
         self,
         token_ids: list[str],
+        custom_feature_enabled: bool = True,
         process_event: Callable[[Text], None] = _process_market_event,
     ) -> None:
         """
@@ -120,6 +130,7 @@ class PolymarketWebsocketsClient:
 
         Args:
             token_ids: List of token IDs to subscribe to
+            custom_feature_enabled: Enables best_bid_ask, new_market and market_resolved event types
             process_event: Callback function to process received events
 
         """
@@ -129,6 +140,7 @@ class PolymarketWebsocketsClient:
             if event.name == "ready":
                 websocket.send_json(
                     assets_ids=token_ids,
+                    custom_feature_enabled=custom_feature_enabled
                 )
             elif event.name == "text":
                 process_event(cast("Text", event))

@@ -61,6 +61,42 @@ class LastTradePriceEvent(LastTradePrice):
     timestamp: datetime
     event_type: Literal["last_trade_price"]
 
+class BestBidAskEvent(BaseModel):
+    condition_id: Keccak256 = Field(alias="market")
+    token_id: str = Field(alias="asset_id")
+    best_bid: float
+    best_ask: float
+    spread: float
+    timestamp: datetime
+    event_type: Literal["best_bid_ask"]
+
+class RelatedEvent(BaseModel):
+    id: int
+    ticker: str
+    slug: str
+    title: str
+    description: str
+
+class MarketEvent(BaseModel):
+    id: int
+    question: str
+    condition_id: Keccak256 = Field(alias="market")
+    slug: str
+    description: str
+    token_ids: list[str] = Field(alias="assets_ids")
+    outcomes: list[str]
+    event_info: RelatedEvent = Field(alias="event_message")
+    timestamp: datetime
+    tags: Optional[list[str]] = None
+
+class NewMarketEvent(MarketEvent):
+    event_type: Literal["new_market"]
+
+class MarketResolvedEvent(MarketEvent):
+    winning_asset_id: str
+    winning_outcome: str
+    event_type: Literal["market_resolved"]
+
 
 # wss://ws-subscriptions-clob.polymarket.com/ws/user types
 

@@ -340,8 +340,8 @@ class OrderBookSummary(BaseModel):
     hash: str
     bids: list[OrderSummary]
     asks: list[OrderSummary]
-    tick_size: TickSize
-    last_trade_price: float
+    tick_size: Optional[TickSize] = None
+    last_trade_price: Optional[float] = None
     min_order_size: Optional[float] = None
     neg_risk: Optional[bool] = None
 
