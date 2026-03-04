@@ -22,26 +22,27 @@ def parse_flexible_datetime(v: str | datetime) -> datetime:
     return v
 
 
+# Validate format: 0x followed by 64 hex characters
+KECCAK256_REGEX = re.compile(r"^0x[a-fA-F0-9]{64}$")
+
+
 def validate_keccak256(v: str | HexBytes | bytes) -> str:
     """Validate and normalize Keccak256 hash format."""
     # Convert HexBytes/bytes to string
     if isinstance(v, HexBytes | bytes):
         v = v.hex()
 
-    # Ensure string and add 0x prefix if missing
-    if not isinstance(v, str):
-        msg = f"Expected string or bytes, got {type(v)}"
-        raise TypeError(msg)
-
     if not v.startswith("0x"):
         v = "0x" + v
 
-    # Validate format: 0x followed by 64 hex characters
-    if not re.match(r"^0x[a-fA-F0-9]{64}$", v):
+    if not KECCAK256_REGEX.match(v):
         msg = f"Invalid Keccak256 hash format: {v}"
         raise ValueError(msg)
 
     return v
+
+
+CHECKSUM_ADDRESS_REGEX = re.compile(r"^0x[a-fA-F0-9]{40}$")
 
 
 def validate_eth_address(v: str | HexBytes | bytes) -> ChecksumAddress:
@@ -50,16 +51,11 @@ def validate_eth_address(v: str | HexBytes | bytes) -> ChecksumAddress:
     if isinstance(v, HexBytes | bytes):
         v = v.hex()
 
-    # Ensure string and add 0x prefix if missing
-    if not isinstance(v, str):
-        msg = f"Expected string or bytes, got {type(v)}"
-        raise TypeError(msg)
-
     if not v.startswith("0x"):
         v = "0x" + v
 
     # Validate format: 0x followed by 40 hex characters
-    if not re.match(r"^0x[a-fA-F0-9]{40}$", v, re.IGNORECASE):
+    if not CHECKSUM_ADDRESS_REGEX.match(v):
         msg = f"Invalid Ethereum address format: {v}"
         raise ValueError(msg)
 

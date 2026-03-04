@@ -50,8 +50,11 @@ def _load_abi(contract_name: str) -> ABI:
         return cast("ABI", load(f))
 
 
+RESET_ERROR_REGEX = re.compile(r"resets in\s+(\d+)\s+seconds")
+
+
 def _parse_reset_seconds(error_message: str) -> int:
-    m = re.search(r"resets in\s+(\d+)\s+seconds", error_message)
+    m = RESET_ERROR_REGEX.search(error_message)
     if not m:
         msg = f"Could not parse reset seconds from: {error_message}"
         raise ValueError(msg)
@@ -443,7 +446,9 @@ class PolymarketWeb3Client(BaseWeb3Client):
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://polygon.drpc.org",
     ):
-        super().__init__(private_key, signature_type, chain_id=chain_id, rpc_url=rpc_url)
+        super().__init__(
+            private_key, signature_type, chain_id=chain_id, rpc_url=rpc_url
+        )
 
     def _execute(
         self,
@@ -702,7 +707,9 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             msg = "PolymarketGaslessWeb3Client only supports signature_type=1 (Poly proxy wallets) and signature_type=2 (Safe wallets)."
             raise ValueError(msg)
 
-        super().__init__(private_key, signature_type, chain_id=chain_id, rpc_url=rpc_url)
+        super().__init__(
+            private_key, signature_type, chain_id=chain_id, rpc_url=rpc_url
+        )
 
         # Setup for gasless transactions
         self.signer = Signer(private_key=private_key, chain_id=chain_id)
