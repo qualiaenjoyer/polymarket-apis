@@ -25,12 +25,12 @@ def sign_clob_auth_message(signer: Signer, timestamp: int, nonce: int) -> HexStr
         message=MSG_TO_SIGN,
     )
     chain_id = signer.get_chain_id()
-    auth_struct_hash = cast(  # pyrefly: ignore[redundant-cast]
+    auth_struct_hash = cast(
         "HexStr",
         prepend_zx(
             keccak(clob_auth_msg.signable_bytes(get_clob_auth_domain(chain_id))).hex(),
         ),
     )
-    return cast(  # pyrefly: ignore[redundant-cast]
+    return cast(
         "HexStr", prepend_zx(signer.sign(auth_struct_hash))
     )

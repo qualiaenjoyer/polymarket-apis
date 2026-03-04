@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from json import JSONDecodeError
 from typing import Any, cast
 
@@ -17,6 +17,8 @@ from ..types.websockets_types import (
     BestBidAskEvent,
     CommentEvent,
     LastTradePriceEvent,
+    LiveDataEvents,
+    MarketEvents,
     MarketResolvedEvent,
     NewMarketEvent,
     OrderBookSummaryEvent,
@@ -27,94 +29,51 @@ from ..types.websockets_types import (
     RequestEvent,
     TickSizeChangeEvent,
     TradeEvent,
+    UserEvents,
 )
 
 logger = logging.getLogger(__name__)
 
-type MarketEvents = (
-    OrderBookSummaryEvent
-    | PriceChangeEvent
-    | TickSizeChangeEvent
-    | LastTradePriceEvent
-    | BestBidAskEvent
-    | NewMarketEvent
-    | MarketResolvedEvent
-)
 
-type UserEvents = OrderEvent | TradeEvent
+MARKET_EVENT_CLASSES: Mapping[str, type[MarketEvents]] = {
+    "book": OrderBookSummaryEvent,
+    "price_change": PriceChangeEvent,
+    "tick_size_change": TickSizeChangeEvent,
+    "last_trade_price": LastTradePriceEvent,
+    "best_bid_ask": BestBidAskEvent,
+    "new_market": NewMarketEvent,
+    "market_resolved": MarketResolvedEvent,
+}
 
-type LiveDataEvents = (
-    ActivityTradeEvent
-    | ActivityOrderMatchEvent
-    | CommentEvent
-    | ReactionEvent
-    | RequestEvent
-    | QuoteEvent
-    | AssetPriceSubscribeEvent
-    | AssetPriceUpdateEvent
-)
+USER_EVENT_CLASSES: Mapping[str, type[UserEvents]] = {
+    "order": OrderEvent,
+    "trade": TradeEvent,
+}
 
+LIVE_DATA_EVENT_CLASSES: Mapping[str, type[LiveDataEvents]] = {
+    "trades": ActivityTradeEvent,
+    "orders_matched": ActivityOrderMatchEvent,
+    "comment_created": CommentEvent,
+    "comment_removed": CommentEvent,
+    "reaction_created": ReactionEvent,
+    "reaction_removed": ReactionEvent,
+    "request_created": RequestEvent,
+    "request_edited": RequestEvent,
+    "request_canceled": RequestEvent,
+    "request_expired": RequestEvent,
+    "quote_created": QuoteEvent,
+    "quote_edited": QuoteEvent,
+    "quote_canceled": QuoteEvent,
+    "quote_expired": QuoteEvent,
+    "subscribe": AssetPriceSubscribeEvent,
+    "update": AssetPriceUpdateEvent,
+}
 
-def get_market_event_cls(typ: str | None) -> type[MarketEvents] | None:
-    match typ:
-        case "book":
-            return OrderBookSummaryEvent
-        case "price_change":
-            return PriceChangeEvent
-        case "tick_size_change":
-            return TickSizeChangeEvent
-        case "last_trade_price":
-            return LastTradePriceEvent
-        case "best_bid_ask":
-            return BestBidAskEvent
-        case "new_market":
-            return NewMarketEvent
-        case "market_resolved":
-            return MarketResolvedEvent
-        case _:
-            return None
-
-
-def get_user_event_cls(typ: str | None) -> type[UserEvents] | None:
-    match typ:
-        case "order":
-            return OrderEvent
-        case "trade":
-            return TradeEvent
-        case _:
-            return None
-
-
-def get_live_data_event_cls(typ: str | None) -> type[LiveDataEvents] | None:
-    match typ:
-        case "trades":
-            return ActivityTradeEvent
-        case "orders_matched":
-            return ActivityOrderMatchEvent
-        case "comment_created" | "comment_removed":
-            return CommentEvent
-        case "reaction_created" | "reaction_removed":
-            return ReactionEvent
-        case (
-            "request_created"
-            | "request_edited"
-            | "request_canceled"
-            | "request_expired"
-        ):
-            return RequestEvent
-        case "quote_created" | "quote_edited" | "quote_canceled" | "quote_expired":
-            return QuoteEvent
-        case "subscribe":
-            return AssetPriceSubscribeEvent
-        case "update":
-            return AssetPriceUpdateEvent
-        case _:
-            return None
-
-
-def parse_json(event: Text) -> Any | None:
+def parse_json(event: Text) -> object | None:
+    if not event.text or event.text.isspace():
+        return None
     try:
-        return event.json
+        return cast("object", event.json)
     except JSONDecodeError:
         logger.warning("Invalid json: %s", event.text)
         return None
@@ -130,16 +89,22 @@ def substitute_cls[T: BaseModel](cls: type[T], data: dict[str, Any]) -> T | None
 
 def parse_event[T: BaseModel](
     message: object,
-    get_cls: Callable[[str | None], type[T] | None],
+    classes: Mapping[str, type[T]],
     event_type_field: str,
 ) -> T | None:
+    if message is None:
+        return None
     if not isinstance(message, dict):
         logger.warning("Got %s instead of dict", message)
         return None
 
-    typ = message.get(event_type_field)
-    cls = get_cls(typ)
+    typ_obj = message.get(event_type_field)
+    typ = typ_obj if isinstance(typ_obj, str) else None
+    if typ is None:
+        logger.warning("Missing or invalid event type field '%s' in message: %s", event_type_field, message)
+        return None
 
+    cls = classes.get(typ)
     if cls is None:
         logger.warning("Unknown event type: %s", typ)
         return None
@@ -157,37 +122,37 @@ def parse_market_event(text: Text) -> MarketEvents | list[OrderBookSummaryEvent]
                 result.append(obj)
         return result
 
-    # For some reason mypy cannot deduce its type
-    ret = parse_event(message, get_market_event_cls, "event_type")
-    return cast("MarketEvents | None", ret)  # pyrefly: ignore[redundant-cast]
+    return parse_event(message, MARKET_EVENT_CLASSES, "event_type")
 
 
 def parse_user_event(text: Text) -> UserEvents | None:
     message = parse_json(text)
 
-    # For some reason mypy cannot deduce its type
-    ret = parse_event(message, get_user_event_cls, "event_type")
-    return cast("UserEvents | None", ret)  # pyrefly: ignore[redundant-cast]
+    return parse_event(message, USER_EVENT_CLASSES, "event_type")
 
 
 def parse_live_data_event(text: Text) -> LiveDataEvents | None:
     message = parse_json(text)
 
-    # For some reason mypy cannot deduce its type
-    ret = parse_event(message, get_live_data_event_cls, "type")
-    return cast("LiveDataEvents | None", ret)  # pyrefly: ignore[redundant-cast]
+    return parse_event(message, LIVE_DATA_EVENT_CLASSES, "type")
 
 
 def _default_process_market_event(text: Text) -> None:
-    print(parse_market_event(text))
+    ev = parse_market_event(text)
+    if ev is not None:
+        print(ev, "\n")
 
 
 def _default_process_user_event(text: Text) -> None:
-    print(parse_user_event(text))
+    ev = parse_user_event(text)
+    if ev is not None:
+        print(ev, "\n")
 
 
 def _default_process_live_data_event(text: Text) -> None:
-    print(parse_live_data_event(text))
+    ev = parse_live_data_event(text)
+    if ev is not None:
+        print(ev, "\n")
 
 
 class PolymarketWebsocketsClient:

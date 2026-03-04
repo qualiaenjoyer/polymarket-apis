@@ -331,3 +331,28 @@ class ErrorEvent(BaseModel):
     message: str
     connection_id: str = Field(alias="connectionId")
     request_id: str = Field(alias="requestId")
+
+
+# event type unions
+type MarketEvents = (
+    OrderBookSummaryEvent
+    | PriceChangeEvent
+    | TickSizeChangeEvent
+    | LastTradePriceEvent
+    | BestBidAskEvent
+    | NewMarketEvent
+    | MarketResolvedEvent
+)
+
+type UserEvents = OrderEvent | TradeEvent
+
+type LiveDataEvents = (
+    ActivityTradeEvent
+    | ActivityOrderMatchEvent
+    | CommentEvent
+    | ReactionEvent
+    | RequestEvent
+    | QuoteEvent
+    | AssetPriceSubscribeEvent
+    | AssetPriceUpdateEvent
+)
