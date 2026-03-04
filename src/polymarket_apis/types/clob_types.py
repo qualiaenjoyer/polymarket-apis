@@ -345,6 +345,12 @@ class OrderBookSummary(BaseModel):
     min_order_size: Optional[float] = None
     neg_risk: Optional[bool] = None
 
+    @field_validator("last_trade_price", mode="before")
+    def handle_empty_last_trade_price(cls, v: Optional[float] | Literal[""]) -> Optional[float]:
+        if v == "":
+            return None
+        return v
+
     @field_serializer("bids", "asks")
     def serialize_sizes(self, orders: list[OrderSummary]) -> list[dict[str, str]]:
         return [
