@@ -92,8 +92,7 @@ def validate_keccak_or_padded(v: Any) -> HexStr:
     # Add 0x prefix if missing
     v_str: HexStr = cast("HexStr", "0x" + v if not v.startswith("0x") else v)
 
-    # Accept 66 character hex strings (0x + 64 hex chars)
-    if len(v_str) == 66 and all(c in "0123456789abcdefABCDEF" for c in v_str[2:]):
+    if KECCAK256_REGEX.match(v_str):
         return v_str
 
     msg = f"Invalid hash format: expected 66 characters (0x + 64 hex), got {len(v_str)}: {v_str}"
