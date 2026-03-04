@@ -21,6 +21,10 @@ def get_index_set(question_ids: list[str]) -> int:
     return sum(1 << index for index in set(indices))
 
 
+INT_REGEX = re.compile(r"^u?int(\d*)$")
+BYTES_REGEX = re.compile(r"^bytes(\d+)$")
+
+
 def _pack_primitive(typ: str, val: Any) -> bytes:
     if isinstance(val, str) and val.startswith("0x"):
         raw = bytes.fromhex(val[2:])
@@ -42,7 +46,7 @@ def _pack_primitive(typ: str, val: Any) -> bytes:
             return raw.encode()
         return raw
 
-    m = re.match(r"^bytes(\d+)$", typ)
+    m = BYTES_REGEX.match(typ)
     if m:
         n = int(m.group(1))
         if isinstance(raw, int):
@@ -73,7 +77,7 @@ def _pack_primitive(typ: str, val: Any) -> bytes:
         addr = addr.rjust(40, "0")[-40:]
         return bytes.fromhex(addr)
 
-    m = re.match(r"^u?int(\d*)$", typ)
+    m = INT_REGEX.match(typ)
     if m:
         bits = int(m.group(1)) if m.group(1) else 256
         size = bits // 8
