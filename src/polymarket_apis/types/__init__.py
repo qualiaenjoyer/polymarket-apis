@@ -74,6 +74,8 @@ from .websockets_types import (
     CommentEvent,
     ErrorEvent,
     LastTradePriceEvent,
+    LiveDataEvents,
+    MarketEvents,
     MarketResolvedEvent,
     NewMarketEvent,
     OrderBookSummaryEvent,
@@ -84,6 +86,7 @@ from .websockets_types import (
     RequestEvent,
     TickSizeChangeEvent,
     TradeEvent,
+    UserEvents,
 )
 
 __all__ = [
@@ -113,6 +116,8 @@ __all__ = [
     "HolderResponse",
     "Keccak256",
     "LastTradePriceEvent",
+    "LiveDataEvents",
+    "MarketEvents",
     "MarketOrderArgs",
     "MarketResolvedEvent",
     "MarketRewards",
@@ -153,6 +158,7 @@ __all__ = [
     "Trade",
     "TradeEvent",
     "User",
+    "UserEvents",
     "UserMetric",
     "UserRank",
     "ValueResponse",
