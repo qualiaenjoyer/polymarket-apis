@@ -21,6 +21,7 @@ from .clients import (
     PolymarketGammaClient,
     PolymarketGaslessWeb3Client,
     PolymarketGraphQLClient,
+    PolymarketReadOnlyClobClient,
     PolymarketWeb3Client,
     PolymarketWebsocketsClient,
 )
@@ -37,6 +38,7 @@ __all__ = [
     "PolymarketGammaClient",
     "PolymarketGaslessWeb3Client",
     "PolymarketGraphQLClient",
+    "PolymarketReadOnlyClobClient",
     "PolymarketWeb3Client",
     "PolymarketWebsocketsClient",
     "__author__",

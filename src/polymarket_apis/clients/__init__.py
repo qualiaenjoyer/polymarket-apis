@@ -5,7 +5,7 @@ This module contains all the client classes for interacting with different
 Polymarket APIs including CLOB, Data, Gamma, GraphQL, Web3, and WebSocket clients.
 """
 
-from .clob_client import PolymarketClobClient
+from .clob_client import PolymarketClobClient, PolymarketReadOnlyClobClient
 from .data_client import PolymarketDataClient
 from .gamma_client import PolymarketGammaClient
 from .graphql_client import AsyncPolymarketGraphQLClient, PolymarketGraphQLClient
@@ -24,6 +24,7 @@ __all__ = [
     "PolymarketGammaClient",
     "PolymarketGaslessWeb3Client",
     "PolymarketGraphQLClient",
+    "PolymarketReadOnlyClobClient",
     "PolymarketWeb3Client",
     "PolymarketWebsocketsClient",
     "parse_live_data_event",

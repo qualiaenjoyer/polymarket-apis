@@ -93,28 +93,11 @@ from ..utilities.signing.signer import Signer
 logger = logging.getLogger(__name__)
 
 
-class PolymarketClobClient:
-    def __init__(
-        self,
-        private_key: str,
-        address: EthAddress,
-        creds: ApiCreds | None = None,
-        chain_id: Literal[137, 80002] = POLYGON,
-        signature_type: Literal[0, 1, 2] = 1,
-        # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet
-    ):
-        self.address = address
+class PolymarketReadOnlyClobClient:
+    def __init__(self) -> None:
         self.client = httpx.Client(http2=True, timeout=30.0)
         self.async_client = httpx.AsyncClient(http2=True, timeout=30.0)
         self.base_url: str = "https://clob.polymarket.com"
-        self.signer = Signer(private_key=private_key, chain_id=chain_id)
-        self.signature_type = signature_type
-        self.builder = OrderBuilder(
-            signer=self.signer,
-            sig_type=signature_type,
-            funder=address,
-        )
-        self.creds = creds if creds else self.create_or_derive_api_creds()
 
         # local cache
         self.__tick_sizes: dict[str, TickSize] = {}
@@ -126,80 +109,6 @@ class PolymarketClobClient:
 
     def get_ok(self) -> str:
         response = self.client.get(self.base_url)
-        response.raise_for_status()
-        return cast("str", response.json())
-
-    def create_api_creds(self, nonce: int | None = None) -> ApiCreds:
-        headers = create_level_1_headers(self.signer, nonce)
-        response = self.client.post(self._build_url(CREATE_API_KEY), headers=headers)
-        response.raise_for_status()
-        return ApiCreds(**response.json())
-
-    def derive_api_key(self, nonce: int | None = None) -> ApiCreds:
-        headers = create_level_1_headers(self.signer, nonce)
-        response = self.client.get(self._build_url(DERIVE_API_KEY), headers=headers)
-        response.raise_for_status()
-        return ApiCreds(**response.json())
-
-    def create_or_derive_api_creds(self, nonce: int | None = None) -> ApiCreds:
-        try:
-            return self.create_api_creds(nonce)
-        except HTTPStatusError:
-            return self.derive_api_key(nonce)
-
-    def set_api_creds(self, creds: ApiCreds) -> None:
-        self.creds = creds
-
-    def get_api_keys(self) -> list[str]:
-        request_args = RequestArgs(method="GET", request_path=GET_API_KEYS)
-        headers = create_level_2_headers(self.signer, self.creds, request_args)
-        response = self.client.get(self._build_url(GET_API_KEYS), headers=headers)
-        response.raise_for_status()
-        return cast("list[str]", response.json()["apiKeys"])
-
-    def delete_api_keys(self) -> Literal["OK"]:
-        request_args = RequestArgs(method="DELETE", request_path=DELETE_API_KEY)
-        headers = create_level_2_headers(self.signer, self.creds, request_args)
-        response = self.client.delete(self._build_url(DELETE_API_KEY), headers=headers)
-        response.raise_for_status()
-        return cast("Literal['OK']", response.json())
-
-    def create_readonly_api_key(self) -> str:
-        request_args = RequestArgs(method="POST", request_path=CREATE_READONLY_API_KEY)
-        headers = create_level_2_headers(self.signer, self.creds, request_args)
-
-        response = self.client.post(
-            self._build_url(CREATE_READONLY_API_KEY), headers=headers
-        )
-        response.raise_for_status()
-        return cast("str", response.json()["apiKey"])
-
-    def get_readonly_api_keys(self) -> list[str]:
-        request_args = RequestArgs(method="GET", request_path=GET_READONLY_API_KEYS)
-        headers = create_level_2_headers(self.signer, self.creds, request_args)
-
-        response = self.client.get(
-            self._build_url(GET_READONLY_API_KEYS), headers=headers
-        )
-        response.raise_for_status()
-        return cast("list[str]", response.json()["readonlyApiKeys"])
-
-    def delete_readonly_api_key(self, key: str) -> str:
-        body = {"key": key}
-
-        request_args = RequestArgs(
-            method="DELETE",
-            request_path=DELETE_READONLY_API_KEY,
-            body=body,
-        )
-        headers = create_level_2_headers(self.signer, self.creds, request_args)
-
-        response = self.client.request(
-            "DELETE",
-            self._build_url(DELETE_READONLY_API_KEY),
-            headers=headers,
-            content=json.dumps(body).encode("utf-8"),
-        )
         response.raise_for_status()
         return cast("str", response.json())
 
@@ -245,7 +154,7 @@ class PolymarketClobClient:
 
         return fee_rate
 
-    def __resolve_tick_size(
+    def _resolve_tick_size(
         self,
         token_id: str,
         tick_size: TickSize | None = None,
@@ -259,7 +168,7 @@ class PolymarketClobClient:
             tick_size = min_tick_size
         return tick_size
 
-    def __resolve_fee_rate(
+    def _resolve_fee_rate(
         self,
         token_id: str,
         user_fee_rate: int | None = None,
@@ -461,6 +370,116 @@ class PolymarketClobClient:
             start_time=datetime(2020, 1, 1, tzinfo=UTC),
         )
 
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        self.client.close()
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(
+        self, exc_type: object, exc_val: object, exc_tb: object
+    ) -> None:
+        self.client.close()
+        await self.async_client.aclose()
+
+class PolymarketClobClient(PolymarketReadOnlyClobClient):
+    def __init__(
+        self,
+        private_key: str,
+        address: EthAddress,
+        creds: ApiCreds | None = None,
+        chain_id: Literal[137, 80002] = POLYGON,
+        signature_type: Literal[0, 1, 2] = 1,
+        # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet
+    ) -> None:
+        super().__init__()
+        self.address = address
+        self.signer = Signer(private_key=private_key, chain_id=chain_id)
+        self.signature_type = signature_type
+        self.builder = OrderBuilder(
+            signer=self.signer,
+            sig_type=signature_type,
+            funder=address,
+        )
+        self.creds = creds if creds else self.create_or_derive_api_creds()
+
+    def create_api_creds(self, nonce: int | None = None) -> ApiCreds:
+        headers = create_level_1_headers(self.signer, nonce)
+        response = self.client.post(self._build_url(CREATE_API_KEY), headers=headers)
+        response.raise_for_status()
+        return ApiCreds(**response.json())
+
+    def derive_api_key(self, nonce: int | None = None) -> ApiCreds:
+        headers = create_level_1_headers(self.signer, nonce)
+        response = self.client.get(self._build_url(DERIVE_API_KEY), headers=headers)
+        response.raise_for_status()
+        return ApiCreds(**response.json())
+
+    def create_or_derive_api_creds(self, nonce: int | None = None) -> ApiCreds:
+        try:
+            return self.create_api_creds(nonce)
+        except HTTPStatusError:
+            return self.derive_api_key(nonce)
+
+    def set_api_creds(self, creds: ApiCreds) -> None:
+        self.creds = creds
+
+    def get_api_keys(self) -> list[str]:
+        request_args = RequestArgs(method="GET", request_path=GET_API_KEYS)
+        headers = create_level_2_headers(self.signer, self.creds, request_args)
+        response = self.client.get(self._build_url(GET_API_KEYS), headers=headers)
+        response.raise_for_status()
+        return cast("list[str]", response.json()["apiKeys"])
+
+    def delete_api_keys(self) -> Literal["OK"]:
+        request_args = RequestArgs(method="DELETE", request_path=DELETE_API_KEY)
+        headers = create_level_2_headers(self.signer, self.creds, request_args)
+        response = self.client.delete(self._build_url(DELETE_API_KEY), headers=headers)
+        response.raise_for_status()
+        return cast("Literal['OK']", response.json())
+
+    def create_readonly_api_key(self) -> str:
+        request_args = RequestArgs(method="POST", request_path=CREATE_READONLY_API_KEY)
+        headers = create_level_2_headers(self.signer, self.creds, request_args)
+
+        response = self.client.post(
+            self._build_url(CREATE_READONLY_API_KEY), headers=headers
+        )
+        response.raise_for_status()
+        return cast("str", response.json()["apiKey"])
+
+    def get_readonly_api_keys(self) -> list[str]:
+        request_args = RequestArgs(method="GET", request_path=GET_READONLY_API_KEYS)
+        headers = create_level_2_headers(self.signer, self.creds, request_args)
+
+        response = self.client.get(
+            self._build_url(GET_READONLY_API_KEYS), headers=headers
+        )
+        response.raise_for_status()
+        return cast("list[str]", response.json()["readonlyApiKeys"])
+
+    def delete_readonly_api_key(self, key: str) -> str:
+        body = {"key": key}
+
+        request_args = RequestArgs(
+            method="DELETE",
+            request_path=DELETE_READONLY_API_KEY,
+            body=body,
+        )
+        headers = create_level_2_headers(self.signer, self.creds, request_args)
+
+        response = self.client.request(
+            "DELETE",
+            self._build_url(DELETE_READONLY_API_KEY),
+            headers=headers,
+            content=json.dumps(body).encode("utf-8"),
+        )
+        response.raise_for_status()
+        return cast("str", response.json())
+
     def get_usdc_balance(self) -> float:
         params = {
             "asset_type": "COLLATERAL",
@@ -525,7 +544,7 @@ class PolymarketClobClient:
     ) -> SignedOrder:
         """Creates and signs an order."""
         # add resolve_order_options, or similar
-        tick_size = self.__resolve_tick_size(
+        tick_size = self._resolve_tick_size(
             order_args.token_id,
             options.tick_size if options else None,
         )
@@ -541,7 +560,7 @@ class PolymarketClobClient:
         )
 
         # fee rate
-        fee_rate_bps = self.__resolve_fee_rate(
+        fee_rate_bps = self._resolve_fee_rate(
             order_args.token_id, order_args.fee_rate_bps
         )
         order_args.fee_rate_bps = fee_rate_bps
@@ -675,7 +694,7 @@ class PolymarketClobClient:
         options: PartialCreateOrderOptions | None = None,
     ) -> SignedOrder:
         """Creates and signs a market order."""
-        tick_size = self.__resolve_tick_size(
+        tick_size = self._resolve_tick_size(
             order_args.token_id,
             options.tick_size if options else None,
         )
@@ -699,7 +718,7 @@ class PolymarketClobClient:
         )
 
         # fee rate
-        fee_rate_bps = self.__resolve_fee_rate(
+        fee_rate_bps = self._resolve_fee_rate(
             order_args.token_id, order_args.fee_rate_bps
         )
         order_args.fee_rate_bps = fee_rate_bps
@@ -938,18 +957,3 @@ class PolymarketClobClient:
             results += [RewardMarket(**reward) for reward in response.json()["data"]]
 
         return results
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
-        self.client.close()
-
-    async def __aenter__(self) -> Self:
-        return self
-
-    async def __aexit__(
-        self, exc_type: object, exc_val: object, exc_tb: object
-    ) -> None:
-        self.client.close()
-        await self.async_client.aclose()
