@@ -521,3 +521,17 @@ class OrderPostResponse(BaseModel):
 class OrderCancelResponse(BaseModel):
     not_canceled: Optional[dict[Keccak256, str]]
     canceled: Optional[list[Keccak256]]
+
+
+CryptoOutcome = Literal["up", "down"]
+
+
+class PastResultsData(BaseModel):
+    outcomes_by_slug: dict[str, CryptoOutcome] = Field(alias="outcomesBySlug")
+
+
+class PastResultsResponse(BaseModel):
+    data: PastResultsData
+
+
+

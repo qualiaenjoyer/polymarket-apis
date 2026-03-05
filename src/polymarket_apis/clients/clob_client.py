@@ -14,6 +14,7 @@ from ..types.clob_types import (
     BookParams,
     ClobMarket,
     CreateOrderOptions,
+    CryptoOutcome,
     DailyEarnedReward,
     MarketOrderArgs,
     MarketRewards,
@@ -26,6 +27,7 @@ from ..types.clob_types import (
     OrderType,
     PaginatedResponse,
     PartialCreateOrderOptions,
+    PastResultsResponse,
     PolygonTrade,
     PostOrdersArgs,
     Price,
@@ -300,6 +302,19 @@ class PolymarketReadOnlyClobClient:
 
         # Combine current page data with data from subsequent pages
         return current_markets + next_page_markets
+
+    def get_crypto_outcomes(self, slugs: list[str]) -> dict[str, CryptoOutcome]:
+        response = self.client.post(
+            "https://polymarket.com/api/past-results",
+            json={
+                "includeOutcomesBySlug": True,
+                "outcomesOnly": True,
+                "pastEventSlugs": slugs,
+            },
+        )
+        response.raise_for_status()
+        parsed = PastResultsResponse(**response.json())
+        return parsed.data.outcomes_by_slug
 
     def get_recent_history(
         self,
