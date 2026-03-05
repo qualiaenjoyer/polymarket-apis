@@ -56,9 +56,18 @@ flowchart LR
 - Polymarket allows for the one way (for capital efficiency) conversion from `No` tokens to a collection of `Yes` tokens and USDC before resolution through a smart contract.
 
 ## Clients overview
-- ### PolymarketClobClient - Order book related operations
+- ### PolymarketReadOnlyClobClient - Read only order book related operations
   - #### Order book
     - get one or more order books, best price, spread, midpoint, last trade price by `token_id`(s)
+  - #### Miscellaneous
+    - get recent price history by `token_id` in the last 1h, 6h, 1d, 1w, 1m
+    - get price history by `token_id` in start/end interval
+    - get all price history by `token_id` in 2 min increments
+    - get **ClobMarket** by `condition_id`
+    - get all **ClobMarkets**
+
+- ### PolymarketClobClient - Order book related operations
+  - all operations from PolymarketReadOnlyClobClient
   - #### Orders
     - create and post limit or market orders
     - cancel one or more orders by `order_id`(s)
@@ -73,11 +82,6 @@ flowchart LR
   - #### Miscellaneous
     - get USDC balance
     - get token balance by `token_id`
-    - get recent price history by `token_id` in the last 1h, 6h, 1d, 1w, 1m
-    - get price history by `token_id` in start/end interval
-    - get all price history by `token_id` in 2 min increments
-    - get **ClobMarket** by `condition_id`
-    - get all **ClobMarkets**
 
   ### PolymarketGammaClient - Market/Event related operations
     - #### Market
