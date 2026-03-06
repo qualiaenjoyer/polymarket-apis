@@ -12,6 +12,7 @@ from ..types.common import EthAddress, TimeseriesPoint
 from ..types.data_types import (
     AccountingSnapshotCSVs,
     Activity,
+    ActivityType,
     BuilderLeaderboardUser,
     ClosedPosition,
     EventLiveVolume,
@@ -184,14 +185,7 @@ class PolymarketDataClient:
         offset: int = 0,
         condition_id: Optional[Union[str, list[str]]] = None,
         event_id: Optional[Union[int, list[int]]] = None,
-        type: Optional[
-            Union[
-                Literal["TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION"],
-                list[
-                    Literal["TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION"]
-                ],
-            ]
-        ] = None,
+        type: Optional[Union[ActivityType, list[ActivityType]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
         side: Optional[Literal["BUY", "SELL"]] = None,

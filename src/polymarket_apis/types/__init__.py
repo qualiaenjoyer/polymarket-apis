@@ -48,6 +48,7 @@ from .common import (
 )
 from .data_types import (
     Activity,
+    ActivityType,
     Holder,
     HolderResponse,
     Position,
@@ -93,6 +94,7 @@ __all__ = [
     "Activity",
     "ActivityOrderMatchEvent",
     "ActivityTradeEvent",
+    "ActivityType",
     "ApiCreds",
     "AssetPriceSubscribeEvent",
     "AssetPriceUpdateEvent",
