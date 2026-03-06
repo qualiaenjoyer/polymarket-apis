@@ -73,6 +73,7 @@ flowchart LR
     - create and post limit or market orders
     - cancel one or more orders by `order_id`(s)
     - get active orders
+    - send heartbeat to keep orders alive
   - #### Trades
     - get trade history for a user with filtering by `condition_id`, `token_id`, `trade_id`, time window
   - #### Rewards

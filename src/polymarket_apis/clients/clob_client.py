@@ -522,6 +522,17 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
         response.raise_for_status()
         return int(response.json()["balance"]) / 10**6
 
+    def send_heartbeat(self) -> Literal["ok"]:
+        request_args = RequestArgs(method="POST", request_path="/heartbeats")
+        headers = create_level_2_headers(self.signer, self.creds, request_args)
+        response = self.client.post(self._build_url("/heartbeats"), headers=headers)
+        response.raise_for_status()
+        status = response.json().get("status")
+        if status != "ok":
+            msg = f"Unexpected heartbeat response status: {status}"
+            raise ValueError(msg)
+        return "ok"
+
     def get_orders(
         self,
         order_id: str | None = None,
