@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from .common import EmptyString, EthAddress, Keccak256
 
 # Type aliases
-ActivityType = Literal[
+type ActivityType = Literal[
     "TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION", "MAKER_REBATE"
 ]
 
