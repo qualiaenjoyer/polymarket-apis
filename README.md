@@ -60,6 +60,7 @@ flowchart LR
   - #### Order book
     - get one or more order books, best price, spread, midpoint, last trade price by `token_id`(s)
   - #### Miscellaneous
+    - get crypto outcomes by `slug`(s) for up/down markets 
     - get recent price history by `token_id` in the last 1h, 6h, 1d, 1w, 1m
     - get price history by `token_id` in start/end interval
     - get all price history by `token_id` in 2 min increments
