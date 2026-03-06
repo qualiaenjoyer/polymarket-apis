@@ -27,6 +27,7 @@ from ..types.websockets_types import (
     QuoteEvent,
     ReactionEvent,
     RequestEvent,
+    SportsGameUpdate,
     TickSizeChangeEvent,
     TradeEvent,
     UserEvents,
@@ -136,6 +137,16 @@ def parse_live_data_event(text: Text) -> LiveDataEvents | None:
 
     return parse_event(message, LIVE_DATA_EVENT_CLASSES, "type")
 
+def parse_sports_event(text: Text) -> SportsGameUpdate | None:
+    message = parse_json(text)
+
+    if message is None:
+        return None
+    if not isinstance(message, dict):
+        logger.warning("Got %s instead of dict", message)
+        return None
+
+    return substitute_cls(SportsGameUpdate, message)
 
 def _default_process_market_event(text: Text) -> None:
     ev = parse_market_event(text)
@@ -151,6 +162,11 @@ def _default_process_user_event(text: Text) -> None:
 
 def _default_process_live_data_event(text: Text) -> None:
     ev = parse_live_data_event(text)
+    if ev is not None:
+        print(ev, "\n")
+
+def _default_process_sports_event(text: Text) -> None:
+    ev = parse_sports_event(text)
     if ev is not None:
         print(ev, "\n")
 
@@ -235,4 +251,11 @@ class PolymarketWebsocketsClient:
                 websocket.send_json(**payload)
 
             elif event.name == "text":
+                process_event(cast("Text", event))
+
+    def sports_socket(self, process_event: Callable[[Text], None] = _default_process_sports_event) -> None:
+        websocket = WebSocket("wss://sports-api.polymarket.com/ws")
+
+        for event in persist(websocket):
+            if event.name == "text":
                 process_event(cast("Text", event))

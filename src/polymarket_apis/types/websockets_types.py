@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal, Optional, cast
 
-from pydantic import AliasChoices, BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from ..types.clob_types import MakerOrder, OrderBookSummary, TickSize
 from ..types.common import EthAddress, Keccak256, TimeseriesPoint
@@ -326,6 +326,35 @@ class AssetPriceSubscribeEvent(BaseModel):
     type: Literal["subscribe"]
     topic: Literal["crypto_prices", "crypto_prices_chainlink", "equity_prices"]
 
+
+class ScoreStateFields(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    score: str
+    period: str
+    live: bool
+    ended: bool
+    elapsed: Optional[str] = None
+    finished_timestamp: Optional[datetime] = Field(None, alias="finishedTimestamp")
+
+
+class SportsEventState(ScoreStateFields):
+    type: str
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+
+
+class SportsGameUpdate(ScoreStateFields):
+    game_id: Optional[int] = Field(None, alias="gameId")
+    metadata_game_id: Optional[str] = Field(None, alias="metadataGameId")
+    league_abbreviation: str = Field(alias="leagueAbbreviation")
+
+    home_team: Optional[str] = Field(None, alias="homeTeam")
+    away_team: Optional[str] = Field(None, alias="awayTeam")
+    status: Optional[str] = None # Literal["InProgress", "Break", "Final", "finished", "running"]
+
+    updated_at: Optional[datetime] = Field(None, alias="updatedAt")
+    event_state: Optional[SportsEventState] = Field(None, alias="eventState")
 
 class ErrorEvent(BaseModel):
     message: str

@@ -192,6 +192,11 @@ flowchart LR
     - trades/orders_matched (all, not just yours) - filter by **Event** `slug` or **Market** `slug`
     - crypto/equity prices
     - rfq - request/quote (created, edited, canceled, expired)
+  - subscribe to **sports socket**, receive sports game snapshots:
+    - game start
+    - score change
+    - period change (e.g. halftime, overtime)
+    - game end
 
   ### PolymarketGraphQLClient/AsyncPolymarketGraphQLClient - Goldsky hosted Subgraphs queries
   - instantiate with an endpoint name from:
