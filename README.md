@@ -118,6 +118,8 @@ flowchart LR
       - get comments by `parent_entity_type` and `parent_entity_id` with pagination, order by any **Comment** field
       - get comments by `comment_id` - gets all comments in a thread.
       - get comments by user base address (not proxy address) with pagination, order by any **Comment** field
+    - #### Miscellaneous
+      - get public profile by user address
 
   ### PolymarketDataClient - Portfolio related operations
   - #### Positions

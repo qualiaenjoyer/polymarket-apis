@@ -8,6 +8,7 @@ from urllib.parse import urljoin
 import httpx
 
 from ..types.common import EthAddress
+from ..types.data_types import UserProfile
 from ..types.gamma_types import (
     Comment,
     Event,
@@ -742,6 +743,12 @@ class PolymarketGammaClient:
         )
         response.raise_for_status()
         return [Comment(**comment) for comment in response.json()]
+
+    def get_public_profile(self, address: EthAddress) -> UserProfile:
+        params = {"address": address}
+        response = self.client.get(self._build_url("/public-profile"), params=params)
+        response.raise_for_status()
+        return UserProfile(**response.json())
 
     def grok_event_summary(self, event_slug: str) -> None:
         json_payload = {

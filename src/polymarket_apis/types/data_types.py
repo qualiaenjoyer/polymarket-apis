@@ -246,6 +246,26 @@ class UserRank(User):
     rank: int
 
 
+class UserID(BaseModel):
+    id: str
+    creator: bool
+    mod: bool
+    community_mod: Optional[bool] = Field(None, alias="communityMod")
+
+
+class UserProfile(BaseModel):
+    created_at: datetime = Field(alias="createdAt")
+    proxy_wallet: EthAddress = Field(alias="proxyWallet")
+    profile_image: Optional[str] = Field(None, alias="profileImage")
+    display_username_public: bool = Field(alias="displayUsernamePublic")
+    bio: Optional[str] = None
+    pseudonym: str
+    name: Optional[str] = None
+    users: Optional[list[UserID]] = None
+    x_username: Optional[str] = Field(None, alias="xUsername")
+    verified_badge: bool = Field(alias="verifiedBadge")
+
+
 class LeaderboardUser(BaseModel):
     rank: int
     proxy_wallet: EthAddress = Field(alias="proxyWallet")
