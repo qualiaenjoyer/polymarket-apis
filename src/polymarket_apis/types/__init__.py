@@ -94,6 +94,7 @@ __all__ = [
     "Activity",
     "ActivityOrderMatchEvent",
     "ActivityTradeEvent",
+    "ActivityType",
     "ApiCreds",
     "AssetPriceSubscribeEvent",
     "AssetPriceUpdateEvent",
