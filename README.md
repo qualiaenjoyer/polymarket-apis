@@ -124,7 +124,7 @@ flowchart LR
   - #### Trades
     - get trades with pagination, filter by `condition id`, user address, side, taker only or not, cash amount/token amount
   - #### Activity
-    - get activity with pagination by user address, filter by type (trade, split, merge, redeem, reward, conversion), `condition_id`, time window, side, sort by timestamp/tokens/cash
+    - get activity with pagination by user address, filter by type (trade, split, merge, redeem, reward, conversion, maker_rebate, yield), `condition_id`, time window, side, sort by timestamp/tokens/cash
   - #### Holders
     - get top holders by `condition_id`
   - #### Value

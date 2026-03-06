@@ -7,7 +7,7 @@ from .common import EmptyString, EthAddress, Keccak256
 
 # Type aliases
 type ActivityType = Literal[
-    "TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION", "MAKER_REBATE"
+    "TRADE", "SPLIT", "MERGE", "REDEEM", "REWARD", "CONVERSION", "MAKER_REBATE", "YIELD"
 ]
 
 
