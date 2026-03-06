@@ -14,6 +14,7 @@ from .websockets_client import (
     PolymarketWebsocketsClient,
     parse_live_data_event,
     parse_market_event,
+    parse_sports_event,
     parse_user_event,
 )
 
@@ -29,5 +30,6 @@ __all__ = [
     "PolymarketWebsocketsClient",
     "parse_live_data_event",
     "parse_market_event",
+    "parse_sports_event",
     "parse_user_event",
 ]
