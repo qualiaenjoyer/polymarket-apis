@@ -42,6 +42,7 @@ class LastTradePrice(BaseModel):
     token_id: str = Field(alias="asset_id")
     condition_id: Keccak256 = Field(alias="market")
     fee_rate_bps: float
+    transaction_hash: Keccak256 | None = Field(default=None)
 
 
 class OrderBookSummaryEvent(OrderBookSummary):
