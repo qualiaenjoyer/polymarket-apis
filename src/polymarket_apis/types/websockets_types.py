@@ -41,7 +41,7 @@ class LastTradePrice(BaseModel):
     side: Literal["BUY", "SELL"]
     token_id: str = Field(alias="asset_id")
     condition_id: Keccak256 = Field(alias="market")
-    fee_rate_bps: float | None = Field(default=None)
+    fee_rate_bps: float
     transaction_hash: Keccak256 | None = Field(default=None)
 
 
