@@ -74,7 +74,7 @@ class BaseWeb3Client(ABC):
         private_key: HexStr,
         signature_type: Literal[0, 1, 2],
         chain_id: Literal[137, 80002] = POLYGON,
-        rpc_url: str = "https://polygon.drpc.org",
+        rpc_url: str = "https://tenderly.rpc.polygon.community",
     ):
         self.client = httpx.Client(http2=True, timeout=30.0)
         self.w3 = Web3(Web3.HTTPProvider(rpc_url))
@@ -444,7 +444,7 @@ class PolymarketWeb3Client(BaseWeb3Client):
         private_key: HexStr,
         signature_type: Literal[0, 1, 2] = 1,
         chain_id: Literal[137, 80002] = POLYGON,
-        rpc_url: str = "https://polygon.drpc.org",
+        rpc_url: str = "https://tenderly.rpc.polygon.community",
     ):
         super().__init__(
             private_key, signature_type, chain_id=chain_id, rpc_url=rpc_url
@@ -701,7 +701,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         signature_type: Literal[1, 2] = 1,
         builder_creds: ApiCreds | None = None,
         chain_id: Literal[137, 80002] = POLYGON,
-        rpc_url: str = "https://polygon.drpc.org",
+        rpc_url: str = "https://tenderly.rpc.polygon.community",
     ):
         if signature_type not in {1, 2}:
             msg = "PolymarketGaslessWeb3Client only supports signature_type=1 (Poly proxy wallets) and signature_type=2 (Safe wallets)."
