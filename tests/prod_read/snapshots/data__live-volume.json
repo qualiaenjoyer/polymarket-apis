@@ -1,0 +1,12 @@
+{
+  "name": "data /live-volume",
+  "shape": [
+    "$:array",
+    "$[].markets:array",
+    "$[].markets[].market:str",
+    "$[].markets[].value:number",
+    "$[].markets[]:object",
+    "$[].total:number",
+    "$[]:object"
+  ]
+}

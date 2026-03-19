@@ -1,0 +1,14 @@
+{
+  "name": "lb-api /rank",
+  "shape": [
+    "$:array",
+    "$[].amount:number",
+    "$[].bio:str",
+    "$[].name:str",
+    "$[].profileImage:str",
+    "$[].profileImageOptimized:str",
+    "$[].proxyWallet:str",
+    "$[].rank:number",
+    "$[]:object"
+  ]
+}

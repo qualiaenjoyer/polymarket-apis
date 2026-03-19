@@ -1,0 +1,15 @@
+{
+  "name": "data /v1/leaderboard",
+  "shape": [
+    "$:array",
+    "$[].pnl:number",
+    "$[].profileImage:str",
+    "$[].proxyWallet:str",
+    "$[].rank:str",
+    "$[].userName:str",
+    "$[].verifiedBadge:bool",
+    "$[].vol:number",
+    "$[].xUsername:str",
+    "$[]:object"
+  ]
+}

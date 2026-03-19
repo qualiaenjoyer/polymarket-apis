@@ -1,0 +1,9 @@
+{
+  "name": "user-pnl /user-pnl",
+  "shape": [
+    "$:array",
+    "$[].p:number",
+    "$[].t:number",
+    "$[]:object"
+  ]
+}

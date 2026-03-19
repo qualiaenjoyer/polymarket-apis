@@ -1,0 +1,22 @@
+{
+  "name": "clob /book",
+  "shape": [
+    "$.asks:array",
+    "$.asks[].price:str",
+    "$.asks[].size:str",
+    "$.asks[]:object",
+    "$.asset_id:str",
+    "$.bids:array",
+    "$.bids[].price:str",
+    "$.bids[].size:str",
+    "$.bids[]:object",
+    "$.hash:str",
+    "$.last_trade_price:str",
+    "$.market:str",
+    "$.min_order_size:str",
+    "$.neg_risk:bool",
+    "$.tick_size:str",
+    "$.timestamp:str",
+    "$:object"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "name": "data /positions",
+  "shape": [
+    "$:array",
+    "$[].asset:str",
+    "$[].avgPrice:number",
+    "$[].cashPnl:number",
+    "$[].conditionId:str",
+    "$[].curPrice:number",
+    "$[].currentValue:number",
+    "$[].endDate:str",
+    "$[].eventId:str",
+    "$[].eventSlug:str",
+    "$[].icon:str",
+    "$[].initialValue:number",
+    "$[].mergeable:bool",
+    "$[].negativeRisk:bool",
+    "$[].oppositeAsset:str",
+    "$[].oppositeOutcome:str",
+    "$[].outcome:str",
+    "$[].outcomeIndex:number",
+    "$[].percentPnl:number",
+    "$[].percentRealizedPnl:number",
+    "$[].proxyWallet:str",
+    "$[].realizedPnl:number",
+    "$[].redeemable:bool",
+    "$[].size:number",
+    "$[].slug:str",
+    "$[].title:str",
+    "$[].totalBought:number",
+    "$[]:object"
+  ]
+}

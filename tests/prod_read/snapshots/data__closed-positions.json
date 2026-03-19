@@ -1,0 +1,24 @@
+{
+  "name": "data /closed-positions",
+  "shape": [
+    "$:array",
+    "$[].asset:str",
+    "$[].avgPrice:number",
+    "$[].conditionId:str",
+    "$[].curPrice:number",
+    "$[].endDate:str",
+    "$[].eventSlug:str",
+    "$[].icon:str",
+    "$[].oppositeAsset:str",
+    "$[].oppositeOutcome:str",
+    "$[].outcome:str",
+    "$[].outcomeIndex:number",
+    "$[].proxyWallet:str",
+    "$[].realizedPnl:number",
+    "$[].slug:str",
+    "$[].timestamp:number",
+    "$[].title:str",
+    "$[].totalBought:number",
+    "$[]:object"
+  ]
+}

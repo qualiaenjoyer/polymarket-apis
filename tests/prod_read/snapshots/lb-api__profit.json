@@ -1,0 +1,14 @@
+{
+  "name": "lb-api /profit",
+  "shape": [
+    "$:array",
+    "$[].amount:number",
+    "$[].bio:str",
+    "$[].name:str",
+    "$[].profileImage:str",
+    "$[].profileImageOptimized:str",
+    "$[].proxyWallet:str",
+    "$[].pseudonym:str",
+    "$[]:object"
+  ]
+}

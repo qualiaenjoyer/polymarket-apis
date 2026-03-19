@@ -1,0 +1,28 @@
+{
+  "name": "data /activity",
+  "shape": [
+    "$:array",
+    "$[].asset:str",
+    "$[].bio:str",
+    "$[].conditionId:str",
+    "$[].eventSlug:str",
+    "$[].icon:str",
+    "$[].name:str",
+    "$[].outcome:str",
+    "$[].outcomeIndex:number",
+    "$[].price:number",
+    "$[].profileImage:str",
+    "$[].profileImageOptimized:str",
+    "$[].proxyWallet:str",
+    "$[].pseudonym:str",
+    "$[].side:str",
+    "$[].size:number",
+    "$[].slug:str",
+    "$[].timestamp:number",
+    "$[].title:str",
+    "$[].transactionHash:str",
+    "$[].type:str",
+    "$[].usdcSize:number",
+    "$[]:object"
+  ]
+}

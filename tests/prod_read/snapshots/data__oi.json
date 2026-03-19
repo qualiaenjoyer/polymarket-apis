@@ -1,0 +1,9 @@
+{
+  "name": "data /oi",
+  "shape": [
+    "$:array",
+    "$[].market:str",
+    "$[].value:number",
+    "$[]:object"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "data /holders",
+  "shape": [
+    "$:array",
+    "$[].holders:array",
+    "$[].holders[].amount:number",
+    "$[].holders[].asset:str",
+    "$[].holders[].bio:str",
+    "$[].holders[].displayUsernamePublic:bool",
+    "$[].holders[].name:str",
+    "$[].holders[].outcomeIndex:number",
+    "$[].holders[].profileImage:str",
+    "$[].holders[].profileImageOptimized:str",
+    "$[].holders[].proxyWallet:str",
+    "$[].holders[].pseudonym:str",
+    "$[].holders[].verified:bool",
+    "$[].holders[]:object",
+    "$[].token:str",
+    "$[]:object"
+  ]
+}

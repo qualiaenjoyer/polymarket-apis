@@ -1,0 +1,9 @@
+{
+  "name": "data /value",
+  "shape": [
+    "$:array",
+    "$[].user:str",
+    "$[].value:number",
+    "$[]:object"
+  ]
+}
