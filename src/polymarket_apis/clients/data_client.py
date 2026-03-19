@@ -78,7 +78,7 @@ class PolymarketDataClient:
             Union[str, list[str]]
         ] = None,  # mutually exclusive with event_id
         event_id: Optional[
-            Union[int, list[int]]
+            Union[str, int, list[str], list[int]]
         ] = None,  # mutually exclusive with condition_id
         size_threshold: float = 1.0,
         redeemable: bool = False,
@@ -111,6 +111,8 @@ class PolymarketDataClient:
             params["market"] = ",".join(condition_id)
         if isinstance(event_id, str):
             params["eventId"] = event_id
+        if isinstance(event_id, int):
+            params["eventId"] = str(event_id)
         if isinstance(event_id, list):
             params["eventId"] = [str(i) for i in event_id]
         if redeemable is not None:
@@ -148,7 +150,7 @@ class PolymarketDataClient:
             float
         ] = None,  # must be provided together with filter_type
         condition_id: Optional[str | list[str]] = None,
-        event_id: Optional[int | list[int]] = None,
+        event_id: Optional[str | int | list[str] | list[int]] = None,
         user: Optional[str] = None,
         side: Optional[Literal["BUY", "SELL"]] = None,
     ) -> list[Trade]:
@@ -167,6 +169,8 @@ class PolymarketDataClient:
             params["market"] = ",".join(condition_id)
         if isinstance(event_id, str):
             params["eventId"] = event_id
+        if isinstance(event_id, int):
+            params["eventId"] = str(event_id)
         if isinstance(event_id, list):
             params["eventId"] = [str(i) for i in event_id]
         if user:
@@ -184,7 +188,7 @@ class PolymarketDataClient:
         limit: int = 100,
         offset: int = 0,
         condition_id: Optional[Union[str, list[str]]] = None,
-        event_id: Optional[Union[int, list[int]]] = None,
+        event_id: Optional[Union[str, int, list[str], list[int]]] = None,
         type: Optional[Union[ActivityType, list[ActivityType]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
@@ -203,6 +207,8 @@ class PolymarketDataClient:
             params["market"] = ",".join(condition_id)
         if isinstance(event_id, str):
             params["eventId"] = event_id
+        if isinstance(event_id, int):
+            params["eventId"] = str(event_id)
         if isinstance(event_id, list):
             params["eventId"] = [str(i) for i in event_id]
         if isinstance(type, str):
@@ -308,7 +314,7 @@ class PolymarketDataClient:
 
     def get_live_volume(
         self,
-        event_id: int,
+        event_id: str | int,
     ) -> EventLiveVolume:
         """Get live volume for a given event."""
         params = {"id": str(event_id)}

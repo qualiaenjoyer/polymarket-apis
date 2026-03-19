@@ -58,6 +58,7 @@ class Position(BaseModel):
     token_id: str = Field(alias="asset")
     complementary_token_id: str = Field(alias="oppositeAsset")
     condition_id: Keccak256 = Field(alias="conditionId")
+    event_id: int | None = Field(None, alias="eventId")
     outcome: str
     complementary_outcome: str = Field(alias="oppositeOutcome")
     outcome_index: int = Field(alias="outcomeIndex")
@@ -67,6 +68,7 @@ class Position(BaseModel):
     avg_price: float = Field(alias="avgPrice")
     current_price: float = Field(alias="curPrice")
     redeemable: bool
+    mergeable: bool = False
 
     # Financial metrics
     initial_value: float = Field(alias="initialValue")
@@ -109,6 +111,7 @@ class ClosedPosition(BaseModel):
     # Position details
     avg_price: float = Field(alias="avgPrice")
     current_price: float = Field(alias="curPrice")
+    timestamp: datetime | None = None
 
     # Financial metrics
     total_bought: float = Field(alias="totalBought")
@@ -210,6 +213,7 @@ class Holder(BaseModel):
     profile_image: str = Field(alias="profileImage")
     profile_image_optimized: str = Field(alias="profileImageOptimized")
     display_username_public: bool = Field(alias="displayUsernamePublic")
+    verified: bool | None = None
 
 
 class HolderResponse(BaseModel):

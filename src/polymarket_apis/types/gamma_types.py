@@ -34,7 +34,7 @@ class OptimizedImage(BaseModel):
     )
     rel_id: Optional[int] = Field(None, alias="relID")
     field: Optional[str] = Field(None, alias="field")
-    relname: Optional[str] = Field(None, alias="relname")
+    relname: Optional[str] = None
 
 
 class GammaMarket(BaseModel):
@@ -60,6 +60,7 @@ class GammaMarket(BaseModel):
     y_axis_value: Optional[str] = Field(None, alias="yAxisValue")
     denomination_token: Optional[str] = Field(None, alias="denominationToken")
     fee: Optional[str] = Field(None, alias="fee")
+    fee_type: Optional[str] = Field(None, alias="feeType")
     image: Optional[str] = Field(None, alias="image")
     icon: Optional[str] = Field(None, alias="icon")
     lower_bound: Optional[str] = Field(None, alias="lowerBound")
@@ -139,6 +140,7 @@ class GammaMarket(BaseModel):
     custom_liveness: Optional[int] = Field(None, alias="customLiveness")
     accepting_orders: Optional[bool] = Field(None, alias="acceptingOrders")
     notifications_enabled: Optional[bool] = Field(None, alias="notificationsEnabled")
+    requires_translation: Optional[bool] = Field(None, alias="requiresTranslation")
     score: Optional[int] = Field(None, alias="score")
     image_optimized: Optional[OptimizedImage] = Field(None, alias="imageOptimized")
     icon_optimized: Optional[OptimizedImage] = Field(None, alias="iconOptimized")
@@ -197,6 +199,17 @@ class GammaMarket(BaseModel):
     holding_rewards_enabled: Optional[bool] = Field(None, alias="holdingRewardsEnabled")
     fees_enabled: Optional[bool] = Field(None, alias="feesEnabled")
     cyom: Optional[bool] = Field(None, alias="cyom")
+    neg_risk: Optional[bool] = Field(None, alias="negRisk")
+    neg_risk_request_id: Optional[str] = Field(None, alias="negRiskRequestID")
+    neg_risk_market_id: Optional[str] = Field(None, alias="negRiskMarketID")
+    sent_discord: Optional[bool] = Field(None, alias="sentDiscord")
+    twitter_card_last_refreshed: Optional[datetime] = Field(
+        None, alias="twitterCardLastRefreshed"
+    )
+    twitter_card_last_validated: Optional[datetime] = Field(
+        None, alias="twitterCardLastValidated"
+    )
+    twitter_card_location: Optional[str] = Field(None, alias="twitterCardLocation")
 
     @field_validator("condition_id", mode="wrap")
     @classmethod
@@ -258,6 +271,7 @@ class Series(BaseModel):
     pyth_token_id: Optional[str] = Field(None, alias="pythTokenID")
     cg_asset_name: Optional[str] = Field(None, alias="cgAssetName")
     score: Optional[int] = Field(None, alias="score")
+    requires_translation: Optional[bool] = Field(None, alias="requiresTranslation")
     events: Optional[list[Event]] = Field(None, alias="events")
     collections: Optional[list[Collection]] = Field(None, alias="collections")
     categories: Optional[list[Category]] = Field(None, alias="categories")
@@ -298,6 +312,7 @@ class Tag(BaseModel):
     updated_at: Optional[datetime] = Field(None, alias="updatedAt")
     force_hide: Optional[bool] = Field(None, alias="forceHide")
     is_carousel: Optional[bool] = Field(None, alias="isCarousel")
+    requires_translation: Optional[bool] = Field(None, alias="requiresTranslation")
 
 
 class TagRelation(BaseModel):
@@ -469,6 +484,7 @@ class Event(BaseModel):
     new: Optional[bool] = Field(None, alias="new")
     featured: Optional[bool] = Field(None, alias="featured")
     restricted: Optional[bool] = Field(None, alias="restricted")
+    requires_translation: Optional[bool] = Field(None, alias="requiresTranslation")
     liquidity: Optional[float] = Field(None, alias="liquidity")
     volume: Optional[float] = Field(None, alias="volume")
     open_interest: Optional[int] = Field(None, alias="openInterest")
@@ -546,6 +562,8 @@ class Event(BaseModel):
         None, alias="scheduledDeploymentTimestamp"
     )
     game_status: Optional[str] = Field(None, alias="gameStatus")
+    cumulative_markets: Optional[int] = Field(None, alias="cumulativeMarkets")
+    event_metadata: Optional[dict[str, object]] = Field(None, alias="eventMetadata")
 
 
 class ProfilePosition(BaseModel):

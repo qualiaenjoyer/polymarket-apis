@@ -158,13 +158,13 @@ class PolymarketGammaClient:
         if volume_num_max:
             params["volume_num_max"] = volume_num_max
         if start_date_min:
-            params["start_date_min"] = start_date_min.isoformat()
+            params["start_date_min"] = int(start_date_min.timestamp())
         if start_date_max:
-            params["start_date_max"] = start_date_max.isoformat()
+            params["start_date_max"] = int(start_date_max.timestamp())
         if end_date_min:
-            params["end_date_min"] = end_date_min.isoformat()
+            params["end_date_min"] = int(end_date_min.timestamp())
         if end_date_max:
-            params["end_date_max"] = end_date_max.isoformat()
+            params["end_date_max"] = int(end_date_max.timestamp())
         if tag_id:
             params["tag_id"] = tag_id
             if related_tags:
@@ -253,13 +253,13 @@ class PolymarketGammaClient:
         if volume_max:
             params["volume_max"] = volume_max
         if start_date_min:
-            params["start_date_min"] = start_date_min.isoformat()
+            params["start_date_min"] = int(start_date_min.timestamp())
         if start_date_max:
-            params["start_date_max"] = start_date_max.isoformat()
+            params["start_date_max"] = int(start_date_max.timestamp())
         if end_date_min:
-            params["end_date_min"] = end_date_min.isoformat()
+            params["end_date_min"] = int(end_date_min.timestamp())
         if end_date_max:
-            params["end_date_max"] = end_date_max.isoformat()
+            params["end_date_max"] = int(end_date_max.timestamp())
         if tag:
             params["tag"] = tag
         elif tag_id:
@@ -332,7 +332,7 @@ class PolymarketGammaClient:
 
     def get_event_by_id(
         self,
-        event_id: int,
+        event_id: str | int,
         include_chat: Optional[bool] = None,
         include_template: Optional[bool] = None,
     ) -> Event:
@@ -364,7 +364,7 @@ class PolymarketGammaClient:
         response.raise_for_status()
         return Event(**response.json())
 
-    def get_event_tags(self, event_id: int) -> list[Tag]:
+    def get_event_tags(self, event_id: str | int) -> list[Tag]:
         response = self.client.get(self._build_url(f"/events/{event_id}/tags"))
         response.raise_for_status()
         return [Tag(**tag) for tag in response.json()]
