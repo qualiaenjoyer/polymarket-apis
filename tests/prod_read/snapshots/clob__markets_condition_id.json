@@ -9,6 +9,7 @@
     "$.condition_id:str",
     "$.description:str",
     "$.enable_order_book:bool",
+    "$.end_date_iso:null",
     "$.end_date_iso:str",
     "$.fpmm:str",
     "$.game_start_time:null",
