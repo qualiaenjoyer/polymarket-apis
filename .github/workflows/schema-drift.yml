@@ -1,0 +1,198 @@
+name: Schema Drift
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 20 * * *"
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  prod-read-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      hard_failure_count: ${{ steps.parse.outputs.hard_failure_count }}
+      schema_mismatch_count: ${{ steps.parse.outputs.schema_mismatch_count }}
+      endpoint_unavailable_count: ${{ steps.parse.outputs.endpoint_unavailable_count }}
+      contract_expanded_count: ${{ steps.parse.outputs.contract_expanded_count }}
+      summary: ${{ steps.parse.outputs.summary }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run live schema drift checks
+        id: test
+        continue-on-error: true
+        run: uv run pytest -m prod_read tests/prod_read/test_schema_contracts.py -ra --junitxml=schema-drift-junit.xml
+
+      - name: Upload schema drift report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: schema-drift-junit
+          path: schema-drift-junit.xml
+
+      - name: Parse contract results
+        id: parse
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require("fs");
+            const junitPath = "schema-drift-junit.xml";
+            const counts = {
+              "schema mismatch": 0,
+              "contract expanded": 0,
+              "endpoint unavailable": 0,
+            };
+            const examples = [];
+
+            if (fs.existsSync(junitPath)) {
+              const xml = fs.readFileSync(junitPath, "utf8");
+              const matches = [...xml.matchAll(/<failure[^>]*message="([^"]*)"/g)];
+
+              for (const match of matches) {
+                const message = match[1]
+                  .replaceAll("&quot;", '"')
+                  .replaceAll("&apos;", "'")
+                  .replaceAll("&#10;", "\n")
+                  .replaceAll("&lt;", "<")
+                  .replaceAll("&gt;", ">");
+
+                const categoryMatch = message.match(/\[(.*?)\]/);
+                const category = categoryMatch ? categoryMatch[1] : "uncategorized";
+                counts[category] = (counts[category] ?? 0) + 1;
+
+                if (examples.length < 6) {
+                  examples.push(`- ${message.split("\n")[0]}`);
+                }
+              }
+            }
+
+            const summaryLines = Object.entries(counts)
+              .filter(([, count]) => count > 0)
+              .map(([category, count]) => `- ${category}: ${count}`);
+
+            const schemaMismatchCount = counts["schema mismatch"];
+            const endpointUnavailableCount = counts["endpoint unavailable"];
+            const hardFailureCount = schemaMismatchCount + endpointUnavailableCount;
+            const contractExpandedCount = counts["contract expanded"];
+
+            core.setOutput("hard_failure_count", String(hardFailureCount));
+            core.setOutput("schema_mismatch_count", String(schemaMismatchCount));
+            core.setOutput("endpoint_unavailable_count", String(endpointUnavailableCount));
+            core.setOutput("contract_expanded_count", String(contractExpandedCount));
+            core.setOutput(
+              "summary",
+              [
+                "Failure summary:",
+                ...(summaryLines.length ? summaryLines : ["- no categorized failures parsed"]),
+                "",
+                ...(examples.length ? ["Examples:", ...examples] : []),
+              ].join("\n"),
+            );
+
+      - name: Create or update hard-failure issue
+        if: ${{ fromJSON(steps.parse.outputs.hard_failure_count) > 0 }}
+        uses: actions/github-script@v8
+        env:
+          CONTRACT_SUMMARY: ${{ steps.parse.outputs.summary }}
+          SCHEMA_MISMATCH_COUNT: ${{ steps.parse.outputs.schema_mismatch_count }}
+          ENDPOINT_UNAVAILABLE_COUNT: ${{ steps.parse.outputs.endpoint_unavailable_count }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const title = "[Schema Drift] Live endpoint contract failure";
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+            const body = [
+              "The scheduled live contract suite detected a hard contract failure.",
+              "",
+              `Schema mismatches: ${process.env.SCHEMA_MISMATCH_COUNT}`,
+              `Endpoint unavailable: ${process.env.ENDPOINT_UNAVAILABLE_COUNT}`,
+              "",
+              process.env.CONTRACT_SUMMARY,
+              "",
+              `Run: ${runUrl}`,
+              `Commit: ${context.sha}`,
+            ].join("\n");
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+
+            const existing = issues.find((issue) => issue.title === title);
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body,
+              });
+            }
+
+      - name: Fail workflow on hard contract issues
+        if: ${{ fromJSON(steps.parse.outputs.hard_failure_count) > 0 }}
+        run: exit 1
+
+  auto-expand-contract:
+    needs: prod-read-contracts
+    if: ${{ needs.prod-read-contracts.outputs.hard_failure_count == '0' && needs.prod-read-contracts.outputs.contract_expanded_count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Auto-expand snapshots and models
+        run: AUTO_EXPAND_CONTRACT=1 uv run pytest -m prod_read tests/prod_read/test_schema_contracts.py -ra
+
+      - name: Create contract expansion pull request
+        uses: peter-evans/create-pull-request@v8
+        with:
+          commit-message: "chore: auto-expand live contract models"
+          branch: "contract-expanded"
+          title: "[Schema Drift] Auto-expand live contract models"
+          body: |
+            The live contract suite detected new fields and auto-expanded the contract baseline.
+
+            ${{ needs.prod-read-contracts.outputs.summary }}
+
+            This PR includes:
+            - merged snapshot updates for newly observed response paths
+            - best-effort optional Pydantic field additions for unmapped fields
+          add-paths: |
+            tests/prod_read/snapshots
+            src/polymarket_apis/types
