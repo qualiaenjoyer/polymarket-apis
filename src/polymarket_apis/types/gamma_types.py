@@ -177,7 +177,7 @@ class GammaMarket(BaseModel):
     show_gmp_outcome: Optional[bool] = Field(None, alias="showGmpOutcome")
     manual_activation: Optional[bool] = Field(None, alias="manualActivation")
     neg_risk_other: Optional[bool] = Field(None, alias="negRiskOther")
-    game_id: Optional[str] = Field(None, alias="gameId")
+    game_id: Optional[int] = Field(None, alias="gameId")
     group_item_range: Optional[str] = Field(None, alias="groupItemRange")
     sports_market_type: Optional[str] = Field(None, alias="sportsMarketType")
     line: Optional[float] = Field(None, alias="line")
@@ -210,9 +210,9 @@ class GammaMarket(BaseModel):
         None, alias="twitterCardLastValidated"
     )
     twitter_card_location: Optional[str] = Field(None, alias="twitterCardLocation")
-
     fee_schedule: dict[str, object] | None = Field(None, alias="feeSchedule")
     maker_rebates_fee_share_bps: int | None = Field(None, alias="makerRebatesFeeShareBps")
+    
     @field_validator("condition_id", mode="wrap")
     @classmethod
     def validate_condition_id(
@@ -568,7 +568,6 @@ class Event(BaseModel):
     event_metadata: Optional[dict[str, object]] = Field(None, alias="eventMetadata")
 
 
-    game_id: int | None = Field(None, alias="gameId")
 class ProfilePosition(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
