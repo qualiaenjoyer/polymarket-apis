@@ -566,6 +566,7 @@ class Event(BaseModel):
     game_status: Optional[str] = Field(None, alias="gameStatus")
     cumulative_markets: Optional[int] = Field(None, alias="cumulativeMarkets")
     event_metadata: Optional[dict[str, object]] = Field(None, alias="eventMetadata")
+    country_name: str | None = Field(None, alias="countryName")
 
 
 class ProfilePosition(BaseModel):
