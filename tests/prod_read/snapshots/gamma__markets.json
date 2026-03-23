@@ -41,6 +41,7 @@
     "$[].events[].closed:bool",
     "$[].events[].commentCount:number",
     "$[].events[].competitive:number",
+    "$[].events[].countryName:str",
     "$[].events[].createdAt:str",
     "$[].events[].creationDate:str",
     "$[].events[].cumulativeMarkets:bool",

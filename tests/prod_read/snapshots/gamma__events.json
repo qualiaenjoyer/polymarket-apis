@@ -10,6 +10,7 @@
     "$[].closedTime:str",
     "$[].commentCount:number",
     "$[].competitive:number",
+    "$[].countryName:str",
     "$[].createdAt:str",
     "$[].creationDate:str",
     "$[].cumulativeMarkets:bool",

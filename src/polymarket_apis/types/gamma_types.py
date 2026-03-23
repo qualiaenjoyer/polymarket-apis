@@ -568,6 +568,7 @@ class Event(BaseModel):
     event_metadata: Optional[dict[str, object]] = Field(None, alias="eventMetadata")
 
 
+    country_name: str | None = Field(None, alias="countryName")
 class ProfilePosition(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
