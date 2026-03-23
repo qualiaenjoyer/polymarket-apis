@@ -489,7 +489,7 @@ class Event(BaseModel):
     requires_translation: Optional[bool] = Field(None, alias="requiresTranslation")
     liquidity: Optional[float] = Field(None, alias="liquidity")
     volume: Optional[float] = Field(None, alias="volume")
-    open_interest: Optional[int] = Field(None, alias="openInterest")
+    open_interest: Optional[float] = Field(None, alias="openInterest")
     sort_by: Optional[str] = Field(None, alias="sortBy")
     category: Optional[str] = Field(None, alias="category")
     subcategory: Optional[str] = Field(None, alias="subcategory")
