@@ -1,0 +1,15 @@
+{
+  "name": "gamma /sports",
+  "shape": [
+    "$:array",
+    "$[].createdAt:str",
+    "$[].id:number",
+    "$[].image:str",
+    "$[].ordering:str",
+    "$[].resolution:str",
+    "$[].series:str",
+    "$[].sport:str",
+    "$[].tags:str",
+    "$[]:object"
+  ]
+}

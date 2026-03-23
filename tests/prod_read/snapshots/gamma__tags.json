@@ -1,0 +1,19 @@
+{
+  "name": "gamma /tags",
+  "shape": [
+    "$:array",
+    "$[].createdAt:str",
+    "$[].createdBy:number",
+    "$[].forceHide:bool",
+    "$[].forceShow:bool",
+    "$[].id:str",
+    "$[].isCarousel:bool",
+    "$[].label:str",
+    "$[].publishedAt:str",
+    "$[].requiresTranslation:bool",
+    "$[].slug:str",
+    "$[].updatedAt:str",
+    "$[].updatedBy:number",
+    "$[]:object"
+  ]
+}

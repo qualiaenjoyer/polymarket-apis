@@ -1,0 +1,11 @@
+{
+  "name": "gamma /tags/{id}/related-tags",
+  "shape": [
+    "$:array",
+    "$[].id:str",
+    "$[].rank:number",
+    "$[].relatedTagID:number",
+    "$[].tagID:number",
+    "$[]:object"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "gamma /teams",
+  "shape": [
+    "$:array",
+    "$[].abbreviation:str",
+    "$[].color:str",
+    "$[].createdAt:str",
+    "$[].id:number",
+    "$[].league:str",
+    "$[].logo:str",
+    "$[].name:str",
+    "$[].providerId:number",
+    "$[].record:str",
+    "$[].updatedAt:str",
+    "$[]:object"
+  ]
+}

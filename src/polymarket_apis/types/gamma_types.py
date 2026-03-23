@@ -212,7 +212,7 @@ class GammaMarket(BaseModel):
     twitter_card_location: Optional[str] = Field(None, alias="twitterCardLocation")
     fee_schedule: dict[str, object] | None = Field(None, alias="feeSchedule")
     maker_rebates_fee_share_bps: int | None = Field(None, alias="makerRebatesFeeShareBps")
-    
+
     @field_validator("condition_id", mode="wrap")
     @classmethod
     def validate_condition_id(
@@ -439,6 +439,8 @@ class Team(BaseModel):
     logo: str
     abbreviation: str
     alias: Optional[str] = None
+    color: Optional[str] = None
+    provider_id: Optional[int | str] = Field(None, alias="providerId")
     created_at: datetime = Field(alias="createdAt")
     updated_at: Optional[datetime] = Field(None, alias="updatedAt")
 
@@ -448,18 +450,47 @@ class Sport(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
+    id: Optional[int] = None
     sport: str
     image: Optional[str] = None
     resolution: Optional[str] = None
     ordering: Optional[Literal["home", "away"]] = None
     tags: Optional[list[int]] = None
     series: Optional[int] = None
+    created_at: Optional[datetime] = Field(None, alias="createdAt")
 
     @field_validator("tags", mode="before")
     @classmethod
-    def split_string_to_int_list(cls, v: str | list[int]) -> list[int]:
+    def split_string_to_int_list(
+        cls, v: str | list[int | str]
+    ) -> list[int] | None:
         if isinstance(v, str):
-            return [int(i) for i in v.split(",")]
+            parsed: list[int] = []
+            for raw_item in v.split(","):
+                item = raw_item.strip()
+                try:
+                    parsed.append(int(item))
+                except ValueError:
+                    continue
+            return parsed
+        if isinstance(v, list):
+            parsed_list: list[int] = []
+            for list_item in v:
+                try:
+                    parsed_list.append(int(list_item))
+                except (TypeError, ValueError):
+                    continue
+            return parsed_list
+        return v
+
+    @field_validator("series", mode="before")
+    @classmethod
+    def normalize_series(cls, v: int | str | None) -> int | None:
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError:
+                return None
         return v
 
 
@@ -537,6 +568,7 @@ class Event(BaseModel):
     automatically_active: Optional[bool] = Field(None, alias="automaticallyActive")
     event_date: Optional[datetime] = Field(None, alias="eventDate")
     start_time: Optional[datetime] = Field(None, alias="startTime")
+    game_id: Optional[int] = Field(None, alias="gameId")
     event_week: Optional[int] = Field(None, alias="eventWeek")
     series_slug: Optional[str] = Field(None, alias="seriesSlug")
     score: Optional[str] = Field(None, alias="score")
@@ -566,8 +598,9 @@ class Event(BaseModel):
     game_status: Optional[str] = Field(None, alias="gameStatus")
     cumulative_markets: Optional[int] = Field(None, alias="cumulativeMarkets")
     event_metadata: Optional[dict[str, object]] = Field(None, alias="eventMetadata")
-    country_name: str | None = Field(None, alias="countryName")
-
+    country_name: Optional[str] = Field(None, alias="countryName")
+    sportsradar_match_id: Optional[str] = Field(None, alias="sportsradarMatchId")
+    turn_provider_id: Optional[str] = Field(None, alias="turnProviderId")
 
 class ProfilePosition(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
