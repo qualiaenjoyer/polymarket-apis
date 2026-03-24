@@ -18,6 +18,7 @@
     "$[].deploying:bool",
     "$[].deployingTimestamp:str",
     "$[].description:str",
+    "$[].electionType:str",
     "$[].enableNegRisk:bool",
     "$[].enableOrderBook:bool",
     "$[].endDate:str",
