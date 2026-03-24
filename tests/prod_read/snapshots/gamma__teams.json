@@ -3,6 +3,7 @@
   "shape": [
     "$:array",
     "$[].abbreviation:str",
+    "$[].alias:str",
     "$[].color:str",
     "$[].createdAt:str",
     "$[].id:number",
