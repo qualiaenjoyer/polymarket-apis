@@ -601,8 +601,9 @@ class Event(BaseModel):
     country_name: Optional[str] = Field(None, alias="countryName")
     sportsradar_match_id: Optional[str] = Field(None, alias="sportsradarMatchId")
     turn_provider_id: Optional[str] = Field(None, alias="turnProviderId")
-
-    election_type: str | None = Field(None, alias="electionType")
+    election_type: Optional[str] = Field(None, alias="electionType")
+    
+    
 class ProfilePosition(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
