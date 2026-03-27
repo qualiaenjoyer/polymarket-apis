@@ -65,6 +65,7 @@
     "$[].events[].id:str",
     "$[].events[].image:str",
     "$[].events[].liquidity:number",
+    "$[].events[].liquidityAmm:number",
     "$[].events[].liquidityClob:number",
     "$[].events[].negRisk:bool",
     "$[].events[].negRiskAugmented:bool",
