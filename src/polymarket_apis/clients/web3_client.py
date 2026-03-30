@@ -26,6 +26,7 @@ from ..utilities.constants import ADDRESS_ZERO, HASH_ZERO, POLYGON
 from ..utilities.exceptions import BuilderRateLimitError, SafeAlreadyDeployedError
 from ..utilities.headers import create_level_2_headers
 from ..utilities.signing.signer import Signer
+from ..utilities.web3 import constants
 from ..utilities.web3.abis.custom_contract_errors import CUSTOM_ERROR_DICT
 from ..utilities.web3.helpers import (
     SafeTxn,
@@ -263,6 +264,30 @@ class BaseWeb3Client(ABC):
         address = address or self.account.address
         result = self.safe_proxy_factory.functions.computeProxyAddress(address).call()
         return cast("EthAddress", result)
+
+    def detect_wallet_signature_type(
+        self, address: EthAddress
+    ) -> Literal[0, 1, 2] | None:
+        """
+        Detect wallet signature type from an address.
+
+        Returns:
+            - 0 for EOA
+            - 1 for Polymarket proxy wallet
+            - 2 for Safe/Gnosis proxy wallet
+            - None for other smart contracts / unknown wallet implementations
+
+        """
+        code = self.w3.eth.get_code(self.w3.to_checksum_address(address)).hex().removeprefix("0x").lower()
+        match code:
+            case "":
+                return 0
+            case constants.POLY_PROXY_RUNTIME_CODE:
+                return 1
+            case constants.SAFE_PROXY_RUNTIME_CODE:
+                return 2
+            case _:
+                return None
 
     def get_pol_balance(self) -> float:
         """Get POL balance for the base address associated with the private key."""
