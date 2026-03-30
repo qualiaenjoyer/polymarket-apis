@@ -13,6 +13,7 @@
     "$.end_date_iso:str",
     "$.fpmm:str",
     "$.game_start_time:null",
+    "$.game_start_time:str",
     "$.icon:str",
     "$.image:str",
     "$.is_50_50_outcome:bool",
