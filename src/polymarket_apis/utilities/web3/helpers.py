@@ -9,6 +9,8 @@ from eth_account.messages import encode_defunct
 from web3.constants import ADDRESS_ZERO
 from web3.contract import Contract
 
+from ..web3 import constants
+
 
 def get_market_index(question_id: str) -> int:
     """Extract the market index from a question ID (last 2 hex characters)."""
@@ -302,3 +304,14 @@ def create_proxy_struct(
     )
 
     return struct
+
+def get_signature_type_from_runtime_code(code: str) -> Literal[0, 1, 2] | None:
+    match code:
+        case "":
+            return 0
+        case constants.POLY_PROXY_RUNTIME_CODE:
+            return 1
+        case constants.SAFE_PROXY_RUNTIME_CODE:
+            return 2
+        case _:
+            return None

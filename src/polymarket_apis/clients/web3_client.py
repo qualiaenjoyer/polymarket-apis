@@ -26,7 +26,6 @@ from ..utilities.constants import ADDRESS_ZERO, HASH_ZERO, POLYGON
 from ..utilities.exceptions import BuilderRateLimitError, SafeAlreadyDeployedError
 from ..utilities.headers import create_level_2_headers
 from ..utilities.signing.signer import Signer
-from ..utilities.web3 import constants
 from ..utilities.web3.abis.custom_contract_errors import CUSTOM_ERROR_DICT
 from ..utilities.web3.helpers import (
     SafeTxn,
@@ -34,6 +33,7 @@ from ..utilities.web3.helpers import (
     create_safe_create_signature,
     get_index_set,
     get_packed_signature,
+    get_signature_type_from_runtime_code,
     sign_safe_transaction,
     split_signature,
 )
@@ -279,15 +279,7 @@ class BaseWeb3Client(ABC):
 
         """
         code = self.w3.eth.get_code(self.w3.to_checksum_address(address)).hex().removeprefix("0x").lower()
-        match code:
-            case "":
-                return 0
-            case constants.POLY_PROXY_RUNTIME_CODE:
-                return 1
-            case constants.SAFE_PROXY_RUNTIME_CODE:
-                return 2
-            case _:
-                return None
+        return get_signature_type_from_runtime_code(code)
 
     def get_pol_balance(self) -> float:
         """Get POL balance for the base address associated with the private key."""

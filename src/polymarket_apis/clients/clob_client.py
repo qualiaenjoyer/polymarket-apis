@@ -91,6 +91,7 @@ from ..utilities.order_builder.helpers import (
     price_valid,
 )
 from ..utilities.signing.signer import Signer
+from ..utilities.web3.helpers import get_signature_type_from_runtime_code
 
 logger = logging.getLogger(__name__)
 
@@ -400,6 +401,28 @@ class PolymarketReadOnlyClobClient:
         self.client.close()
         await self.async_client.aclose()
 
+
+def _detect_wallet_signature_type(
+        address: EthAddress,
+) -> Literal[0, 1, 2] | None:
+    from web3 import Web3
+    w3 = Web3(Web3.HTTPProvider("https://tenderly.rpc.polygon.community"))
+    code = (
+        w3.eth.get_code(w3.to_checksum_address(address))
+        .hex()
+        .removeprefix("0x")
+        .lower()
+    )
+    signature_type = get_signature_type_from_runtime_code(code)
+    if signature_type is None:
+        msg = (
+            f"Could not auto-detect signature_type for funder address {address}. "
+            "The address has an unknown contract runtime; provide signature_type explicitly."
+        )
+        raise ValueError(msg)
+    return signature_type
+
+
 class PolymarketClobClient(PolymarketReadOnlyClobClient):
     def __init__(
         self,
@@ -407,12 +430,14 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
         address: EthAddress,
         creds: ApiCreds | None = None,
         chain_id: Literal[137, 80002] = POLYGON,
-        signature_type: Literal[0, 1, 2] = 1,
+        signature_type: Literal[0, 1, 2] | None = None,
         # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet
     ) -> None:
         super().__init__()
         self.address = address
         self.signer = Signer(private_key=private_key, chain_id=chain_id)
+        if signature_type is None:
+            signature_type = _detect_wallet_signature_type(address)
         self.signature_type = signature_type
         self.builder = OrderBuilder(
             signer=self.signer,
