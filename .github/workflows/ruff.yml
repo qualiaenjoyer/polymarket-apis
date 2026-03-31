@@ -8,5 +8,5 @@ jobs:
       - name: Ruff
         uses: astral-sh/ruff-action@v3.5.1
         with:
-          version: "0.11.13"
+          version: "0.15.4"
           args: check --fix .
