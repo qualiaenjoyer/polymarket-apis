@@ -49,6 +49,7 @@
     "$.events[].showAllOutcomes:bool",
     "$.events[].showMarketImages:bool",
     "$.events[].slug:str",
+    "$.events[].sortBy:str",
     "$.events[].startDate:str",
     "$.events[].startTime:str",
     "$.events[].tags:array",
