@@ -1,12 +1,56 @@
 name: Ruff
-on: [push, pull_request]
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v5
+
+      - name: Ruff
+        uses: astral-sh/ruff-action@v3.5.1
+        with:
+          version: "0.15.4"
+          args: check .
+
+  auto-fix:
+    needs: lint
+    if: ${{ always() && needs.lint.result == 'failure' && github.event_name == 'push' && github.ref_name == 'main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
       - name: Ruff
         uses: astral-sh/ruff-action@v3.5.1
         with:
           version: "0.15.4"
           args: check --fix .
+
+      - name: Create pull request for Ruff fixes
+        uses: peter-evans/create-pull-request@v8
+        with:
+          commit-message: "chore: apply Ruff auto-fixes"
+          branch: "ruff-auto-fix"
+          title: "chore: apply Ruff auto-fixes"
+          body: |
+            The Ruff workflow failed on `main`, so this PR applies automated Ruff fixes.
+
+            This PR includes:
+            - `ruff check --fix .` changes produced by CI
+            - only automated lint fixes that Ruff could apply safely
+
+            This PR was created automatically by the dedicated Ruff autofix workflow so the main lint job can stay read-only.

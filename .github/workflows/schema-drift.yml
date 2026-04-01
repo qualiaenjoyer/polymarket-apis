@@ -3,7 +3,7 @@ name: Schema Drift
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 20 * * *"
+    - cron: "0 18 * * *"
 
 permissions:
   contents: write
@@ -16,8 +16,6 @@ jobs:
     timeout-minutes: 20
     outputs:
       hard_failure_count: ${{ steps.parse.outputs.hard_failure_count }}
-      schema_mismatch_count: ${{ steps.parse.outputs.schema_mismatch_count }}
-      endpoint_unavailable_count: ${{ steps.parse.outputs.endpoint_unavailable_count }}
       contract_expanded_count: ${{ steps.parse.outputs.contract_expanded_count }}
       summary: ${{ steps.parse.outputs.summary }}
 
@@ -186,13 +184,15 @@ jobs:
           branch: "contract-expanded"
           title: "[Schema Drift] Auto-expand live contract models"
           body: |
-            The live contract suite detected new fields and auto-expanded the contract baseline.
+            The live contract suite detected additive contract changes, so this PR updates the tracked baseline and models.
 
             ${{ needs.prod-read-contracts.outputs.summary }}
 
             This PR includes:
             - merged snapshot updates for newly observed response paths
             - best-effort optional Pydantic field additions for unmapped fields
+
+            This PR was created automatically by the schema drift auto-expansion workflow so the live contract check can stay read-only.
           add-paths: |
             tests/prod_read/snapshots
             src/polymarket_apis/types
