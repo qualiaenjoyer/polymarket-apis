@@ -56,156 +56,183 @@ flowchart LR
 - Polymarket allows for the one way (for capital efficiency) conversion from `No` tokens to a collection of `Yes` tokens and USDC before resolution through a smart contract.
 
 ## Clients overview
-- ### PolymarketReadOnlyClobClient - Read only order book related operations
-  - #### Order book
-    - get one or more order books, best price, spread, midpoint, last trade price by `token_id`(s)
-  - #### Miscellaneous
-    - get crypto outcomes by `slug`(s) for up/down markets 
-    - get recent price history by `token_id` in the last 1h, 6h, 1d, 1w, 1m
-    - get price history by `token_id` in start/end interval
-    - get all price history by `token_id` in 2 min increments
-    - get **ClobMarket** by `condition_id`
-    - get all **ClobMarkets**
 
-- ### PolymarketClobClient - Order book related operations
-  - all operations from PolymarketReadOnlyClobClient
-  - #### Orders
-    - create and post limit or market orders
-    - cancel one or more orders by `order_id`(s)
-    - get active orders
-    - send heartbeat to keep orders alive
-  - #### Trades
-    - get trade history for a user with filtering by `condition_id`, `token_id`, `trade_id`, time window
-  - #### Rewards
-    - check if one or more orders are scoring for liquidity rewards by `order_id`(s)
-    - get daily earned rewards
-    - check if a **Market** offers rewards by `condition_id` - **get_market_rewards()**
-    - get all active markets that offer rewards sorted by different metrics and ordered, filtered by a query, show your favourites from the web app  - **get_reward_markets()** (*naming would do with some work*)
-  - #### Miscellaneous
-    - get USDC balance
-    - get token balance by `token_id`
+### PolymarketReadOnlyClobClient
+Read-only order book related operations.
 
-  ### PolymarketGammaClient - Market/Event related operations
-    - #### Market
-      - get **GammaMarket** by `market_id`
-      - get **GammaMarket** by `slug`
-      - get **GammaMarkets** with pagination (offset and limit), filter by `slug`s, `market_id`s, `token_id`s, `condition_id`s, `tag_id` or filtered by active, closed, archived, liquidity window, volume window, start date window, end date window and ordered
-      - get **Tags** for a **Market** by `market_id`
-    - #### Event
-      - get **Event** by `event_id`
-      - get **Event** by `slug`
-      - get **Events** with pagination, filter by `slug`s, `event_id`s, `tag_id` or filtered by active, closed, archived, liquidity window, volume window, start date window, end date window and ordered
-      - get all **Events** given some filtration
-      - search **Events**, **Tags**, **Profiles**, filter by text query, tags, active/resolved, recurrence, sort by volume/volume_24hr/liquidity/start_date/end_date/competitive
-      - grok event summary by **Event** `slug`
-      - grok election market explanation by candidate name and election title
-      - get **Tags** for an **Event** by `event_id`
-    - #### Tag
-      - get **Tags** with pagination, order by any **Tag** field
-      - get all **Tags**
-      - get **Tag** by `tag_id`
-      - get **Tag** relations by `tag_id` or `slug`
-      - get **Tags** related to a **Tag** by `tag_id` or `slug`
-    - #### Sport
-      - get **Teams** with pagination, filter by `league`, `name`, `abbreviation`
-      - get all **Teams** given some filtration
-      - get **Sports** with pagination, filter by `name`
-      - get **Sports** metadata
-    - #### Series
-      - get **Series** with pagination, filter by `slug`, closed status, order by any **Series** field
-      - get all **Series** given some filtration
-    - #### Comments
-      - get comments by `parent_entity_type` and `parent_entity_id` with pagination, order by any **Comment** field
-      - get comments by `comment_id` - gets all comments in a thread.
-      - get comments by user base address (not proxy address) with pagination, order by any **Comment** field
-    - #### Miscellaneous
-      - get public profile by user address
+- **Order book**
+  - get one or more order books, best price, spread, midpoint, and last trade price by `token_id`
+- **Miscellaneous**
+  - get crypto outcomes by `slug` for up/down markets
+  - get recent price history by `token_id` in the last 1h, 6h, 1d, 1w, 1m
+  - get price history by `token_id` in a start/end interval
+  - get all price history by `token_id` in 2-minute increments
+  - get `ClobMarket` by `condition_id`
+  - get all `ClobMarkets`
 
-  ### PolymarketDataClient - Portfolio related operations
-  - #### Positions
-    - get positions with pagination (offset and limit) by user address, filter by `condition_id`, position size, redeemability, mergeability, title
-  - #### Trades
-    - get trades with pagination, filter by `condition id`, user address, side, taker only or not, cash amount/token amount
-  - #### Activity
-    - get activity with pagination by user address, filter by type (trade, split, merge, redeem, reward, conversion, maker_rebate, yield), `condition_id`, time window, side, sort by timestamp/tokens/cash
-  - #### Holders
-    - get top holders by `condition_id`
-  - #### Value
-    - get positions value by user address and condition_ids
-      - `condition_ids` is ***None*** → total value of positions
-      - `condition_ids` is ***str*** → value of positions on a market
-      - `condition_ids` is ***list[str]*** → sum of values of positions on multiple markets
-  - #### Closed positions
-    - get closed positions, filter by condition_ids
-  - #### Miscellaneous
-    - get total number of markets traded by user address
-    - get open interest for a list of condition_ids
-    - get live volume for an event by `event_id`
-    - get pnl timeseries by user address for a period (1d, 1w, 1m, all) with frequency (1h, 3h, 12h, 1d)
-    - get overall pnl/volume by user address for a recent window (1d, 7d, 30d, all)
-    - get user rank on the profit/volume leaderboards by user address for a recent window (1d, 7d, 30d, all)
-    - get top users on the profit/volume leaderboards (at most 100) for a recent window (1d, 7d, 30d, all)
+### PolymarketClobClient
+Order book related operations.
 
-  ### PolymarketWeb3Client - Blockchain operations (pays gas)
-  - #### Supported wallet types:
-    - EOA(signature_type=0)
-    - Email/Magic wallets (signature_type=1)
-    - Safe/Gnosis wallets (signature_type=2)
-  - #### Setup and deployment
-    - set approvals for all needed USDC and conditional token spenders (needed for full trading functionality)
-      - Safe/Gnosis wallet holders need to run deploy_safe before setting approvals
-  - #### Balance
-    - get POL balance by user address
-    - get USDC balance by user address
-    - get token balance by `token_id` and user address
-  - #### Transfers
-    - transfer USDC to another address - needs recipient address, amount
-    - transfer token to another address - needs `token_id`, recipient address, amount
-  - #### Token/USDC conversions
-    - split USDC into complementary tokens - needs `condition_id`, amount, neg_risk bool
-    - merge complementary tokens into USDC - needs `condition_id`, amount, neg_risk bool
-    - redeem token into USDC - needs `condition_id`, amounts array [`Yes` shares, `No` shares], neg_risk bool
-    - convert 1 or more `No` tokens in a *negative risk* **Event** into a collection of USDC and `Yes` tokens on the other **Markets** in the **Event**
+- **Authentication**
+  - `private_key`
+  - `address`
+  - `signature_type` is optional and can be derived from the address
+    - signature_type=0 for EOAs (Externally Owned Accounts)
+    - signature_type=1 for Email/Magic wallets
+    - signature_type=2 for Safe/Gnosis wallets
+- All operations from `PolymarketReadOnlyClobClient`
+- **Orders**
+  - create and post limit or market orders
+  - cancel one or more orders by `order_id`
+  - get active orders
+  - send heartbeat to keep orders alive
+- **Trades**
+  - get trade history for a user with filtering by `condition_id`, `token_id`, `trade_id`, and time window
+- **Rewards**
+  - check if one or more orders are scoring for liquidity rewards by `order_id`
+  - get daily earned rewards
+  - check if a market offers rewards by `condition_id` with `get_market_rewards()`
+  - get all active markets that offer rewards, sorted and filtered by multiple criteria, with `get_reward_markets()`
+- **Miscellaneous**
+  - get USDC balance
+  - get token balance by `token_id`
 
-  ### PolymarketGaslessWeb3Client - Relayed blockchain operations (doesn't pay gas)
-  - #### Supported wallet types:
-    - Email/Magic wallets (signature_type=1)
-    - Safe/Gnosis wallets (signature_type=2)
-  - #### Available operations
-    - balance methods from PolymarketWeb3Client (read only)
-    - split / merge / convert / redeem (gasless)
+### PolymarketGammaClient
+Market and event related operations.
 
-  ### PolymarketWebsocketsClient - Real time data subscriptions
-  - subscribe to **market socket** with `token_ids` list, receive different event types:
-    - order book summary
-    - price change
-    - tick size change
-    - last trade price
-    - best bid/ask price change
-    - market created
-    - market resolved
-  - subscribe to **user socket** with **ApiCreds**, receive different event types:
-    - order (status - live, canceled, matched)
-    - trade (status - matched, mined, confirmed, retrying, failed)
-  - subscribe to **live data socket** with any combination described [here](https://github.com/Polymarket/real-time-data-client?tab=readme-ov-file#subscribe) - ***newest endpoint*** - receive:
-    - comment/reaction (created, removed)
-    - trades/orders_matched (all, not just yours) - filter by **Event** `slug` or **Market** `slug`
-    - crypto/equity prices
-    - rfq - request/quote (created, edited, canceled, expired)
-  - subscribe to **sports socket**, receive sports game snapshots:
-    - game start
-    - score change
-    - period change (e.g. halftime, overtime)
-    - game end
+- **Market**
+  - get `GammaMarket` by `market_id`
+  - get `GammaMarket` by `slug`
+  - get `GammaMarkets` with pagination and filtering by `slug`, `market_id`, `token_id`, `condition_id`, `tag_id`, active/closed/archived status, liquidity window, volume window, start date window, end date window, and ordering
+  - get tags for a market by `market_id`
+- **Event**
+  - get `Event` by `event_id`
+  - get `Event` by `slug`
+  - get `Events` with pagination and filtering by `slug`, `event_id`, `tag_id`, active/closed/archived status, liquidity window, volume window, start date window, end date window, and ordering
+  - get all `Events` given some filtration
+  - search `Events`, `Tags`, and `Profiles` by text query, tags, status, recurrence, and multiple sort modes
+  - grok an event summary by event `slug`
+  - grok an election market explanation by candidate name and election title
+  - get tags for an event by `event_id`
+- **Tag**
+  - get `Tags` with pagination, ordered by any tag field
+  - get all `Tags`
+  - get `Tag` by `tag_id`
+  - get `Tag` relations by `tag_id` or `slug`
+  - get tags related to a tag by `tag_id` or `slug`
+- **Sport**
+  - get `Teams` with pagination, filtered by `league`, `name`, and `abbreviation`
+  - get all `Teams` given some filtration
+  - get `Sports` with pagination, filtered by `name`
+  - get sports metadata
+- **Series**
+  - get `Series` with pagination, filtered by `slug` and closed status, and ordered by any series field
+  - get all `Series` given some filtration
+- **Comments**
+  - get comments by `parent_entity_type` and `parent_entity_id` with pagination, ordered by any comment field
+  - get comments by `comment_id`, returning all comments in a thread
+  - get comments by user base address with pagination, ordered by any comment field
+- **Miscellaneous**
+  - get public profile by user address
 
-  ### PolymarketGraphQLClient/AsyncPolymarketGraphQLClient - Goldsky hosted Subgraphs queries
-  - instantiate with an endpoint name from:
-    - activity_subgraph
-    - fpmm_subgraph
-    - open_interest_subgraph
-    - orderbook_subgraph
-    - pnl_subgraph
-    - positions_subgraph
-    - sports_oracle_subgraph
-    - wallet_subgraph
-  - ****query()**** takes in a GraphQL query string and returns the raw json
+### PolymarketDataClient
+Portfolio related operations.
+
+- **Positions**
+  - get positions with pagination by user address, filtered by `condition_id`, position size, redeemability, mergeability, and title
+- **Trades**
+  - get trades with pagination, filtered by `condition_id`, user address, side, taker-only status, cash amount, and token amount
+- **Activity**
+  - get activity with pagination by user address, filtered by type, `condition_id`, time window, side, and sort order
+- **Holders**
+  - get top holders by `condition_id`
+- **Value**
+  - get positions value by user address and `condition_ids`
+  - `condition_ids is None` means total value of positions
+  - `condition_ids is str` means value of positions on one market
+  - `condition_ids is list[str]` means sum of values of positions on multiple markets
+- **Closed positions**
+  - get closed positions, filtered by `condition_id`
+- **Miscellaneous**
+  - get total number of markets traded by user address
+  - get open interest for a list of `condition_id`s
+  - get live volume for an event by `event_id`
+  - get pnl timeseries by user address for a period (`1d`, `1w`, `1m`, `all`) with frequency (`1h`, `3h`, `12h`, `1d`)
+  - get overall pnl/volume by user address for a recent window (`1d`, `7d`, `30d`, `all`)
+  - get user rank on the profit/volume leaderboards by user address for a recent window (`1d`, `7d`, `30d`, `all`)
+  - get top users on the profit/volume leaderboards for a recent window (`1d`, `7d`, `30d`, `all`)
+
+### PolymarketWeb3Client
+Blockchain operations that pay gas.
+
+- **Authentication**
+  - `private_key`
+  - `signature_type`
+- **Supported wallet types**
+  - `EOA` (`signature_type=0`)
+  - Email/Magic wallets (`signature_type=1`)
+  - Safe/Gnosis wallets (`signature_type=2`)
+- **Setup and deployment**
+  - set approvals for all needed USDC and conditional token spenders
+  - Safe/Gnosis wallet holders need to run `deploy_safe()` before setting approvals
+- **Balance**
+  - get POL balance by user address
+  - get USDC balance by user address
+  - get token balance by `token_id` and user address
+- **Transfers**
+  - transfer USDC to another address with recipient address and amount
+  - transfer token to another address with `token_id`, recipient address, and amount
+- **Token/USDC conversions**
+  - split USDC into complementary tokens with `condition_id`, amount, and `neg_risk`
+  - merge complementary tokens into USDC with `condition_id`, amount, and `neg_risk`
+  - redeem token into USDC with `condition_id`, amounts array of [`Yes` shares, `No` shares], and `neg_risk`
+  - convert one or more `No` tokens in a negative risk event into a collection of USDC and `Yes` tokens on the other markets in the event
+
+### PolymarketGaslessWeb3Client
+Relayed blockchain operations that do not pay gas.
+
+- **Authentication**
+  - `private_key`
+  - `signature_type`
+  - requires `relayer_api_key` - [get one here](https://github.com/Polymarket/real-time-data-client?tab=readme-ov-file#subscribe)
+  - the client derives `RELAYER_API_KEY_ADDRESS` from the wallet automatically
+- **Supported wallet types**
+  - Email/Magic wallets (`signature_type=1`)
+  - Safe/Gnosis wallets (`signature_type=2`)
+- **Available operations**
+  - balance methods from `PolymarketWeb3Client` (read only)
+  - split / merge / convert / redeem (gasless)
+
+### PolymarketWebsocketsClient
+Real-time data subscriptions.
+
+- **Market socket**
+  - subscribe with a `token_ids` list
+  - receive order book summary, price change, tick size change, last trade price, best bid/ask price change, market created, and market resolved events
+- **User socket**
+  - subscribe with `ApiCreds`
+  - receive order events (`live`, `canceled`, `matched`)
+  - receive trade events (`matched`, `mined`, `confirmed`, `retrying`, `failed`)
+- **Live data socket**
+  - subscribe with any combination described [here](https://github.com/Polymarket/real-time-data-client?tab=readme-ov-file#subscribe)
+  - receive comment/reaction events (`created`, `removed`)
+  - receive `trades` / `orders_matched` events filtered by event `slug` or market `slug`
+  - receive crypto/equity prices
+  - receive RFQ events (`created`, `edited`, `canceled`, `expired`)
+- **Sports socket**
+  - receive sports game snapshots for game start, score change, period change, and game end
+
+### PolymarketGraphQLClient / AsyncPolymarketGraphQLClient
+Goldsky-hosted subgraph queries.
+
+- **Endpoints**
+  - `activity_subgraph`
+  - `fpmm_subgraph`
+  - `open_interest_subgraph`
+  - `orderbook_subgraph`
+  - `pnl_subgraph`
+  - `positions_subgraph`
+  - `sports_oracle_subgraph`
+  - `wallet_subgraph`
+- **Queries**
+  - `query()` takes a GraphQL query string and returns the raw JSON
