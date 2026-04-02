@@ -37,6 +37,17 @@ class OptimizedImage(BaseModel):
     relname: Optional[str] = None
 
 
+class FeeSchedule(BaseModel):
+    """Fee rate info for markets."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    exponent: int
+    rate: float
+    taker_only: bool = Field(alias="takerOnly")
+    rebate_rate: float = Field(alias="rebateRate")
+
+
 class GammaMarket(BaseModel):
     """Market model."""
 
@@ -210,7 +221,7 @@ class GammaMarket(BaseModel):
         None, alias="twitterCardLastValidated"
     )
     twitter_card_location: Optional[str] = Field(None, alias="twitterCardLocation")
-    fee_schedule: dict[str, object] | None = Field(None, alias="feeSchedule")
+    fee_schedule: Optional[FeeSchedule] = Field(None, alias="feeSchedule")
     maker_rebates_fee_share_bps: int | None = Field(None, alias="makerRebatesFeeShareBps")
 
     @field_validator("condition_id", mode="wrap")

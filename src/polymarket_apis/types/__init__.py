@@ -63,7 +63,15 @@ if TYPE_CHECKING:
         UserRank,
         ValueResponse,
     )
-    from .gamma_types import ClobReward, Event, GammaMarket, Pagination, Series, Tag
+    from .gamma_types import (
+        ClobReward,
+        Event,
+        FeeSchedule,
+        GammaMarket,
+        Pagination,
+        Series,
+        Tag,
+    )
     from .websockets_types import (
         ActivityOrderMatchEvent,
         ActivityTradeEvent,
@@ -111,6 +119,7 @@ __all__ = [
     "ErrorEvent",
     "EthAddress",
     "Event",
+    "FeeSchedule",
     "FlexibleDatetime",
     "GammaMarket",
     "Holder",
@@ -188,6 +197,7 @@ _EXPORT_MAP = {
     "ErrorEvent": ".websockets_types",
     "EthAddress": ".common",
     "Event": ".gamma_types",
+    "FeeSchedule": ".gamma_types",
     "FlexibleDatetime": ".common",
     "GammaMarket": ".gamma_types",
     "Holder": ".data_types",

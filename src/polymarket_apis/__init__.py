@@ -31,16 +31,13 @@ if TYPE_CHECKING:
         PolymarketWeb3Client,
         PolymarketWebsocketsClient,
     )
-    from .types.clob_types import (
-        ApiCreds,
-        MarketOrderArgs,
-        OrderArgs,
-        OrderType,
-    )
+    from .types import FeeSchedule
+    from .types.clob_types import ApiCreds, MarketOrderArgs, OrderArgs, OrderType
 
 __all__ = [
     "ApiCreds",
     "AsyncPolymarketGraphQLClient",
+    "FeeSchedule",
     "MarketOrderArgs",
     "OrderArgs",
     "OrderType",
@@ -60,6 +57,7 @@ __all__ = [
 _EXPORT_MAP = {
     "ApiCreds": ".types.clob_types",
     "AsyncPolymarketGraphQLClient": ".clients",
+    "FeeSchedule": ".types",
     "MarketOrderArgs": ".types.clob_types",
     "OrderArgs": ".types.clob_types",
     "OrderType": ".types.clob_types",
