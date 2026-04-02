@@ -16,6 +16,8 @@ POLY_BUILDER_API_KEY = "POLY_BUILDER_API_KEY"
 POLY_BUILDER_PASSPHRASE = "POLY_BUILDER_PASSPHRASE"
 POLY_BUILDER_SIGNATURE = "POLY_BUILDER_SIGNATURE"
 POLY_BUILDER_TIMESTAMP = "POLY_BUILDER_TIMESTAMP"
+RELAYER_API_KEY = "RELAYER_API_KEY"
+RELAYER_API_KEY_ADDRESS = "RELAYER_API_KEY_ADDRESS"
 
 
 def create_level_1_headers(
@@ -67,4 +69,12 @@ def create_level_2_headers(
         POLY_TIMESTAMP: timestamp,
         POLY_API_KEY: creds.key,
         POLY_PASSPHRASE: creds.passphrase,
+    }
+
+
+def create_relayer_headers(api_key: str, address: str) -> dict[str, str]:
+    """Creates relayer API key headers for gasless transactions."""
+    return {
+        RELAYER_API_KEY: api_key,
+        RELAYER_API_KEY_ADDRESS: address,
     }

@@ -31,7 +31,12 @@ if TYPE_CHECKING:
         PolymarketWeb3Client,
         PolymarketWebsocketsClient,
     )
-    from .types.clob_types import ApiCreds, MarketOrderArgs, OrderArgs, OrderType
+    from .types.clob_types import (
+        ApiCreds,
+        MarketOrderArgs,
+        OrderArgs,
+        OrderType,
+    )
 
 __all__ = [
     "ApiCreds",
