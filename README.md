@@ -194,7 +194,7 @@ Relayed blockchain operations that do not pay gas.
 - **Authentication**
   - `private_key`
   - `signature_type`
-  - requires `relayer_api_key` - [get one here](https://github.com/Polymarket/real-time-data-client?tab=readme-ov-file#subscribe)
+  - requires `relayer_api_key` - [get one here](https://polymarket.com/settings?tab=api-keys) 
   - the client derives `RELAYER_API_KEY_ADDRESS` from the wallet automatically
 - **Supported wallet types**
   - Email/Magic wallets (`signature_type=1`)
