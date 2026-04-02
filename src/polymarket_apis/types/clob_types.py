@@ -96,7 +96,7 @@ class PaginatedResponse[T](BaseModel):
 
 
 class RewardRate(BaseModel):
-    asset_address: str
+    asset_address: EthAddress
     rewards_daily_rate: float
 
 
@@ -200,8 +200,8 @@ class ClobMarket(BaseModel):
 
     # Fee structure
     fpmm: str
-    maker_base_fee: float
-    taker_base_fee: float
+    maker_base_fee: Optional[Literal[0, 1000]] = None
+    taker_base_fee: Optional[Literal[0, 1000]] = None
 
     # Features
     notifications_enabled: bool
@@ -532,6 +532,5 @@ class PastResultsData(BaseModel):
 
 class PastResultsResponse(BaseModel):
     data: PastResultsData
-
 
 
