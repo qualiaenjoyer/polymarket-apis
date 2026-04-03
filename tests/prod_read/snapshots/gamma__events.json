@@ -23,6 +23,7 @@
     "$[].enableNegRisk:bool",
     "$[].enableOrderBook:bool",
     "$[].endDate:str",
+    "$[].ended:bool",
     "$[].estimateValue:bool",
     "$[].eventDate:str",
     "$[].eventMetadata.context_description:str",

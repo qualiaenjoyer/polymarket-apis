@@ -52,6 +52,7 @@
     "$[].events[].enableNegRisk:bool",
     "$[].events[].enableOrderBook:bool",
     "$[].events[].endDate:str",
+    "$[].events[].ended:bool",
     "$[].events[].estimateValue:bool",
     "$[].events[].eventDate:str",
     "$[].events[].eventMetadata.context_description:str",
