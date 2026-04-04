@@ -1,8 +1,10 @@
 name: Type Check
 
 on:
-  push:
   pull_request:
+  push:
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.repository }}-${{ github.head_ref || github.ref_name }}

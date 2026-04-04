@@ -1,0 +1,58 @@
+name: Build/Install
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.12"
+          - "3.13"
+          - "3.14"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dev dependencies
+        run: uv sync --locked --group dev
+
+      - name: Build wheel and sdist
+        run: uv build
+
+      - name: Install and import built wheel
+        shell: bash
+        run: |
+          uv venv .venv-install-check
+          uv pip install --python .venv-install-check/bin/python dist/*.whl
+          .venv-install-check/bin/python -c "import polymarket_apis; print(polymarket_apis.__version__)"
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-py${{ matrix.python-version }}
+          path: dist
