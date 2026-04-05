@@ -140,6 +140,7 @@ def clob_order_book_sample(
             f"Tried: {'; '.join(unavailable_markets)}"
         ),
     )
+    return None
 
 
 @pytest.fixture(scope="module")
