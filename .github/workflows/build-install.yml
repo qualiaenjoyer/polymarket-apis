@@ -27,13 +27,13 @@ jobs:
           - "3.14"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.1
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v6.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v7.1.6
         with:
           enable-cache: true
 
@@ -52,7 +52,7 @@ jobs:
 
       - name: Upload build artifacts
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v6.0.0
         with:
           name: dist-py${{ matrix.python-version }}
           path: dist

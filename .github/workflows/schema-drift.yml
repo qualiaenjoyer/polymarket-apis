@@ -20,13 +20,13 @@ jobs:
       summary: ${{ steps.parse.outputs.summary }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.1
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v6.1.0
         with:
           python-version: "3.12"
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v7.1.6
 
       - name: Install dependencies
         run: uv sync --dev
@@ -38,14 +38,14 @@ jobs:
 
       - name: Upload schema drift report
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v6.0.0
         with:
           name: schema-drift-junit
           path: schema-drift-junit.xml
 
       - name: Parse contract results
         id: parse
-        uses: actions/github-script@v8
+        uses: actions/github-script@v8.0.0
         with:
           script: |
             const fs = require("fs");
@@ -104,7 +104,7 @@ jobs:
 
       - name: Create or update hard-failure issue
         if: ${{ fromJSON(steps.parse.outputs.hard_failure_count) > 0 }}
-        uses: actions/github-script@v8
+        uses: actions/github-script@v8.0.0
         env:
           CONTRACT_SUMMARY: ${{ steps.parse.outputs.summary }}
           SCHEMA_MISMATCH_COUNT: ${{ steps.parse.outputs.schema_mismatch_count }}
@@ -163,13 +163,13 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.1
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v6.1.0
         with:
           python-version: "3.12"
 
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v7.1.6
 
       - name: Install dependencies
         run: uv sync --dev
@@ -178,7 +178,7 @@ jobs:
         run: AUTO_EXPAND_CONTRACT=1 uv run pytest -m prod_read tests/prod_read/test_schema_contracts.py -ra
 
       - name: Create contract expansion pull request
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@v8.0.0
         with:
           commit-message: "chore: auto-expand live contract models"
           branch: "contract-expanded"

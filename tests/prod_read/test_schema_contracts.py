@@ -381,18 +381,51 @@ def test_clob_order_book_schema(
     if not gamma_market.token_ids:
         fail_contract("schema mismatch", "Gamma market is missing token ids.")
     token_ids = gamma_market.token_ids
-    payload = fetch_json(
-        "clob /book",
-        http_client,
-        "https://clob.polymarket.com/book",
-        params={"token_id": token_ids[0]},
+    unavailable_tokens: list[str] = []
+
+    for token_id in token_ids:
+        try:
+            response = http_client.get(
+                "https://clob.polymarket.com/book",
+                params={"token_id": token_id},
+            )
+        except httpx.RequestError as exc:
+            unavailable_tokens.append(f"{token_id} (request error: {exc!r})")
+            continue
+
+        if response.status_code == 404:
+            unavailable_tokens.append(f"{token_id} (HTTP 404)")
+            continue
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            fail_contract(
+                "endpoint unavailable",
+                (
+                    f"clob /book returned HTTP {exc.response.status_code}.\n"
+                    f"URL: {exc.request.url}\n"
+                    f"Token id: {token_id}\n"
+                    "This looks like endpoint instability, auth/rate limiting, or an upstream outage."
+                ),
+            )
+
+        order_book = assert_api_contract("clob /book", OrderBookSummary, response.json())
+        if order_book.condition_id != gamma_market.condition_id:
+            fail_contract(
+                "schema mismatch",
+                "CLOB order book condition_id did not match the source Gamma market condition_id.",
+            )
+        return
+
+    fail_contract(
+        "endpoint unavailable",
+        (
+            "clob /book returned no order book for any sampled Gamma token id.\n"
+            f"Condition id: {gamma_market.condition_id}\n"
+            f"Tried tokens: {', '.join(unavailable_tokens)}"
+        ),
     )
-    order_book = assert_api_contract("clob /book", OrderBookSummary, payload)
-    if order_book.condition_id != gamma_market.condition_id:
-        fail_contract(
-            "schema mismatch",
-            "CLOB order book condition_id did not match the source Gamma market condition_id.",
-        )
 
 
 @pytest.mark.prod_read
