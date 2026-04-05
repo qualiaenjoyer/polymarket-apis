@@ -12,8 +12,6 @@ from web3.eth import Contract
 from web3.exceptions import ContractCustomError, TimeExhausted
 from web3.middleware import (
     ExtraDataToPOAMiddleware,
-    Middleware,
-    SignAndSendRawMiddlewareBuilder,
 )
 from web3.types import TxParams, Wei
 
@@ -67,10 +65,6 @@ class BaseWeb3Client(ABC):
         self.client = httpx.Client(http2=True, timeout=30.0)
         self.w3 = Web3(Web3.HTTPProvider(rpc_url))
         self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
-        self.w3.middleware_onion.inject(
-            cast("Middleware", SignAndSendRawMiddlewareBuilder.build(private_key)),
-            layer=0,
-        )
 
         self.account = self.w3.eth.account.from_key(private_key)
         self.signature_type = signature_type
