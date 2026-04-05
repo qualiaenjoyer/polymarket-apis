@@ -8,12 +8,15 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from types import NoneType, UnionType
-from typing import Annotated, Any, NoReturn, Union, get_args, get_origin
+from typing import TYPE_CHECKING, Annotated, Any, NoReturn, Union, get_args, get_origin
 
 import httpx
 import pytest
 from pydantic import BaseModel, RootModel, TypeAdapter, ValidationError
 from pydantic.aliases import AliasChoices, AliasPath
+
+if TYPE_CHECKING:
+    from _pytest.outcomes import Failed
 
 SNAPSHOT_DIR = Path(__file__).resolve().parents[3] / "tests" / "prod_read" / "snapshots"
 AUTO_EXPAND_CONTRACT = os.getenv("AUTO_EXPAND_CONTRACT") == "1"
@@ -106,8 +109,12 @@ def assert_api_contract(name: str, annotation: Any, payload: Any) -> Any:
     return validated
 
 
+def contract_failure(category: str, message: str) -> Failed:
+    return pytest.fail.Exception(f"[{category}] {message}")
+
+
 def fail_contract(category: str, message: str) -> NoReturn:
-    pytest.fail(f"[{category}] {message}")
+    raise contract_failure(category, message)
 
 
 def _validation_message(name: str, payload: Any, exc: ValidationError) -> str:

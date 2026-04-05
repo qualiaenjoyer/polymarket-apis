@@ -9,6 +9,7 @@ import pytest
 
 from polymarket_apis.testing.contract_assertions import (
     assert_api_contract,
+    contract_failure,
     fail_contract,
     fetch_json,
 )
@@ -132,15 +133,13 @@ def clob_order_book_sample(
                 f"{market.condition_id}: {', '.join(market_unavailable_tokens)}"
             )
 
-    fail_contract(
-        "endpoint unavailable",
-        (
-            "clob /book returned no order book for any sampled Gamma market token id.\n"
-            f"Checked {len(validated_gamma_markets)} recent active Gamma markets.\n"
-            f"Tried: {'; '.join(unavailable_markets)}"
-        ),
+    category = "endpoint unavailable"
+    msg = (
+        "clob /book returned no order book for any sampled Gamma market token id.\n"
+        f"Checked {len(validated_gamma_markets)} recent active Gamma markets.\n"
+        f"Tried: {'; '.join(unavailable_markets)}"
     )
-    return None
+    raise contract_failure(category, msg)
 
 
 @pytest.fixture(scope="module")
