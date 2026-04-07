@@ -49,6 +49,7 @@
     "$[].events[].deploying:bool",
     "$[].events[].deployingTimestamp:str",
     "$[].events[].description:str",
+    "$[].events[].electionType:str",
     "$[].events[].enableNegRisk:bool",
     "$[].events[].enableOrderBook:bool",
     "$[].events[].endDate:str",
