@@ -62,6 +62,7 @@ class LastTradePriceEvent(LastTradePrice):
     timestamp: datetime
     event_type: Literal["last_trade_price"]
 
+
 class BestBidAskEvent(BaseModel):
     condition_id: Keccak256 = Field(alias="market")
     token_id: str = Field(alias="asset_id")
@@ -71,12 +72,14 @@ class BestBidAskEvent(BaseModel):
     timestamp: datetime
     event_type: Literal["best_bid_ask"]
 
+
 class RelatedEvent(BaseModel):
     id: int
     ticker: str
     slug: str
     title: str
     description: str
+
 
 class MarketEvent(BaseModel):
     id: int
@@ -90,8 +93,10 @@ class MarketEvent(BaseModel):
     timestamp: datetime
     tags: Optional[list[str]] = None
 
+
 class NewMarketEvent(MarketEvent):
     event_type: Literal["new_market"]
+
 
 class MarketResolvedEvent(MarketEvent):
     winning_asset_id: str
@@ -125,7 +130,7 @@ class OrderEvent(BaseModel):  # type: ignore[no-redef] # event_owner is the same
     event_type: Optional[Literal["order"]] = None
     type: Literal["PLACEMENT", "UPDATE", "CANCELLATION"]
 
-    status: Literal["LIVE", "CANCELED", "MATCHED"]
+    status: Literal["LIVE", "CANCELED", "MATCHED", "CANCELED_MARKET_RESOLVED"]
 
     @field_validator("expiration", mode="before")
     def validate_expiration(
@@ -260,6 +265,16 @@ class AssetPriceUpdate(TimeseriesPoint):
     full_accuracy_value: str
 
 
+CryptoPriceSubscribe = AssetPriceSubscribe
+CryptoPriceUpdate = AssetPriceUpdate
+
+
+class AggOrderBookSummary(OrderBookSummary):
+    min_order_size: float
+    tick_size: TickSize
+    neg_risk: bool
+
+
 class LiveDataClobMarket(BaseModel):
     token_ids: list[str] = Field(alias="asset_ids")
     condition_id: Keccak256 = Field(alias="market")
@@ -328,6 +343,66 @@ class AssetPriceSubscribeEvent(BaseModel):
     topic: Literal["crypto_prices", "crypto_prices_chainlink", "equity_prices"]
 
 
+CryptoPriceUpdateEvent = AssetPriceUpdateEvent
+CryptoPriceSubscribeEvent = AssetPriceSubscribeEvent
+
+
+class LiveDataOrderBookSummaryEvent(BaseModel):
+    payload: list[AggOrderBookSummary] | AggOrderBookSummary
+    timestamp: datetime
+    connection_id: str
+    type: Literal["agg_orderbook"]
+    topic: Literal["clob_market"]
+
+
+class LiveDataPriceChangeEvent(BaseModel):
+    payload: PriceChanges
+    timestamp: datetime
+    connection_id: str
+    type: Literal["price_change"]
+    topic: Literal["clob_market"]
+
+
+class LiveDataLastTradePriceEvent(BaseModel):
+    payload: LastTradePrice
+    timestamp: datetime
+    connection_id: str
+    type: Literal["last_trade_price"]
+    topic: Literal["clob_market"]
+
+
+class LiveDataTickSizeChangeEvent(BaseModel):
+    payload: TickSizeChange
+    timestamp: datetime
+    connection_id: str
+    type: Literal["tick_size_change"]
+    topic: Literal["clob_market"]
+
+
+class MarketStatusChangeEvent(BaseModel):
+    payload: LiveDataClobMarket
+    timestamp: datetime
+    connection_id: str
+    type: Literal["market_created", "market_resolved"]
+    topic: Literal["clob_market"]
+
+
+class LiveDataOrderEvent(BaseModel):
+    payload: OrderEvent
+    timestamp: datetime
+    connection_id: str
+    type: Literal["order"]
+    topic: Literal["clob_user"]
+
+
+class LiveDataTradeEvent(BaseModel):
+    payload: TradeEvent
+    timestamp: datetime
+    connection_id: str
+    type: Literal["trade"]
+    topic: Literal["clob_user"]
+
+
 class ScoreStateFields(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -352,10 +427,11 @@ class SportsGameUpdate(ScoreStateFields):
 
     home_team: Optional[str] = Field(None, alias="homeTeam")
     away_team: Optional[str] = Field(None, alias="awayTeam")
-    status: Optional[str] = None # Literal["InProgress", "Break", "Final", "finished", "running"]
+    status: Optional[str] = None
 
     updated_at: Optional[datetime] = Field(None, alias="updatedAt")
     event_state: Optional[SportsEventState] = Field(None, alias="eventState")
+
 
 class ErrorEvent(BaseModel):
     message: str
@@ -385,4 +461,11 @@ type LiveDataEvents = (
     | QuoteEvent
     | AssetPriceSubscribeEvent
     | AssetPriceUpdateEvent
+    | LiveDataOrderBookSummaryEvent
+    | LiveDataPriceChangeEvent
+    | LiveDataLastTradePriceEvent
+    | LiveDataTickSizeChangeEvent
+    | MarketStatusChangeEvent
+    | LiveDataOrderEvent
+    | LiveDataTradeEvent
 )

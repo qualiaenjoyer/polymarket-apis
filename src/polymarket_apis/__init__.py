@@ -28,8 +28,9 @@ if TYPE_CHECKING:
         PolymarketGaslessWeb3Client,
         PolymarketGraphQLClient,
         PolymarketReadOnlyClobClient,
+        PolyWSS,
+        PolyWSSMarket,
         PolymarketWeb3Client,
-        PolymarketWebsocketsClient,
     )
     from .types import FeeSchedule
     from .types.clob_types import ApiCreds, MarketOrderArgs, OrderArgs, OrderType
@@ -47,8 +48,9 @@ __all__ = [
     "PolymarketGaslessWeb3Client",
     "PolymarketGraphQLClient",
     "PolymarketReadOnlyClobClient",
+    "PolyWSS",
+    "PolyWSSMarket",
     "PolymarketWeb3Client",
-    "PolymarketWebsocketsClient",
     "__author__",
     "__email__",
     "__version__",
@@ -67,8 +69,9 @@ _EXPORT_MAP = {
     "PolymarketGaslessWeb3Client": ".clients",
     "PolymarketGraphQLClient": ".clients",
     "PolymarketReadOnlyClobClient": ".clients",
+    "PolyWSS": ".clients",
+    "PolyWSSMarket": ".clients",
     "PolymarketWeb3Client": ".clients",
-    "PolymarketWebsocketsClient": ".clients",
 }
 
 

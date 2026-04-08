@@ -18,10 +18,13 @@ class MissingOrderbookError(Exception):
     pass
 
 
+class AuthenticationRequiredError(ValueError):
+    """Raised when authentication credentials are required but not provided."""
+
+
 class SafeAlreadyDeployedError(Exception):
     """Raised when attempting to deploy a Safe that has already been deployed."""
 
 
 class BuilderRateLimitError(Exception):
     """Shared builder credentials have hit their rate limit."""
-

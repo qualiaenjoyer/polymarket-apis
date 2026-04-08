@@ -20,7 +20,8 @@ if TYPE_CHECKING:
     )
     from .web3_client import PolymarketGaslessWeb3Client, PolymarketWeb3Client
     from .websockets_client import (
-        PolymarketWebsocketsClient,
+        PolyWSS,
+        PolyWSSMarket,
         parse_live_data_event,
         parse_market_event,
         parse_sports_event,
@@ -35,8 +36,9 @@ __all__ = [
     "PolymarketGaslessWeb3Client",
     "PolymarketGraphQLClient",
     "PolymarketReadOnlyClobClient",
+    "PolyWSS",
+    "PolyWSSMarket",
     "PolymarketWeb3Client",
-    "PolymarketWebsocketsClient",
     "parse_live_data_event",
     "parse_market_event",
     "parse_sports_event",
@@ -51,8 +53,9 @@ _EXPORT_MAP = {
     "PolymarketGaslessWeb3Client": ".web3_client",
     "PolymarketGraphQLClient": ".graphql_client",
     "PolymarketReadOnlyClobClient": ".clob_client",
+    "PolyWSS": ".websockets_client",
+    "PolyWSSMarket": ".websockets_client",
     "PolymarketWeb3Client": ".web3_client",
-    "PolymarketWebsocketsClient": ".websockets_client",
     "parse_live_data_event": ".websockets_client",
     "parse_market_event": ".websockets_client",
     "parse_sports_event": ".websockets_client",

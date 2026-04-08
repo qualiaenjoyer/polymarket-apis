@@ -272,14 +272,57 @@ class PolymarketDataClient:
     def get_closed_positions(
         self,
         user: EthAddress,
-        condition_ids: Optional[Union[str, list[str]]] = None,
+        condition_id: Optional[
+            Union[str, list[str]]
+        ] = None,  # mutually exclusive with event_id
+        title: Optional[str] = None,
+        event_id: Optional[
+            Union[int, list[int]]
+        ] = None,  # mutually exclusive with condition_id
+        limit: int = 50,
+        offset: int = 0,
+        sort_by: Literal["REALIZEDPNL", "TITLE", "PRICE", "AVGPRICE", "TIMESTAMP"] = (
+            "TIMESTAMP"
+        ),
+        sort_direction: Literal["ASC", "DESC"] = "DESC",
     ) -> list[ClosedPosition]:
-        """Get all closed positions."""
-        params: dict[str, str] = {"user": user}
-        if isinstance(condition_ids, str):
-            params["market"] = condition_ids
-        if isinstance(condition_ids, list):
-            params["market"] = ",".join(condition_ids)
+        """
+        Get closed positions for a user.
+
+        Args:
+            user: 用户钱包地址（必填）。
+            condition_id: 市场 conditionId（对应 query 参数 market），支持单个或多个。
+                与 event_id 互斥。
+            title: 按市场标题过滤。
+            event_id: 事件 ID（支持单个或多个），返回该事件下所有 market 的已平仓仓位。
+                与 condition_id 互斥。
+            limit: 返回条数上限（默认 10，通常可设为 100 做批量拉取）。
+            offset: 分页起始偏移（接口范围 0~100000）。
+            sort_by: 排序字段，默认 REALIZEDPNL。
+            sort_direction: 排序方向，ASC 或 DESC。
+        """
+        if condition_id is not None and event_id is not None:
+            raise ValueError("condition_id and event_id are mutually exclusive")
+
+        params: dict[str, str | list[str] | int] = {
+            "user": user,
+            "limit": min(limit, 100),
+            "offset": offset,
+        }
+        if isinstance(condition_id, str):
+            params["market"] = condition_id
+        if isinstance(condition_id, list):
+            params["market"] = ",".join(condition_id)
+        if title:
+            params["title"] = title
+        if isinstance(event_id, int):
+            params["eventId"] = str(event_id)
+        if isinstance(event_id, list):
+            params["eventId"] = [str(i) for i in event_id]
+        if sort_by:
+            params["sortBy"] = sort_by
+        if sort_direction:
+            params["sortDirection"] = sort_direction
 
         response = self.client.get(self._build_url("/closed-positions"), params=params)
         response.raise_for_status()

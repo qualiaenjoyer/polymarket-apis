@@ -259,7 +259,12 @@ class BaseWeb3Client(ABC):
             - None for other smart contracts / unknown wallet implementations
 
         """
-        code = self.w3.eth.get_code(self.w3.to_checksum_address(address)).hex().removeprefix("0x").lower()
+        code = (
+            self.w3.eth.get_code(self.w3.to_checksum_address(address))
+            .hex()
+            .removeprefix("0x")
+            .lower()
+        )
         return get_signature_type_from_runtime_code(code)
 
     def get_pol_balance(self) -> float:
@@ -734,9 +739,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
                 msg = f"Invalid signature_type: {self.signature_type}"
                 raise ValueError(msg)
 
-        headers = create_relayer_headers(
-            self.relayer_api_key, self.get_base_address()
-        )
+        headers = create_relayer_headers(self.relayer_api_key, self.get_base_address())
 
         url = f"{self.relay_url}/submit"
         response = self.client.post(
