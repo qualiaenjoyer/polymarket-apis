@@ -29,9 +29,13 @@ def generate_random_id(length: int = 16) -> str:
 
 
 class PolymarketGammaClient:
-    def __init__(self, base_url: str = "https://gamma-api.polymarket.com"):
+    def __init__(
+        self, 
+        base_url: str = "https://gamma-api.polymarket.com",
+        proxy: str | None = None
+    ):
         self.base_url = base_url
-        self.client = httpx.Client(http2=True, timeout=30.0)
+        self.client = httpx.Client(http2=True, timeout=30.0, proxy=proxy)
 
     def _build_url(self, endpoint: str) -> str:
         return urljoin(self.base_url, endpoint)

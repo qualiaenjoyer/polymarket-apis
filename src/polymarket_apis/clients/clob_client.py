@@ -97,9 +97,9 @@ logger = logging.getLogger(__name__)
 
 
 class PolymarketReadOnlyClobClient:
-    def __init__(self) -> None:
-        self.client = httpx.Client(http2=True, timeout=30.0)
-        self.async_client = httpx.AsyncClient(http2=True, timeout=30.0)
+    def __init__(self, proxy: str | None = None) -> None:
+        self.client = httpx.Client(http2=True, timeout=30.0, proxy=proxy)
+        self.async_client = httpx.AsyncClient(http2=True, timeout=30.0, proxy=proxy)
         self.base_url: str = "https://clob.polymarket.com"
 
         # local cache
