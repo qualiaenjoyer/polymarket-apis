@@ -615,6 +615,7 @@ class Event(BaseModel):
     election_type: Optional[str] = Field(None, alias="electionType")
 
 
+    teams: list[object] | None = None
 class ProfilePosition(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
