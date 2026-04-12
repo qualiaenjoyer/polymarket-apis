@@ -323,11 +323,20 @@ def _insert_field_into_model(
     if class_index is None:
         return False
 
-    class_end = _find_class_end(lines, class_index)
+    class_end = len(lines)
+    for index in range(class_index + 1, len(lines)):
+        stripped = lines[index].strip()
+        if not stripped:
+            continue
+        indent = len(lines[index]) - len(lines[index].lstrip())
+        if indent == 0:
+            class_end = index
+            break
+
     if _class_has_field(lines[class_index:class_end], field_name):
         return False
 
-    insert_at = _find_insert_index(lines, class_index, class_end)
+    insert_at = _find_insert_index(lines, class_index)
     rendered_field = _render_field_line(field_name, alias, sample_value)
     lines.insert(insert_at, rendered_field)
     source_path.write_text("\n".join(lines) + "\n")
@@ -342,23 +351,26 @@ def _find_class_index(lines: list[str], class_name: str) -> int | None:
     return None
 
 
-def _find_class_end(lines: list[str], class_index: int) -> int:
+def _find_insert_index(lines: list[str], class_index: int) -> int:
     for index in range(class_index + 1, len(lines)):
         stripped = lines[index].strip()
         if not stripped:
             continue
+
         indent = len(lines[index]) - len(lines[index].lstrip())
         if indent == 0:
-            return index
-    return len(lines)
+            return _rewind_blank_lines(lines, class_index + 1, index)
 
-
-def _find_insert_index(lines: list[str], class_index: int, class_end: int) -> int:
-    for index in range(class_index + 1, class_end):
         stripped = lines[index].lstrip()
         if stripped.startswith(("@", "def ")):
-            return index
-    return class_end
+            return _rewind_blank_lines(lines, class_index + 1, index)
+    return _rewind_blank_lines(lines, class_index + 1, len(lines))
+
+
+def _rewind_blank_lines(lines: list[str], lower_bound: int, index: int) -> int:
+    while index > lower_bound and not lines[index - 1].strip():
+        index -= 1
+    return index
 
 
 def _class_has_field(class_lines: list[str], field_name: str) -> bool:
