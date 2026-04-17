@@ -162,6 +162,8 @@ class PolymarketReadOnlyClobClient:
         token_id: str,
         tick_size: TickSize | None = None,
     ) -> TickSize:
+        if tick_size:
+            return tick_size
         min_tick_size = self.get_tick_size(token_id)
         if tick_size is not None:
             if is_tick_size_smaller(tick_size, min_tick_size):
@@ -176,6 +178,8 @@ class PolymarketReadOnlyClobClient:
         token_id: str,
         user_fee_rate: int | None = None,
     ) -> int:
+        if user_fee_rate:
+            return user_fee_rate
         market_fee_rate_bps = self.get_fee_rate_bps(token_id)
         # If both fee rate on the market and the user supplied fee rate are non-zero, validate that they match
         # else return the market fee rate
@@ -403,9 +407,10 @@ class PolymarketReadOnlyClobClient:
 
 
 def _detect_wallet_signature_type(
-        address: EthAddress,
+    address: EthAddress,
 ) -> Literal[0, 1, 2] | None:
     from web3 import Web3
+
     w3 = Web3(Web3.HTTPProvider("https://tenderly.rpc.polygon.community"))
     code = (
         w3.eth.get_code(w3.to_checksum_address(address))
@@ -953,17 +958,19 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
     def get_reward_markets(
         self,
         query: str | None = None,
-        sort_by: Literal[
-            "market",
-            "max_spread",
-            "min_size",
-            "rate_per_day",
-            "spread",
-            "price",
-            "earnings",
-            "earning_percentage",
-        ]
-        | None = "market",
+        sort_by: (
+            Literal[
+                "market",
+                "max_spread",
+                "min_size",
+                "rate_per_day",
+                "spread",
+                "price",
+                "earnings",
+                "earning_percentage",
+            ]
+            | None
+        ) = "market",
         sort_direction: Literal["ASC", "DESC"] | None = None,
         show_favorites: bool = False,
     ) -> list[RewardMarket]:
