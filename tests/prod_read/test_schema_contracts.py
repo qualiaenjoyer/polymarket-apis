@@ -651,7 +651,7 @@ def test_lb_profit_schema(
         "lb-api /profit",
         http_client,
         "https://lb-api.polymarket.com/profit",
-        params={"address": leaderboard_user.proxy_wallet, "window": "1d", "limit": 1},
+        params={"address": leaderboard_user.proxy_wallet, "window": "all", "limit": 1},
     )
     metrics = assert_api_contract("lb-api /profit", list[UserMetric], payload)
     if not metrics:
@@ -669,7 +669,7 @@ def test_lb_rank_schema(
         "https://lb-api.polymarket.com/rank",
         params={
             "address": leaderboard_user.proxy_wallet,
-            "window": "1d",
+            "window": "all",
             "rankType": "vol",
         },
     )
