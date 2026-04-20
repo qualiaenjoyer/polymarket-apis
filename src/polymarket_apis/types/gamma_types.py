@@ -614,6 +614,7 @@ class Event(BaseModel):
     turn_provider_id: Optional[str] = Field(None, alias="turnProviderId")
     election_type: Optional[str] = Field(None, alias="electionType")
     teams: Optional[list[Team]] = None
+    parent_event_id: int | None = Field(None, alias="parentEventId")
 
 
 class ProfilePosition(BaseModel):
