@@ -2138,7 +2138,7 @@ wheels = [
 
 [[package]]
 name = "polymarket-apis"
-version = "0.5.7"
+version = "0.5.8"
 source = { editable = "." }
 dependencies = [
     { name = "gql", extra = ["httpx"] },
