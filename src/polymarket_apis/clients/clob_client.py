@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import UTC, datetime, timedelta
+from time import monotonic
 from typing import Literal, Self, cast
 from urllib.parse import urljoin
 
@@ -97,13 +98,14 @@ logger = logging.getLogger(__name__)
 
 
 class PolymarketReadOnlyClobClient:
-    def __init__(self) -> None:
+    def __init__(self, tick_size_ttl: float = 300.0) -> None:
         self.client = httpx.Client(http2=True, timeout=30.0)
         self.async_client = httpx.AsyncClient(http2=True, timeout=30.0)
         self.base_url: str = "https://clob.polymarket.com"
+        self.tick_size_ttl = tick_size_ttl
 
         # local cache
-        self.__tick_sizes: dict[str, TickSize] = {}
+        self.__tick_sizes: dict[str, tuple[TickSize, float]] = {}
         self.__neg_risk: dict[str, bool] = {}
         self.__fee_rates: dict[str, int] = {}
 
@@ -122,17 +124,25 @@ class PolymarketReadOnlyClobClient:
         return datetime.fromtimestamp(response.json(), tz=UTC)
 
     def get_tick_size(self, token_id: str) -> TickSize:
-        if token_id in self.__tick_sizes:
-            return self.__tick_sizes[token_id]
+        cached = self.__tick_sizes.get(token_id)
+        if cached is not None:
+            tick_size, cached_at = cached
+            if monotonic() - cached_at < self.tick_size_ttl:
+                return tick_size
 
         params = {"token_id": token_id}
         response = self.client.get(self._build_url(GET_TICK_SIZE), params=params)
         response.raise_for_status()
-        self.__tick_sizes[token_id] = cast(
-            "TickSize", str(response.json()["minimum_tick_size"])
-        )
+        tick_size = cast("TickSize", str(response.json()["minimum_tick_size"]))
+        self.__tick_sizes[token_id] = (tick_size, monotonic())
 
-        return self.__tick_sizes[token_id]
+        return tick_size
+
+    def clear_tick_size_cache(self, token_id: str | None = None) -> None:
+        if token_id is None:
+            self.__tick_sizes.clear()
+            return
+        self.__tick_sizes.pop(token_id, None)
 
     def get_neg_risk(self, token_id: str) -> bool:
         if token_id in self.__neg_risk:
@@ -250,14 +260,22 @@ class PolymarketReadOnlyClobClient:
         params = {"token_id": token_id}
         response = self.client.get(self._build_url(GET_ORDER_BOOK), params=params)
         response.raise_for_status()
-        return OrderBookSummary(**response.json())
+        order_book = OrderBookSummary(**response.json())
+        if order_book.tick_size is not None:
+            self.__tick_sizes[token_id] = (order_book.tick_size, monotonic())
+        return order_book
 
     def get_order_books(self, token_ids: list[str]) -> list[OrderBookSummary]:
         """Get the orderbook for a set of tokens."""
         body = [{"token_id": token_id} for token_id in token_ids]
         response = self.client.post(self._build_url(GET_ORDER_BOOKS), json=body)
         response.raise_for_status()
-        return [OrderBookSummary(**obs) for obs in response.json()]
+        order_books = [OrderBookSummary(**obs) for obs in response.json()]
+        now = monotonic()
+        for order_book in order_books:
+            if order_book.tick_size is not None:
+                self.__tick_sizes[order_book.token_id] = (order_book.tick_size, now)
+        return order_books
 
     async def get_order_books_async(
         self, token_ids: list[str]
@@ -268,7 +286,12 @@ class PolymarketReadOnlyClobClient:
             self._build_url(GET_ORDER_BOOKS), json=body
         )
         response.raise_for_status()
-        return [OrderBookSummary(**obs) for obs in response.json()]
+        order_books = [OrderBookSummary(**obs) for obs in response.json()]
+        now = monotonic()
+        for order_book in order_books:
+            if order_book.tick_size is not None:
+                self.__tick_sizes[order_book.token_id] = (order_book.tick_size, now)
+        return order_books
 
     def get_market(self, condition_id: Keccak256) -> ClobMarket:
         """Get a ClobMarket by condition_id."""
