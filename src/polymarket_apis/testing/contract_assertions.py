@@ -8,7 +8,15 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from types import NoneType, UnionType
-from typing import TYPE_CHECKING, Annotated, Any, NoReturn, Union, get_args, get_origin
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    NoReturn,
+    Union,
+    get_args,
+    get_origin,
+)
 
 import httpx
 import pytest
@@ -387,18 +395,18 @@ def _render_field_line(field_name: str, alias: str, sample_value: Any) -> str:
 
 def _infer_field_type(value: Any) -> str:
     if isinstance(value, bool):
-        return "bool | None"
+        return "Optional[bool]"
     if isinstance(value, int):
-        return "int | None"
+        return "Optional[int]"
     if isinstance(value, float):
-        return "float | None"
+        return "Optional[float]"
     if isinstance(value, str):
-        return "str | None"
+        return "Optional[str]"
     if isinstance(value, list):
-        return "list[object] | None"
+        return "Optional[list[object]]"
     if isinstance(value, dict):
-        return "dict[str, object] | None"
-    return "object | None"
+        return "Optional[dict[str, object]]"
+    return "Optional[object]"
 
 
 def _normalize_field_name(alias: str) -> str:
