@@ -30,7 +30,7 @@ def generate_random_id(length: int = 16) -> str:
 
 class PolymarketGammaClient:
     def __init__(
-        self, 
+        self,
         base_url: str = "https://gamma-api.polymarket.com",
         proxy: str | None = None
     ):

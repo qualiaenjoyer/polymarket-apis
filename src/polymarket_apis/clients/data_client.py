@@ -30,7 +30,7 @@ from ..types.data_types import (
 
 class PolymarketDataClient:
     def __init__(
-        self, 
+        self,
         base_url: str = "https://data-api.polymarket.com",
         proxy: str | None = None
     ):

@@ -447,7 +447,7 @@ class PolymarketWeb3Client(BaseWeb3Client):
         proxy: str | None = None
     ):
         super().__init__(
-            private_key, signature_type, 
+            private_key, signature_type,
             chain_id=chain_id, rpc_url=rpc_url, proxy=proxy
         )
 
@@ -711,7 +711,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             raise ValueError(msg)
 
         super().__init__(
-            private_key, signature_type, 
+            private_key, signature_type,
             chain_id=chain_id, rpc_url=rpc_url, proxy=proxy
         )
 
