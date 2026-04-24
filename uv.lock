@@ -2207,7 +2207,7 @@ lint = [
 [package.metadata]
 requires-dist = [
     { name = "gql", extras = ["httpx"], specifier = ">=4.0.0" },
-    { name = "httpx", extras = ["http2", "socks"], specifier = ">=0.25.1" },
+    { name = "httpx", extras = ["http2", "socks"], specifier = ">=0.28.1" },
     { name = "lomond", specifier = ">=0.3.3" },
     { name = "poly-eip712-structs", specifier = ">=0.0.1" },
     { name = "py-order-utils", specifier = ">=0.3.2" },
