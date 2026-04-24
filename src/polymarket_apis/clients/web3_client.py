@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from json import dumps, load
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal, Optional, cast
 
 import httpx
 from eth_account.messages import encode_defunct
@@ -61,7 +61,7 @@ class BaseWeb3Client(ABC):
         signature_type: Literal[0, 1, 2],
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://tenderly.rpc.polygon.community",
-        proxy: str | None = None
+        proxy: Optional[str] = None
     ):
         self.client = httpx.Client(http2=True, timeout=30.0, proxy=proxy)
         self.w3 = Web3(Web3.HTTPProvider(rpc_url))
@@ -444,7 +444,7 @@ class PolymarketWeb3Client(BaseWeb3Client):
         signature_type: Literal[0, 1, 2] = 1,
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://tenderly.rpc.polygon.community",
-        proxy: str | None = None
+        proxy: Optional[str] = None
     ):
         super().__init__(
             private_key, signature_type,
@@ -704,7 +704,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         relayer_api_key: str,
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://tenderly.rpc.polygon.community",
-        proxy: str | None = None
+        proxy: Optional[str] = None
     ):
         if signature_type not in {1, 2}:
             msg = "PolymarketGaslessWeb3Client only supports signature_type=1 (Poly proxy wallets) and signature_type=2 (Safe wallets)."

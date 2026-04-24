@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import UTC, datetime, timedelta
 from time import monotonic
-from typing import Literal, Self, cast
+from typing import Literal, Optional, Self, cast
 from urllib.parse import urljoin
 
 import httpx
@@ -98,7 +98,7 @@ logger = logging.getLogger(__name__)
 
 
 class PolymarketReadOnlyClobClient:
-    def __init__(self, tick_size_ttl: float = 300.0, proxy: str | None = None) -> None:
+    def __init__(self, tick_size_ttl: float = 300.0, proxy: Optional[str] = None) -> None:
         self.client = httpx.Client(http2=True, timeout=30.0, proxy=proxy)
         self.async_client = httpx.AsyncClient(http2=True, timeout=30.0, proxy=proxy)
         self.base_url: str = "https://clob.polymarket.com"
@@ -453,10 +453,10 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
         address: EthAddress,
         creds: ApiCreds | None = None,
         chain_id: Literal[137, 80002] = POLYGON,
-        signature_type: Literal[0, 1, 2] | None = None,
-        # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet
+        signature_type: Literal[0, 1, 2] | None = None, # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet
+        proxy: Optional[str] = None,
     ) -> None:
-        super().__init__()
+        super().__init__(proxy=proxy)
         self.address = address
         self.signer = Signer(private_key=private_key, chain_id=chain_id)
         if signature_type is None:
