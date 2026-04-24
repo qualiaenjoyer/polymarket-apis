@@ -29,9 +29,13 @@ from ..types.data_types import (
 
 
 class PolymarketDataClient:
-    def __init__(self, base_url: str = "https://data-api.polymarket.com"):
+    def __init__(
+        self,
+        base_url: str = "https://data-api.polymarket.com",
+        proxy: Optional[str] = None
+    ):
         self.base_url = base_url
-        self.client = httpx.Client(http2=True, timeout=30.0)
+        self.client = httpx.Client(http2=True, timeout=30.0, proxy=proxy)
         self.gql_positions_client = PolymarketGraphQLClient(
             endpoint_name="positions_subgraph"
         )
