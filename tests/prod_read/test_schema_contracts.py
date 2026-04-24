@@ -306,7 +306,33 @@ def leaderboard_user(leaderboard_payload: list[dict[str, Any]]) -> LeaderboardUs
             leaderboard_payload,
         ),
     )
-    return users[0]
+    with httpx.Client(http2=True, timeout=30.0) as client:
+        for user in users:
+            try:
+                response = client.get(
+                    "https://lb-api.polymarket.com/profit",
+                    params={
+                        "address": user.proxy_wallet,
+                        "window": "all",
+                        "limit": 1,
+                    },
+                )
+                response.raise_for_status()
+            except httpx.HTTPError:
+                continue
+
+            payload = response.json()
+            metrics = assert_api_contract("lb-api /profit", list[UserMetric], payload)
+            if metrics:
+                return user
+
+    fail_contract(
+        "endpoint unavailable",
+        (
+            "lb-api /profit returned no rows for any sampled leaderboard user.\n"
+            "Tried the top 5 leaderboard candidates from data /v1/leaderboard."
+        ),
+    )
 
 
 @pytest.mark.prod_read
@@ -655,7 +681,10 @@ def test_lb_profit_schema(
     )
     metrics = assert_api_contract("lb-api /profit", list[UserMetric], payload)
     if not metrics:
-        fail_contract("endpoint unavailable", "lb-api /profit returned no rows.")
+        fail_contract(
+            "endpoint unavailable",
+            "lb-api /profit returned no rows for the selected leaderboard user.",
+        )
 
 
 @pytest.mark.prod_read

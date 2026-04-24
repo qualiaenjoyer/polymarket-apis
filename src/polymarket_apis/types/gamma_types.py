@@ -613,6 +613,8 @@ class Event(BaseModel):
     sportsradar_match_id: Optional[str] = Field(None, alias="sportsradarMatchId")
     turn_provider_id: Optional[str] = Field(None, alias="turnProviderId")
     election_type: Optional[str] = Field(None, alias="electionType")
+    teams: Optional[list[Team]] = None
+    parent_event_id: Optional[int] = Field(None, alias="parentEventId")
 
 
 class ProfilePosition(BaseModel):

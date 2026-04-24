@@ -1,6 +1,6 @@
 [project]
 name = "polymarket-apis"
-version = "0.5.7"
+version = "0.5.8"
 description = "Unified Polymarket APIs with Pydantic data validation - Clob, Gamma, Data, Web3, Websockets, GraphQL clients."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -167,8 +167,9 @@ lint.ignore = [
     "PLR2004",   # Pylint - magic-value-comparison
     "A001",      # Flake8-builtins - builtin-variable-shadowing
     "A002",      # Flake8-builtins - builtin-argument-shadowing
-    "FURB110",    # refurb - if-exp-instead-of-or-operator
-    "PLC0415"    # Pylint - import-outside-top-level
+    "FURB110",   # refurb - if-exp-instead-of-or-operator
+    "PLC0415",   # Pylint - import-outside-top-level
+    "RET503"     # Flake8-return - implicit-return
 ]
 
 

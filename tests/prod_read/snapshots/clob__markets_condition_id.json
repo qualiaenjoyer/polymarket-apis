@@ -1,6 +1,7 @@
 {
   "name": "clob /markets/{condition_id}",
   "shape": [
+    "$.accepting_order_timestamp:null",
     "$.accepting_order_timestamp:str",
     "$.accepting_orders:bool",
     "$.active:bool",
