@@ -25,6 +25,7 @@
     "$.events[].enableOrderBook:bool",
     "$.events[].endDate:str",
     "$.events[].ended:bool",
+    "$.events[].estimateValue:bool",
     "$.events[].eventMetadata.context_description:str",
     "$.events[].eventMetadata.context_requires_regen:bool",
     "$.events[].eventMetadata.context_updated_at:str",
