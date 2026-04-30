@@ -238,7 +238,7 @@ class BaseWeb3Client(ABC):
     def get_poly_proxy_address(self, address: EthAddress | None = None) -> EthAddress:
         """Get the Polymarket proxy address."""
         address = address or self.account.address
-        result = self.exchange.functions.getPolyProxyWalletAddress(address).call()
+        result = self.exchange.functions.getProxyWalletAddress(address).call()
         return cast("EthAddress", result)
 
     def get_safe_proxy_address(self, address: EthAddress | None = None) -> EthAddress:
