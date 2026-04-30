@@ -98,6 +98,13 @@ class BaseWeb3Client(ABC):
             self.ctf_collateral_adapter_address, self.ctf_collateral_adapter_abi
         )
 
+        self.ctf_auto_redeem_address = Web3.to_checksum_address(
+            "0xF3cFb6a6eBFeB51876289Eb235719EB1C65252B0"
+        )
+        self.ctf_auto_redeem = self._contract(
+            self.ctf_auto_redeem_address, _load_abi("CtfAutoRedeem")
+        )
+
         self.exchange_address = Web3.to_checksum_address(self.config.exchange)
         self.exchange_abi = _load_abi("CTFExchange")
         self.exchange = self._contract(self.exchange_address, self.exchange_abi)
@@ -161,11 +168,13 @@ class BaseWeb3Client(ABC):
         )
         return cast("str", abi)
 
-    def _encode_condition_tokens_approve(self, address: ChecksumAddress) -> str:
+    def _encode_condition_tokens_approve(
+        self, address: ChecksumAddress, approved: bool = True
+    ) -> str:
         """Encode conditional tokens approval transaction."""
         abi = self.conditional_tokens.encode_abi(
             abi_element_identifier="setApprovalForAll",
-            args=[address, True],
+            args=[address, approved],
         )
         return cast("str", abi)
 
@@ -434,6 +443,32 @@ class BaseWeb3Client(ABC):
         )
 
         return self._execute(to, data, "Convert Positions", metadata="convert")
+
+    def auto_redeem_enable(self) -> TransactionReceipt:
+        """Enable CTF auto-redeem as a ConditionalTokens operator."""
+        data = self._encode_condition_tokens_approve(
+            address=self.ctf_auto_redeem_address,
+            approved=True,
+        )
+        return self._execute(
+            self.conditional_tokens_address,
+            data,
+            "Auto Redeem Enable",
+            metadata="auto_redeem_enable",
+        )
+
+    def auto_redeem_disable(self) -> TransactionReceipt:
+        """Disable CTF auto-redeem as a ConditionalTokens operator."""
+        data = self._encode_condition_tokens_approve(
+            address=self.ctf_auto_redeem_address,
+            approved=False,
+        )
+        return self._execute(
+            self.conditional_tokens_address,
+            data,
+            "Auto Redeem Disable",
+            metadata="auto_redeem_disable",
+        )
 
 
 class PolymarketWeb3Client(BaseWeb3Client):
@@ -826,7 +861,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
                 "data": HexStr(encoded_txn),
             }
             estimated_gas = self.w3.eth.estimate_gas(estimation_txn)
-            gas_limit = str(int(estimated_gas * 1.3 + 100000))
+            gas_limit = str(int(estimated_gas * 1.3))
         except TimeExhausted as e:
             print(
                 f"Timeout during gas estimation for proxy transaction, using default: {e}"
