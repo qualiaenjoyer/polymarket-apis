@@ -90,6 +90,14 @@ class BaseWeb3Client(ABC):
             self.conditional_tokens_address, self.conditional_tokens_abi
         )
 
+        self.ctf_collateral_adapter_address = Web3.to_checksum_address(
+            "0xada100db00ca00073811820692005400218fce1f"
+        )
+        self.ctf_collateral_adapter_abi = _load_abi("CtfCollateralAdapter")
+        self.ctf_collateral_adapter = self._contract(
+            self.ctf_collateral_adapter_address, self.ctf_collateral_adapter_abi
+        )
+
         self.exchange_address = Web3.to_checksum_address(self.config.exchange)
         self.exchange_abi = _load_abi("CTFExchange")
         self.exchange = self._contract(self.exchange_address, self.exchange_abi)
@@ -197,7 +205,7 @@ class BaseWeb3Client(ABC):
 
     def _encode_redeem(self, condition_id: Keccak256) -> str:
         """Encode redeem positions transaction."""
-        abi = self.conditional_tokens.encode_abi(
+        abi = self.ctf_collateral_adapter.encode_abi(
             abi_element_identifier="redeemPositions",
             args=[self.pusd_address, HASH_ZERO, condition_id, [1, 2]],
         )
@@ -355,7 +363,7 @@ class BaseWeb3Client(ABC):
         to = (
             self.neg_risk_adapter_address
             if neg_risk
-            else self.conditional_tokens_address
+            else self.ctf_collateral_adapter_address
         )
         data = self._encode_split(condition_id, amount_int)
 
@@ -370,7 +378,7 @@ class BaseWeb3Client(ABC):
         to = (
             self.neg_risk_adapter_address
             if neg_risk
-            else self.conditional_tokens_address
+            else self.ctf_collateral_adapter_address
         )
         data = self._encode_merge(condition_id, amount_int)
 
@@ -394,7 +402,7 @@ class BaseWeb3Client(ABC):
         to = (
             self.neg_risk_adapter_address
             if neg_risk
-            else self.conditional_tokens_address
+            else self.ctf_collateral_adapter_address
         )
         data = (
             self._encode_redeem_neg_risk(condition_id, int_amounts)
@@ -617,6 +625,10 @@ class PolymarketWeb3Client(BaseWeb3Client):
         receipts.append(
             self.set_collateral_approval(spender=self.conditional_tokens_address)
         )
+        print("Approving CtfCollateralAdapter as spender on pUSD")
+        receipts.append(
+            self.set_collateral_approval(spender=self.ctf_collateral_adapter_address)
+        )
         print("Approving CTFExchange V2 as spender on pUSD")
         receipts.append(self.set_collateral_approval(spender=self.exchange_address))
         print("Approving NegRiskCtfExchange V2 as spender on pUSD")
@@ -638,6 +650,12 @@ class PolymarketWeb3Client(BaseWeb3Client):
         print("Approving NegRiskAdapter as spender on ConditionalTokens")
         receipts.append(
             self.set_conditional_tokens_approval(spender=self.neg_risk_adapter_address)
+        )
+        print("Approving CtfCollateralAdapter as spender on ConditionalTokens")
+        receipts.append(
+            self.set_conditional_tokens_approval(
+                spender=self.ctf_collateral_adapter_address
+            )
         )
         print("All approvals set!")
         return receipts
