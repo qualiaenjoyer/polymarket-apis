@@ -7,16 +7,17 @@ from urllib.parse import urljoin
 
 import httpx
 from httpx import HTTPStatusError
-from py_order_utils.model import SignedOrder
 
 from ..types.clob_types import (
     ApiCreds,
     BidAsk,
     BookParams,
     ClobMarket,
+    ClobMarketInfo,
     CreateOrderOptions,
     CryptoOutcome,
     DailyEarnedReward,
+    FeeInfo,
     MarketOrderArgs,
     MarketRewards,
     Midpoint,
@@ -54,10 +55,12 @@ from ..utilities.endpoints import (
     DERIVE_API_KEY,
     GET_API_KEYS,
     GET_BALANCE_ALLOWANCE,
+    GET_CLOB_MARKET_INFO,
     GET_FEE_RATE,
     GET_LAST_TRADE_PRICE,
     GET_LAST_TRADES_PRICES,
     GET_MARKET,
+    GET_MARKET_BY_TOKEN,
     GET_MARKETS,
     GET_NEG_RISK,
     GET_ORDER_BOOK,
@@ -87,10 +90,12 @@ from ..utilities.exceptions import (
 from ..utilities.headers import create_level_1_headers, create_level_2_headers
 from ..utilities.order_builder.builder import OrderBuilder
 from ..utilities.order_builder.helpers import (
+    adjust_market_buy_amount,
     is_tick_size_smaller,
     order_to_json,
     price_valid,
 )
+from ..utilities.order_builder.model import SignedOrder
 from ..utilities.signing.signer import Signer
 from ..utilities.web3.helpers import get_signature_type_from_runtime_code
 
@@ -108,6 +113,8 @@ class PolymarketReadOnlyClobClient:
         self.__tick_sizes: dict[str, tuple[TickSize, float]] = {}
         self.__neg_risk: dict[str, bool] = {}
         self.__fee_rates: dict[str, int] = {}
+        self.__fee_infos: dict[str, FeeInfo] = {}
+        self.__token_condition_map: dict[str, Keccak256] = {}
 
     def _build_url(self, endpoint: str) -> str:
         return urljoin(self.base_url, endpoint)
@@ -166,6 +173,38 @@ class PolymarketReadOnlyClobClient:
         self.__fee_rates[token_id] = fee_rate
 
         return fee_rate
+
+    def get_clob_market_info(self, condition_id: Keccak256) -> ClobMarketInfo:
+        response = self.client.get(self._build_url(f"{GET_CLOB_MARKET_INFO}{condition_id}"))
+        response.raise_for_status()
+        info = ClobMarketInfo(**response.json())
+        for token in info.tokens:
+            self.__token_condition_map[token.token_id] = condition_id
+            self.__tick_sizes[token.token_id] = (
+                cast("TickSize", str(info.minimum_tick_size)),
+                monotonic(),
+            )
+            self.__fee_infos[token.token_id] = FeeInfo(
+                rate=info.fee_data.rate,
+                exponent=float(info.fee_data.exponent),
+            )
+        return info
+
+    def _get_market_fee_info(self, token_id: str) -> FeeInfo:
+        if token_id in self.__fee_infos:
+            return self.__fee_infos[token_id]
+
+        condition_id = self.__token_condition_map.get(token_id)
+        if condition_id is None:
+            response = self.client.get(
+                self._build_url(f"{GET_MARKET_BY_TOKEN}{token_id}")
+            )
+            response.raise_for_status()
+            condition_id = response.json()["condition_id"]
+            self.__token_condition_map[token_id] = condition_id
+
+        self.get_clob_market_info(condition_id)
+        return self.__fee_infos.get(token_id, FeeInfo())
 
     def _resolve_tick_size(
         self,
@@ -447,6 +486,14 @@ def _detect_wallet_signature_type(
 
 
 class PolymarketClobClient(PolymarketReadOnlyClobClient):
+    @staticmethod
+    def _validate_post_only_order_type(
+        post_only: bool | None, order_type: OrderType
+    ) -> None:
+        if post_only and order_type in (OrderType.FOK, OrderType.FAK):
+            msg = "post_only is not supported for FOK/FAK orders"
+            raise ValueError(msg)
+
     def __init__(
         self,
         private_key: str,
@@ -543,7 +590,7 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
         response.raise_for_status()
         return cast("str", response.json())
 
-    def get_usdc_balance(self) -> float:
+    def get_pusd_balance(self) -> float:
         params = {
             "asset_type": "COLLATERAL",
             "signature_type": self.signature_type,
@@ -633,12 +680,6 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
             else self.get_neg_risk(order_args.token_id)
         )
 
-        # fee rate
-        fee_rate_bps = self._resolve_fee_rate(
-            order_args.token_id, order_args.fee_rate_bps
-        )
-        order_args.fee_rate_bps = fee_rate_bps
-
         return self.builder.create_order(
             order_args,
             CreateOrderOptions(
@@ -648,21 +689,27 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
         )
 
     def post_order(
-        self, order: SignedOrder, order_type: OrderType = OrderType.GTC
+        self,
+        order: SignedOrder,
+        order_type: OrderType = OrderType.GTC,
+        post_only: Optional[bool] = False,
+        defer_exec: Optional[bool] = False,
     ) -> OrderPostResponse | None:
         """Posts a SignedOrder."""
-        body = order_to_json(order, self.creds.key, order_type)
+        self._validate_post_only_order_type(post_only, order_type)
+        body = order_to_json(order, self.creds.key, order_type, post_only, defer_exec)
+        serialized = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
         headers = create_level_2_headers(
             self.signer,
             self.creds,
-            RequestArgs(method="POST", request_path=POST_ORDER, body=body),
+            RequestArgs(method="POST", request_path=POST_ORDER, body=serialized),
         )
 
         try:
             response = self.client.post(
                 self._build_url("/order"),
                 headers=headers,
-                content=json.dumps(body).encode("utf-8"),
+                content=serialized.encode("utf-8"),
             )
             response.raise_for_status()
             return OrderPostResponse(**response.json())
@@ -678,27 +725,49 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
         order_args: OrderArgs,
         options: PartialCreateOrderOptions | None = None,
         order_type: OrderType = OrderType.GTC,
+        post_only: Optional[bool] = False,
+        defer_exec: Optional[bool] = False,
     ) -> OrderPostResponse | None:
         """Utility function to create and publish an order."""
         order = self.create_order(order_args, options)
-        return self.post_order(order=order, order_type=order_type)
+        return self.post_order(
+            order=order,
+            order_type=order_type,
+            post_only=post_only,
+            defer_exec=defer_exec,
+        )
 
-    def post_orders(self, args: list[PostOrdersArgs]) -> list[OrderPostResponse] | None:
+    def post_orders(
+        self,
+        args: list[PostOrdersArgs],
+        post_only: Optional[bool] = False,
+        defer_exec: Optional[bool] = False,
+    ) -> list[OrderPostResponse] | None:
         """Posts multiple SignedOrders at once."""
+        for arg in args:
+            self._validate_post_only_order_type(post_only, arg.order_type)
         body = [
-            order_to_json(arg.order, self.creds.key, arg.order_type) for arg in args
+            order_to_json(
+                arg.order,
+                self.creds.key,
+                arg.order_type,
+                post_only,
+                defer_exec,
+            )
+            for arg in args
         ]
+        serialized = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
         headers = create_level_2_headers(
             self.signer,
             self.creds,
-            RequestArgs(method="POST", request_path=POST_ORDERS, body=body),
+            RequestArgs(method="POST", request_path=POST_ORDERS, body=serialized),
         )
 
         try:
             response = self.client.post(
                 self._build_url("/orders"),
                 headers=headers,
-                content=json.dumps(body).encode("utf-8"),
+                content=serialized.encode("utf-8"),
             )
             response.raise_for_status()
             order_responses = []
@@ -721,17 +790,25 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
             return order_responses
 
     def create_and_post_orders(
-        self, args: list[OrderArgs], order_types: list[OrderType]
+            self,
+            args: list[OrderArgs],
+            order_types: list[OrderType] | None = None
     ) -> list[OrderPostResponse] | None:
         """Utility function to create and publish multiple orders at once."""
-        return self.post_orders(
-            [
-                PostOrdersArgs(
-                    order=self.create_order(order_args), order_type=order_type
-                )
-                for order_args, order_type in zip(args, order_types, strict=True)
-            ],
-        )
+        if order_types is None:
+            order_types = [OrderType.GTC] * len(args)
+
+        if len(order_types) != len(args):
+            msg = "order_types must have same length as args"
+            raise ValueError(msg)
+
+        return self.post_orders([
+            PostOrdersArgs(
+                order=self.create_order(order_args),
+                order_type=order_type
+            )
+            for order_args, order_type in zip(args, order_types, strict=True)
+        ])
 
     def calculate_market_price(
         self, token_id: str, side: str, amount: float, order_type: OrderType
@@ -768,6 +845,8 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
         options: PartialCreateOrderOptions | None = None,
     ) -> SignedOrder:
         """Creates and signs a market order."""
+        self._get_market_fee_info(order_args.token_id)
+
         tick_size = self._resolve_tick_size(
             order_args.token_id,
             options.tick_size if options else None,
@@ -785,17 +864,21 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
             msg = f"price ({order_args.price}), min: {tick_size} - max: {1 - float(tick_size)}"
             raise InvalidPriceError(msg)
 
+        if order_args.side == "BUY" and order_args.user_usdc_balance:
+            fee_info = self._get_market_fee_info(order_args.token_id)
+            order_args.amount = adjust_market_buy_amount(
+                order_args.amount,
+                order_args.user_usdc_balance,
+                order_args.price,
+                fee_info.rate,
+                fee_info.exponent,
+            )
+
         neg_risk = (
             options.neg_risk
             if options and options.neg_risk is not None
             else self.get_neg_risk(order_args.token_id)
         )
-
-        # fee rate
-        fee_rate_bps = self._resolve_fee_rate(
-            order_args.token_id, order_args.fee_rate_bps
-        )
-        order_args.fee_rate_bps = fee_rate_bps
 
         return self.builder.create_market_order(
             order_args,
@@ -810,10 +893,16 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
         order_args: MarketOrderArgs,
         options: PartialCreateOrderOptions | None = None,
         order_type: OrderType = OrderType.FOK,
+        defer_exec: Optional[bool] = False,
     ) -> OrderPostResponse | None:
         """Utility function to create and publish a market order."""
         order = self.create_market_order(order_args, options)
-        return self.post_order(order=order, order_type=order_type)
+        return self.post_order(
+            order=order,
+            order_type=order_type,
+            post_only=False,
+            defer_exec=defer_exec,
+        )
 
     def cancel_order(self, order_id: Keccak256) -> OrderCancelResponse:
         """Cancels an order."""

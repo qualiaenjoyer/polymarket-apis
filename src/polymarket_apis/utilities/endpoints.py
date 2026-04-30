@@ -43,6 +43,8 @@ GET_SAMPLING_MARKETS = "/sampling-markets"
 GET_SIMPLIFIED_MARKETS = "/simplified-markets"
 GET_MARKETS = "/markets"
 GET_MARKET = "/markets/"
+GET_MARKET_BY_TOKEN = "/markets-by-token/"
+GET_CLOB_MARKET_INFO = "/clob-markets/"
 GET_MARKET_TRADES_EVENTS = "/live-activity/events/"
 
 # Market Data

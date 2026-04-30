@@ -11,12 +11,14 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from ..utilities.order_builder.model import SignedOrder
     from .clob_types import (
         ApiCreds,
         AssetType,
         BidAsk,
         BookParams,
         ClobMarket,
+        ClobMarketInfo,
         ContractConfig,
         CreateOrderOptions,
         DailyEarnedReward,
@@ -36,6 +38,7 @@ if TYPE_CHECKING:
         Price,
         PriceHistory,
         RewardMarket,
+        SignatureType,
         Spread,
         TickSize,
         Token,
@@ -110,6 +113,7 @@ __all__ = [
     "BidAsk",
     "BookParams",
     "ClobMarket",
+    "ClobMarketInfo",
     "ClobReward",
     "CommentEvent",
     "ContractConfig",
@@ -155,6 +159,8 @@ __all__ = [
     "RequestEvent",
     "RewardMarket",
     "Series",
+    "SignatureType",
+    "SignedOrder",
     "SportsGameUpdate",
     "Spread",
     "Tag",
@@ -188,6 +194,7 @@ _EXPORT_MAP = {
     "BidAsk": ".clob_types",
     "BookParams": ".clob_types",
     "ClobMarket": ".clob_types",
+    "ClobMarketInfo": ".clob_types",
     "ClobReward": ".gamma_types",
     "CommentEvent": ".websockets_types",
     "ContractConfig": ".clob_types",
@@ -233,6 +240,8 @@ _EXPORT_MAP = {
     "RequestEvent": ".websockets_types",
     "RewardMarket": ".clob_types",
     "Series": ".gamma_types",
+    "SignatureType": ".clob_types",
+    "SignedOrder": "..utilities.order_builder.model",
     "SportsGameUpdate": ".websockets_types",
     "Spread": ".clob_types",
     "Tag": ".gamma_types",
