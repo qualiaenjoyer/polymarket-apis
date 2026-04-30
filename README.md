@@ -188,6 +188,8 @@ Blockchain operations that pay gas.
   - merge complementary tokens into pUSD with `condition_id`, amount, and `neg_risk`
   - redeem token into pUSD with `condition_id`, amounts array of [`Yes` shares, `No` shares], and `neg_risk`
   - convert one or more `No` tokens in a negative risk event into a collection of pUSD and `Yes` tokens on the other markets in the event
+  - enable/disable auto-redeem
+
 
 ### PolymarketGaslessWeb3Client
 Relayed blockchain operations that do not pay gas.
@@ -203,6 +205,8 @@ Relayed blockchain operations that do not pay gas.
 - **Available operations**
   - balance methods from `PolymarketWeb3Client` (read only)
   - split / merge / convert / redeem (gasless)
+  - enable/disable auto-redeem
+
 
 ### PolymarketWebsocketsClient
 Real-time data subscriptions.
