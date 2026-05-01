@@ -140,6 +140,24 @@ class BaseWeb3Client(ABC):
         self.safe_proxy_factory = self._contract(
             self.safe_proxy_factory_address, self.safe_proxy_factory_abi
         )
+        self.multisend_address = Web3.to_checksum_address(
+            "0xa238cbeb142c10ef7ad8442c6d1f9e89e07e7761"
+        )
+        self.multisend = self._contract(
+            self.multisend_address,
+            cast(
+                "ABI",
+                [
+                    {
+                        "inputs": [{"name": "transactions", "type": "bytes"}],
+                        "name": "multiSend",
+                        "outputs": [],
+                        "stateMutability": "payable",
+                        "type": "function",
+                    }
+                ],
+            ),
+        )
 
     def _setup_address(self) -> None:
         """Setup address based on signature type."""
@@ -160,11 +178,11 @@ class BaseWeb3Client(ABC):
             abi=abi,
         )
 
-    def _encode_pusd_approve(self, address: ChecksumAddress) -> str:
+    def _encode_pusd_approve(self, address: ChecksumAddress, amount: int | None = None) -> str:
         """Encode pUSD approval transaction."""
         abi = self.pusd.encode_abi(
             abi_element_identifier="approve",
-            args=[address, int(MAX_INT, base=16)],
+            args=[address, int(MAX_INT, base=16) if amount is None else amount],
         )
         return cast("str", abi)
 
@@ -242,9 +260,32 @@ class BaseWeb3Client(ABC):
 
     def _encode_proxy(self, proxy_txn: dict[str, object]) -> str:
         """Encode proxy transaction."""
+        return self._encode_proxy_calls([proxy_txn])
+
+    def _encode_proxy_calls(self, proxy_txns: list[dict[str, object]]) -> str:
+        """Encode one or more proxy transactions."""
         abi = self.proxy_factory.encode_abi(
             abi_element_identifier="proxy",
-            args=[[proxy_txn]],
+            args=[proxy_txns],
+        )
+        return cast("str", abi)
+
+    def _encode_multisend(self, calls: list[dict[str, object]]) -> str:
+        """Encode Safe MultiSend payload for a list of CALL operations."""
+        encoded_transactions = b""
+        for call in calls:
+            data = cast("str", call["data"]).removeprefix("0x")
+            encoded_transactions += (
+                b"\x00"
+                + bytes.fromhex(cast("str", call["to"]).removeprefix("0x"))
+                + int(cast("int", call.get("value", 0))).to_bytes(32, "big")
+                + (len(data) // 2).to_bytes(32, "big")
+                + bytes.fromhex(data)
+            )
+
+        abi = self.multisend.encode_abi(
+            abi_element_identifier="multiSend",
+            args=[encoded_transactions],
         )
         return cast("str", abi)
 
@@ -470,6 +511,180 @@ class BaseWeb3Client(ABC):
             metadata="auto_redeem_disable",
         )
 
+    def set_collateral_approval(self, spender: ChecksumAddress) -> TransactionReceipt:
+        """Set approval for spender on pUSD collateral."""
+        data = self._encode_pusd_approve(address=spender)
+        return self._execute(
+            self.pusd_address,
+            data,
+            "Collateral Approval",
+            metadata="collateral_approval",
+        )
+
+    def set_conditional_tokens_approval(
+        self, spender: ChecksumAddress
+    ) -> TransactionReceipt:
+        """Set approval for spender on conditional tokens."""
+        data = self._encode_condition_tokens_approve(address=spender)
+        return self._execute(
+            self.conditional_tokens_address,
+            data,
+            "Conditional Tokens Approval",
+            metadata="conditional_tokens_approval",
+        )
+
+    def _approval_calls(self, approved: bool = True) -> list[dict[str, object]]:
+        pusd_approval_amount = int(MAX_INT, base=16) if approved else 0
+        return [
+            {
+                "to": self.pusd_address,
+                "data": self._encode_pusd_approve(
+                    address=self.ctf_collateral_adapter_address,
+                    amount=pusd_approval_amount,
+                ),
+            },
+            {
+                "to": self.pusd_address,
+                "data": self._encode_pusd_approve(
+                    address=self.exchange_address,
+                    amount=pusd_approval_amount,
+                ),
+            },
+            {
+                "to": self.pusd_address,
+                "data": self._encode_pusd_approve(
+                    address=self.neg_risk_exchange_address,
+                    amount=pusd_approval_amount,
+                ),
+            },
+            {
+                "to": self.pusd_address,
+                "data": self._encode_pusd_approve(
+                    address=self.neg_risk_adapter_address,
+                    amount=pusd_approval_amount,
+                ),
+            },
+            {
+                "to": self.conditional_tokens_address,
+                "data": self._encode_condition_tokens_approve(
+                    address=self.exchange_address,
+                    approved=approved,
+                ),
+            },
+            {
+                "to": self.conditional_tokens_address,
+                "data": self._encode_condition_tokens_approve(
+                    address=self.neg_risk_exchange_address,
+                    approved=approved,
+                ),
+            },
+            {
+                "to": self.conditional_tokens_address,
+                "data": self._encode_condition_tokens_approve(
+                    address=self.neg_risk_adapter_address,
+                    approved=approved,
+                ),
+            },
+            {
+                "to": self.conditional_tokens_address,
+                "data": self._encode_condition_tokens_approve(
+                    address=self.ctf_collateral_adapter_address,
+                    approved=approved,
+                ),
+            },
+        ]
+
+    def _execute_calls(
+        self,
+        calls: list[dict[str, object]],
+        operation_name: str,
+        metadata: str | None = None,
+    ) -> list[TransactionReceipt]:
+        """Execute calls sequentially by default."""
+        return [
+            self._execute(
+                cast("ChecksumAddress", call["to"]),
+                cast("str", call["data"]),
+                operation_name,
+                metadata=metadata,
+            )
+            for call in calls
+        ]
+
+    def set_all_approvals(self) -> list[TransactionReceipt]:
+        """Set all necessary approvals."""
+        print("Approving CtfCollateralAdapter as spender on pUSD")
+        print("Approving CTFExchange V2 as spender on pUSD")
+        print("Approving NegRiskCtfExchange V2 as spender on pUSD")
+        print("Approving NegRiskAdapter as spender on pUSD")
+        print("Approving CTFExchange V2 as spender on ConditionalTokens")
+        print("Approving NegRiskCtfExchange V2 as spender on ConditionalTokens")
+        print("Approving NegRiskAdapter as spender on ConditionalTokens")
+        print("Approving CtfCollateralAdapter as spender on ConditionalTokens")
+        receipts = self._execute_calls(
+            self._approval_calls(),
+            "Set All Approvals",
+            metadata="set_all_approvals",
+        )
+        print("All approvals set!")
+        return receipts
+
+    def set_all_disapprovals(self) -> list[TransactionReceipt]:
+        """Revoke all approvals managed by set_all_approvals."""
+        print("Revoking CtfCollateralAdapter as spender on pUSD")
+        print("Revoking CTFExchange V2 as spender on pUSD")
+        print("Revoking NegRiskCtfExchange V2 as spender on pUSD")
+        print("Revoking NegRiskAdapter as spender on pUSD")
+        print("Revoking CTFExchange V2 as spender on ConditionalTokens")
+        print("Revoking NegRiskCtfExchange V2 as spender on ConditionalTokens")
+        print("Revoking NegRiskAdapter as spender on ConditionalTokens")
+        print("Revoking CtfCollateralAdapter as spender on ConditionalTokens")
+        receipts = self._execute_calls(
+            self._approval_calls(approved=False),
+            "Set All Disapprovals",
+            metadata="set_all_disapprovals",
+        )
+        print("All approvals revoked!")
+        return receipts
+
+    def transfer_pusd(self, recipient: EthAddress, amount: float) -> TransactionReceipt:
+        """Transfer pUSD to recipient."""
+        balance = self.get_pusd_balance(address=self.address)
+        if balance < amount:
+            msg = f"Insufficient pUSD balance: {balance} < {amount}"
+            raise ValueError(msg)
+
+        amount_int = int(amount * 1e6)
+        data = self._encode_transfer_pusd(
+            self.w3.to_checksum_address(recipient), amount_int
+        )
+        return self._execute(
+            self.pusd_address,
+            data,
+            "pUSD Transfer",
+            metadata="pusd_transfer",
+        )
+
+    def transfer_token(
+        self, token_id: str, recipient: EthAddress, amount: float
+    ) -> TransactionReceipt:
+        """Transfer conditional token to recipient."""
+        balance = self.get_token_balance(token_id=token_id, address=self.address)
+        if balance < amount:
+            msg = f"Insufficient token balance: {balance} < {amount}"
+            raise ValueError(msg)
+
+        amount_int = int(amount * 1e6)
+        data = self._encode_transfer_token(
+            token_id, self.w3.to_checksum_address(recipient), amount_int
+        )
+        return self._execute(
+            self.conditional_tokens_address,
+            data,
+            "Token Transfer",
+            metadata="token_transfer",
+        )
+
 
 class PolymarketWeb3Client(BaseWeb3Client):
     """
@@ -552,35 +767,46 @@ class PolymarketWeb3Client(BaseWeb3Client):
         self, to: ChecksumAddress, data: str, base_transaction: TxParams
     ) -> TxParams:
         """Build transaction for Poly proxy wallet."""
-        proxy_txn = {
+        proxy_txn: dict[str, object] = {
             "typeCode": 1,
             "to": to,
             "value": 0,
             "data": data,
         }
 
+        return self._build_proxy_batch_transaction([proxy_txn], base_transaction)
+
+    def _build_proxy_batch_transaction(
+        self, proxy_txns: list[dict[str, object]], base_transaction: TxParams
+    ) -> TxParams:
+        """Build transaction for one or more Poly proxy wallet calls."""
+        encoded_txn = self._encode_proxy_calls(proxy_txns)
         estimation_txn: TxParams = {
-            "from": self.address,
-            "to": to,
-            "data": HexStr(data),
+            "from": self.account.address,
+            "to": self.proxy_factory_address,
+            "data": HexStr(encoded_txn),
         }
         estimated = self.w3.eth.estimate_gas(estimation_txn)
-        base_transaction["gas"] = int(estimated * 1.05) + 100000
+        base_transaction["gas"] = int(estimated * 1.05)
 
-        txn_data = self.proxy_factory.functions.proxy([proxy_txn]).build_transaction(
+        txn_data = self.proxy_factory.functions.proxy(proxy_txns).build_transaction(
             transaction=base_transaction
         )
         return txn_data
 
     def _build_safe_transaction(
-        self, to: ChecksumAddress, data: str, base_transaction: TxParams
+        self,
+        to: ChecksumAddress,
+        data: str,
+        base_transaction: TxParams,
+        operation: int = 0,
     ) -> TxParams:
         """Build transaction for Safe wallet."""
         safe_nonce = self.safe.functions.nonce().call()
         safe_txn: SafeTxn = {
             "to": to,
             "data": data,
-            "operation": 0,
+            "operation": operation,
             "value": 0,
         }
         packed_sig = get_packed_signature(
@@ -591,14 +817,6 @@ class PolymarketWeb3Client(BaseWeb3Client):
                 safe_nonce,
             )
         )
-
-        estimation_txn: TxParams = {
-            "from": self.address,
-            "to": to,
-            "data": HexStr(data),
-        }
-        estimated = self.w3.eth.estimate_gas(estimation_txn)
-        base_transaction["gas"] = int(estimated * 1.05) + 100000
 
         txn_data = self.safe.functions.execTransaction(
             safe_txn["to"],
@@ -613,7 +831,50 @@ class PolymarketWeb3Client(BaseWeb3Client):
             packed_sig,
         ).build_transaction(transaction=base_transaction)
 
+        estimated = self.w3.eth.estimate_gas(
+            cast("TxParams", {k: v for k, v in txn_data.items() if k != "gas"})
+        )
+        txn_data["gas"] = int(estimated * 1.05) + 100000
+
         return txn_data
+
+    def _execute_calls(
+        self,
+        calls: list[dict[str, object]],
+        operation_name: str,
+        metadata: str | None = None,
+    ) -> list[TransactionReceipt]:
+        """Execute a batch of calls when the wallet type supports batching."""
+        base_transaction = self._build_base_transaction()
+
+        match self.signature_type:
+            case 0:
+                return super()._execute_calls(calls, operation_name, metadata)
+            case 1:
+                proxy_txns = [
+                    {
+                        "typeCode": 1,
+                        "to": call["to"],
+                        "value": call.get("value", 0),
+                        "data": call["data"],
+                    }
+                    for call in calls
+                ]
+                txn_data = self._build_proxy_batch_transaction(
+                    proxy_txns, base_transaction
+                )
+            case 2:
+                txn_data = self._build_safe_transaction(
+                    self.multisend_address,
+                    self._encode_multisend(calls),
+                    base_transaction,
+                    operation=1,
+                )
+            case _:
+                msg = f"Invalid signature_type: {self.signature_type}"
+                raise ValueError(msg)
+
+        return [self._execute_transaction(txn_data, operation_name)]
 
     def _execute_transaction(
         self, txn_data: TxParams, operation_name: str
@@ -638,92 +899,6 @@ class PolymarketWeb3Client(BaseWeb3Client):
         )
 
         return receipt
-
-    def set_collateral_approval(self, spender: ChecksumAddress) -> TransactionReceipt:
-        """Set approval for spender on pUSD collateral."""
-        to = self.pusd_address
-        data = self._encode_pusd_approve(address=spender)
-        return self._execute(to, data, "Collateral Approval")
-
-    def set_conditional_tokens_approval(
-        self, spender: ChecksumAddress
-    ) -> TransactionReceipt:
-        """Set approval for spender on conditional tokens."""
-        to = self.conditional_tokens_address
-        data = self._encode_condition_tokens_approve(address=spender)
-        return self._execute(to, data, "Conditional Tokens Approval")
-
-    def set_all_approvals(self) -> list[TransactionReceipt]:
-        """Set all necessary approvals."""
-        receipts = []
-        print("Approving ConditionalTokens as spender on pUSD")
-        receipts.append(
-            self.set_collateral_approval(spender=self.conditional_tokens_address)
-        )
-        print("Approving CtfCollateralAdapter as spender on pUSD")
-        receipts.append(
-            self.set_collateral_approval(spender=self.ctf_collateral_adapter_address)
-        )
-        print("Approving CTFExchange V2 as spender on pUSD")
-        receipts.append(self.set_collateral_approval(spender=self.exchange_address))
-        print("Approving NegRiskCtfExchange V2 as spender on pUSD")
-        receipts.append(
-            self.set_collateral_approval(spender=self.neg_risk_exchange_address)
-        )
-        print("Approving NegRiskAdapter as spender on pUSD")
-        receipts.append(
-            self.set_collateral_approval(spender=self.neg_risk_adapter_address)
-        )
-        print("Approving CTFExchange V2 as spender on ConditionalTokens")
-        receipts.append(
-            self.set_conditional_tokens_approval(spender=self.exchange_address)
-        )
-        print("Approving NegRiskCtfExchange V2 as spender on ConditionalTokens")
-        receipts.append(
-            self.set_conditional_tokens_approval(spender=self.neg_risk_exchange_address)
-        )
-        print("Approving NegRiskAdapter as spender on ConditionalTokens")
-        receipts.append(
-            self.set_conditional_tokens_approval(spender=self.neg_risk_adapter_address)
-        )
-        print("Approving CtfCollateralAdapter as spender on ConditionalTokens")
-        receipts.append(
-            self.set_conditional_tokens_approval(
-                spender=self.ctf_collateral_adapter_address
-            )
-        )
-        print("All approvals set!")
-        return receipts
-
-    def transfer_pusd(self, recipient: EthAddress, amount: float) -> TransactionReceipt:
-        """Transfer pUSD to recipient."""
-        balance = self.get_pusd_balance(address=self.address)
-        if balance < amount:
-            msg = f"Insufficient pUSD balance: {balance} < {amount}"
-            raise ValueError(msg)
-
-        amount_int = int(amount * 1e6)
-        to = self.pusd_address
-        data = self._encode_transfer_pusd(
-            self.w3.to_checksum_address(recipient), amount_int
-        )
-        return self._execute(to, data, "pUSD Transfer")
-
-    def transfer_token(
-        self, token_id: str, recipient: EthAddress, amount: float
-    ) -> TransactionReceipt:
-        """Transfer conditional token to recipient."""
-        balance = self.get_token_balance(token_id=token_id, address=self.address)
-        if balance < amount:
-            msg = f"Insufficient token balance: {balance} < {amount}"
-            raise ValueError(msg)
-
-        amount_int = int(amount * 1e6)
-        to = self.conditional_tokens_address
-        data = self._encode_transfer_token(
-            token_id, self.w3.to_checksum_address(recipient), amount_int
-        )
-        return self._execute(to, data, "Token Transfer")
 
     def deploy_safe(self) -> TransactionReceipt:
         """Deploy a Safe wallet."""
@@ -792,6 +967,12 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
                 msg = f"Invalid signature_type: {self.signature_type}"
                 raise ValueError(msg)
 
+        return self._submit_relay_transaction(body, operation_name)
+
+    def _submit_relay_transaction(
+        self, body: dict[str, object], operation_name: str
+    ) -> TransactionReceipt:
+        """Submit a prepared relay transaction body and wait for a receipt."""
         headers = create_relayer_headers(
             self.relayer_api_key, self.get_base_address()
         )
@@ -826,6 +1007,40 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         msg = f"No transaction hash in response: {gasless_response}"
         raise ValueError(msg)
 
+    def _execute_calls(
+        self,
+        calls: list[dict[str, object]],
+        operation_name: str,
+        metadata: str | None = None,
+    ) -> list[TransactionReceipt]:
+        """Execute a batch of calls through the gasless relay."""
+        match self.signature_type:
+            case 1:
+                proxy_txns = [
+                    {
+                        "typeCode": 1,
+                        "to": call["to"],
+                        "value": call.get("value", 0),
+                        "data": call["data"],
+                    }
+                    for call in calls
+                ]
+                body = self._build_proxy_relay_transactions(
+                    proxy_txns, metadata or "batch"
+                )
+            case 2:
+                body = self._build_safe_relay_transaction(
+                    self.multisend_address,
+                    self._encode_multisend(calls),
+                    metadata or "batch",
+                    operation=1,
+                )
+            case _:
+                msg = f"Invalid signature_type: {self.signature_type}"
+                raise ValueError(msg)
+
+        return [self._submit_relay_transaction(body, operation_name)]
+
     def _get_relay_nonce(self, wallet_type: Literal["PROXY", "SAFE"]) -> int:
         """Get nonce from relay for Safe wallet."""
         url = f"{self.relay_url}/nonce"
@@ -841,18 +1056,20 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         self, to: ChecksumAddress, data: str, metadata: str
     ) -> dict[str, object]:
         """Build Proxy relay transaction body."""
+        return self._build_proxy_relay_transactions(
+            [{"typeCode": 1, "to": to, "value": 0, "data": data}],
+            metadata,
+        )
+
+    def _build_proxy_relay_transactions(
+        self, proxy_txns: list[dict[str, object]], metadata: str
+    ) -> dict[str, object]:
+        """Build Proxy relay transaction body for one or more calls."""
         proxy_nonce = self._get_relay_nonce(wallet_type="PROXY")
         gas_price = "0"
         relayer_fee = "0"
 
-        proxy_txn: dict[str, object] = {
-            "typeCode": 1,
-            "to": to,
-            "value": 0,
-            "data": data,
-        }
-
-        encoded_txn = self._encode_proxy(proxy_txn)
+        encoded_txn = self._encode_proxy_calls(proxy_txns)
 
         try:
             estimation_txn: TxParams = {
@@ -905,7 +1122,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         }
 
     def _build_safe_relay_transaction(
-        self, to: ChecksumAddress, data: str, metadata: str
+        self, to: ChecksumAddress, data: str, metadata: str, operation: int = 0
     ) -> dict[str, object]:
         """Build Safe relay transaction body."""
         safe_nonce = self._get_relay_nonce(wallet_type="SAFE")
@@ -913,7 +1130,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         safe_txn: SafeTxn = {
             "to": to,
             "data": data,
-            "operation": 0,
+            "operation": operation,
             "value": 0,
         }
 
@@ -941,7 +1158,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
                 "baseGas": "0",
                 "gasPrice": "0",
                 "gasToken": ADDRESS_ZERO,
-                "operation": "0",
+                "operation": str(operation),
                 "refundReceiver": ADDRESS_ZERO,
                 "safeTxnGas": "0",
             },
