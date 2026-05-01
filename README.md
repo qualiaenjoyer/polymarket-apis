@@ -163,49 +163,54 @@ Portfolio related operations.
   - get user rank on the profit/volume leaderboards by user address for a recent window (`1d`, `7d`, `30d`, `all`)
   - get top users on the profit/volume leaderboards for a recent window (`1d`, `7d`, `30d`, `all`)
 
-### PolymarketWeb3Client
-Blockchain operations that pay gas.
+### `PolymarketWeb3Client` / `PolymarketGaslessWeb3Client`
+
+Blockchain clients for blockchain based Polymarket operations. Both clients support the same core operations detailed below 
+
+- `PolymarketWeb3Client` submits transactions directly on-chain, so the base EOA for the provided `private_key` must hold POL for gas, regardless of `signature_type`.
+- `PolymarketGaslessWeb3Client` submits transactions through the relayer, and Polymarket pays for gas
+
 
 - **Authentication**
-  - `private_key`
-  - `signature_type`
+  - `PolymarketWeb3Client`
+    - `private_key`
+    - `signature_type`
+  - `PolymarketGaslessWeb3Client`
+    - `private_key`
+    - `signature_type`
+    - `relayer_api_key` - [get one here](https://polymarket.com/settings?tab=api-keys)
+      - the client derives `RELAYER_API_KEY_ADDRESS` from the wallet automatically
+
 - **Supported wallet types**
-  - `EOA` (`signature_type=0`)
-  - Email/Magic wallets (`signature_type=1`)
-  - Safe/Gnosis wallets (`signature_type=2`)
+  - `PolymarketWeb3Client`
+    - EOA wallets (`signature_type=0`)
+    - Email/Magic proxy wallets (`signature_type=1`)
+    - Safe/Gnosis wallets (`signature_type=2`)
+  - `PolymarketGaslessWeb3Client`
+    - EOA wallets (`signature_type=0`) are not supported for gasless transactions
+    - Email/Magic proxy wallets (`signature_type=1`)
+    - Safe/Gnosis wallets (`signature_type=2`)
+
 - **Setup and deployment**
-  - set approvals for all needed pUSD and conditional token spenders
-  - Safe/Gnosis wallet holders need to run `deploy_safe()` before setting approvals
-- **Balance**
+  - set approvals/disapprovals for all needed pUSD and conditional token spenders
+    - Safe/Gnosis wallet holders need to run `deploy_safe()` before using Safe transactions if the Safe has not been deployed yet
+
+- **Balances**
   - get POL balance by user address
   - get pUSD balance by user address
   - get token balance by `token_id` and user address
+
 - **Transfers**
   - transfer pUSD to another address with recipient address and amount
   - transfer token to another address with `token_id`, recipient address, and amount
+
 - **Token/pUSD conversions**
   - split pUSD into complementary tokens with `condition_id`, amount, and `neg_risk`
   - merge complementary tokens into pUSD with `condition_id`, amount, and `neg_risk`
-  - redeem token into pUSD with `condition_id`, amounts array of [`Yes` shares, `No` shares], and `neg_risk`
-  - convert one or more `No` tokens in a negative risk event into a collection of pUSD and `Yes` tokens on the other markets in the event
+  - redeem tokens into pUSD with `condition_id`, amounts array of [`Yes` shares, `No` shares], and `neg_risk`
+  - convert one or more `No` tokens in a negative-risk event into pUSD plus `Yes` tokens on the other markets in the event
   - enable/disable auto-redeem
 
-
-### PolymarketGaslessWeb3Client
-Relayed blockchain operations that do not pay gas.
-
-- **Authentication**
-  - `private_key`
-  - `signature_type`
-  - requires `relayer_api_key` - [get one here](https://polymarket.com/settings?tab=api-keys) 
-  - the client derives `RELAYER_API_KEY_ADDRESS` from the wallet automatically
-- **Supported wallet types**
-  - Email/Magic wallets (`signature_type=1`)
-  - Safe/Gnosis wallets (`signature_type=2`)
-- **Available operations**
-  - balance methods from `PolymarketWeb3Client` (read only)
-  - split / merge / convert / redeem (gasless)
-  - enable/disable auto-redeem
 
 
 ### PolymarketWebsocketsClient
