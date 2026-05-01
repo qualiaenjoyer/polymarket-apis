@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from json import dumps, load
 from pathlib import Path
+from time import sleep
 from typing import Literal, Optional, cast
 
 import httpx
@@ -907,7 +908,7 @@ class PolymarketWeb3Client(BaseWeb3Client):
             msg = f"Safe already deployed at {safe_address}"
             raise SafeAlreadyDeployedError(msg)
 
-        sig = create_safe_create_signature(account=self.account, chain_id=POLYGON)
+        sig = create_safe_create_signature(account=self.account, chain_id=self.chain_id)
         split_sig = split_signature(sig)
 
         base_transaction = self._build_base_transaction()
@@ -991,8 +992,12 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         print(f"Transaction ID: {gasless_response.get('transactionID', 'N/A')}")
         print(f"State: {gasless_response.get('state', 'N/A')}")
 
-        # Wait for confirmation and return receipt
         tx_hash = gasless_response.get("transactionHash")
+        if not tx_hash and gasless_response.get("transactionID"):
+            tx_hash = self._wait_for_relay_transaction_hash(
+                str(gasless_response["transactionID"])
+            )
+
         if tx_hash:
             receipt_dict = self.w3.eth.wait_for_transaction_receipt(tx_hash)
             receipt = TransactionReceipt.model_validate(receipt_dict)
@@ -1006,6 +1011,28 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             return receipt
         msg = f"No transaction hash in response: {gasless_response}"
         raise ValueError(msg)
+
+    def _wait_for_relay_transaction_hash(self, transaction_id: str) -> str | None:
+        """Poll the relayer until it attaches an on-chain transaction hash."""
+        url = f"{self.relay_url}/transaction"
+        for _ in range(100):
+            response = self.client.get(url, params={"id": transaction_id})
+            response.raise_for_status()
+            transactions = response.json()
+            transaction = transactions[0] if transactions else {}
+            state = transaction.get("state")
+
+            if state == "STATE_FAILED":
+                msg = f"Gasless transaction failed in relayer: {transaction}"
+                raise ValueError(msg)
+
+            tx_hash = transaction.get("transactionHash")
+            if tx_hash:
+                return cast("str", tx_hash)
+
+            sleep(2)
+
+        return None
 
     def _execute_calls(
         self,
@@ -1165,3 +1192,42 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             "to": to,
             "type": "SAFE",
         }
+
+    def _build_safe_create_relay_transaction(self) -> dict[str, object]:
+        """Build Safe deployment relay transaction body."""
+        signature = create_safe_create_signature(
+            account=self.account,
+            chain_id=self.chain_id,
+        )
+
+        return {
+            "data": "0x",
+            "from": self.get_base_address(),
+            "proxyWallet": self.get_safe_proxy_address(),
+            "signature": signature
+            if signature.startswith("0x")
+            else f"0x{signature}",
+            "signatureParams": {
+                "paymentToken": ADDRESS_ZERO,
+                "payment": "0",
+                "paymentReceiver": ADDRESS_ZERO,
+            },
+            "to": self.safe_proxy_factory_address,
+            "type": "SAFE-CREATE",
+        }
+
+    def deploy_safe(self) -> TransactionReceipt:
+        """Deploy a Safe wallet through the gasless relayer."""
+        if self.signature_type != 2:
+            msg = "Safe deployment is only available for signature_type=2. Proxy wallets auto-deploy on first transaction."
+            raise ValueError(msg)
+
+        safe_address = self.get_safe_proxy_address()
+        if self.w3.eth.get_code(self.w3.to_checksum_address(safe_address)) != b"":
+            msg = f"Safe already deployed at {safe_address}"
+            raise SafeAlreadyDeployedError(msg)
+
+        return self._submit_relay_transaction(
+            self._build_safe_create_relay_transaction(),
+            "Gnosis Safe Deployment",
+        )
