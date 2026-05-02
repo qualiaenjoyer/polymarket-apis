@@ -16,12 +16,13 @@ from web3.middleware import (
 )
 from web3.types import TxParams, Wei
 
+from ..types.clob_types import ApiCreds, RequestArgs
 from ..types.common import EthAddress, Keccak256
 from ..types.web3_types import TransactionReceipt
 from ..utilities.config import get_contract_config
 from ..utilities.constants import ADDRESS_ZERO, HASH_ZERO, POLYGON
 from ..utilities.exceptions import SafeAlreadyDeployedError
-from ..utilities.headers import create_relayer_headers
+from ..utilities.headers import create_level_2_headers, create_relayer_headers
 from ..utilities.signing.signer import Signer
 from ..utilities.web3.abis.custom_contract_errors import CUSTOM_ERROR_DICT
 from ..utilities.web3.helpers import (
@@ -83,6 +84,14 @@ class BaseWeb3Client(ABC):
         self.pusd_abi = _load_abi("CollateralToken")
         self.pusd = self._contract(self.pusd_address, self.pusd_abi)
 
+        self.usdc_e_address = Web3.to_checksum_address(
+            "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+        )
+
+        self.collateral_onramp_address = Web3.to_checksum_address(
+            "0x93070a847efEf7F70739046A929D47a521F5B8ee"
+        )
+
         self.conditional_tokens_address = Web3.to_checksum_address(
             self.config.conditional_tokens
         )
@@ -97,6 +106,14 @@ class BaseWeb3Client(ABC):
         self.ctf_collateral_adapter_abi = _load_abi("CtfCollateralAdapter")
         self.ctf_collateral_adapter = self._contract(
             self.ctf_collateral_adapter_address, self.ctf_collateral_adapter_abi
+        )
+
+        self.neg_risk_ctf_collateral_adapter = Web3.to_checksum_address(
+            "0xada2005600dec949baf300f4c6120000bdb6eaab"
+        )
+        self.neg_risk_ctf_collateral_abi = _load_abi("NegRiskCtfCollateralAdapter")
+        self.neg_risk_ctf_collateral = self._contract(
+            self.neg_risk_ctf_collateral_adapter, self.neg_risk_ctf_collateral_abi
         )
 
         self.ctf_auto_redeem_address = Web3.to_checksum_address(
@@ -141,24 +158,16 @@ class BaseWeb3Client(ABC):
         self.safe_proxy_factory = self._contract(
             self.safe_proxy_factory_address, self.safe_proxy_factory_abi
         )
+
         self.multisend_address = Web3.to_checksum_address(
             "0xa238cbeb142c10ef7ad8442c6d1f9e89e07e7761"
         )
+        self.multisend_abi = _load_abi("Multisend")
         self.multisend = self._contract(
-            self.multisend_address,
-            cast(
-                "ABI",
-                [
-                    {
-                        "inputs": [{"name": "transactions", "type": "bytes"}],
-                        "name": "multiSend",
-                        "outputs": [],
-                        "stateMutability": "payable",
-                        "type": "function",
-                    }
-                ],
-            ),
+            self.multisend_address, self.multisend_abi
         )
+
+
 
     def _setup_address(self) -> None:
         """Setup address based on signature type."""
@@ -179,8 +188,8 @@ class BaseWeb3Client(ABC):
             abi=abi,
         )
 
-    def _encode_pusd_approve(self, address: ChecksumAddress, amount: int | None = None) -> str:
-        """Encode pUSD approval transaction."""
+    def _encode_erc20_approve(self, address: ChecksumAddress, amount: int | None = None) -> str:
+        """Encode ERC-20 approval transaction."""
         abi = self.pusd.encode_abi(
             abi_element_identifier="approve",
             args=[address, int(MAX_INT, base=16) if amount is None else amount],
@@ -514,7 +523,7 @@ class BaseWeb3Client(ABC):
 
     def set_collateral_approval(self, spender: ChecksumAddress) -> TransactionReceipt:
         """Set approval for spender on pUSD collateral."""
-        data = self._encode_pusd_approve(address=spender)
+        data = self._encode_erc20_approve(address=spender)
         return self._execute(
             self.pusd_address,
             data,
@@ -534,66 +543,61 @@ class BaseWeb3Client(ABC):
             metadata="conditional_tokens_approval",
         )
 
-    def _approval_calls(self, approved: bool = True) -> list[dict[str, object]]:
-        pusd_approval_amount = int(MAX_INT, base=16) if approved else 0
-        return [
+    def _approval_calls(self, approving: bool = True) -> list[dict[str, object]]:
+        erc20_approval_amount = int(MAX_INT, base=16) if approving else 0
+        action = "Approving" if approving else "Revoking"
+        pusd_spenders = {
+            self.conditional_tokens_address: "ConditionalTokens",
+            self.ctf_collateral_adapter_address: "CtfCollateralAdapter",
+            self.neg_risk_ctf_collateral_adapter: "NegRiskCtfCollateralAdapter",
+            self.exchange_address: "CTFExchange V2",
+            self.neg_risk_exchange_address: "NegRiskCtfExchange V2",
+            self.neg_risk_adapter_address: "NegRiskAdapter",
+        }
+        ctf_spenders = {
+            self.ctf_collateral_adapter_address: "CtfCollateralAdapter",
+            self.neg_risk_ctf_collateral_adapter: "NegRiskCtfCollateralAdapter",
+            self.exchange_address: "CTFExchange V2",
+            self.neg_risk_exchange_address: "NegRiskCtfExchange V2",
+            self.neg_risk_adapter_address: "NegRiskAdapter",
+        }
+
+        calls: list[dict[str, object]] = []
+        for spender, name in pusd_spenders.items():
+            print(f"{action} {name} as spender on pUSD")
+            calls.append(
+                {
+                    "to": self.pusd_address,
+                    "data": self._encode_erc20_approve(
+                        address=spender,
+                        amount=erc20_approval_amount,
+                    ),
+                }
+            )
+
+        print(f"{action} CollateralOnramp as spender on USDC.e")
+        calls.append(
             {
-                "to": self.pusd_address,
-                "data": self._encode_pusd_approve(
-                    address=self.ctf_collateral_adapter_address,
-                    amount=pusd_approval_amount,
+                "to": self.usdc_e_address,
+                "data": self._encode_erc20_approve(
+                    self.collateral_onramp_address,
+                    amount=erc20_approval_amount,
                 ),
-            },
-            {
-                "to": self.pusd_address,
-                "data": self._encode_pusd_approve(
-                    address=self.exchange_address,
-                    amount=pusd_approval_amount,
-                ),
-            },
-            {
-                "to": self.pusd_address,
-                "data": self._encode_pusd_approve(
-                    address=self.neg_risk_exchange_address,
-                    amount=pusd_approval_amount,
-                ),
-            },
-            {
-                "to": self.pusd_address,
-                "data": self._encode_pusd_approve(
-                    address=self.neg_risk_adapter_address,
-                    amount=pusd_approval_amount,
-                ),
-            },
-            {
-                "to": self.conditional_tokens_address,
-                "data": self._encode_condition_tokens_approve(
-                    address=self.exchange_address,
-                    approved=approved,
-                ),
-            },
-            {
-                "to": self.conditional_tokens_address,
-                "data": self._encode_condition_tokens_approve(
-                    address=self.neg_risk_exchange_address,
-                    approved=approved,
-                ),
-            },
-            {
-                "to": self.conditional_tokens_address,
-                "data": self._encode_condition_tokens_approve(
-                    address=self.neg_risk_adapter_address,
-                    approved=approved,
-                ),
-            },
-            {
-                "to": self.conditional_tokens_address,
-                "data": self._encode_condition_tokens_approve(
-                    address=self.ctf_collateral_adapter_address,
-                    approved=approved,
-                ),
-            },
-        ]
+            }
+        )
+
+        for spender, name in ctf_spenders.items():
+            print(f"{action} {name} as spender on ConditionalTokens")
+            calls.append(
+                {
+                    "to": self.conditional_tokens_address,
+                    "data": self._encode_condition_tokens_approve(
+                        address=spender,
+                        approved=approving,
+                    ),
+                }
+            )
+        return calls
 
     def _execute_calls(
         self,
@@ -614,14 +618,6 @@ class BaseWeb3Client(ABC):
 
     def set_all_approvals(self) -> list[TransactionReceipt]:
         """Set all necessary approvals."""
-        print("Approving CtfCollateralAdapter as spender on pUSD")
-        print("Approving CTFExchange V2 as spender on pUSD")
-        print("Approving NegRiskCtfExchange V2 as spender on pUSD")
-        print("Approving NegRiskAdapter as spender on pUSD")
-        print("Approving CTFExchange V2 as spender on ConditionalTokens")
-        print("Approving NegRiskCtfExchange V2 as spender on ConditionalTokens")
-        print("Approving NegRiskAdapter as spender on ConditionalTokens")
-        print("Approving CtfCollateralAdapter as spender on ConditionalTokens")
         receipts = self._execute_calls(
             self._approval_calls(),
             "Set All Approvals",
@@ -632,16 +628,8 @@ class BaseWeb3Client(ABC):
 
     def set_all_disapprovals(self) -> list[TransactionReceipt]:
         """Revoke all approvals managed by set_all_approvals."""
-        print("Revoking CtfCollateralAdapter as spender on pUSD")
-        print("Revoking CTFExchange V2 as spender on pUSD")
-        print("Revoking NegRiskCtfExchange V2 as spender on pUSD")
-        print("Revoking NegRiskAdapter as spender on pUSD")
-        print("Revoking CTFExchange V2 as spender on ConditionalTokens")
-        print("Revoking NegRiskCtfExchange V2 as spender on ConditionalTokens")
-        print("Revoking NegRiskAdapter as spender on ConditionalTokens")
-        print("Revoking CtfCollateralAdapter as spender on ConditionalTokens")
         receipts = self._execute_calls(
-            self._approval_calls(approved=False),
+            self._approval_calls(approving=False),
             "Set All Disapprovals",
             metadata="set_all_disapprovals",
         )
@@ -930,13 +918,17 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         private_key: HexStr,
         signature_type: Literal[1, 2] = 1,
         *,
-        relayer_api_key: str,
+        relayer_api_key: str | None = None,
+        builder_creds: ApiCreds | None = None,
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://tenderly.rpc.polygon.community",
         proxy: Optional[str] = None
     ):
         if signature_type not in {1, 2}:
             msg = "PolymarketGaslessWeb3Client only supports signature_type=1 (Poly proxy wallets) and signature_type=2 (Safe wallets)."
+            raise ValueError(msg)
+        if relayer_api_key is None and builder_creds is None:
+            msg = "PolymarketGaslessWeb3Client requires either relayer_api_key or builder_creds."
             raise ValueError(msg)
 
         super().__init__(
@@ -950,6 +942,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         self.relay_hub = "0xD216153c06E857cD7f72665E0aF1d7D82172F494"
         self.relay_address = "0x7db63fe6d62eb73fb01f8009416f4c2bb4fbda6a"
         self.relayer_api_key = relayer_api_key
+        self.builder_creds = builder_creds
 
     def _execute(
         self,
@@ -974,14 +967,11 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         self, body: dict[str, object], operation_name: str
     ) -> TransactionReceipt:
         """Submit a prepared relay transaction body and wait for a receipt."""
-        headers = create_relayer_headers(
-            self.relayer_api_key, self.get_base_address()
-        )
-
         url = f"{self.relay_url}/submit"
-        response = self.client.post(
-            url, headers=headers, content=dumps(body).encode("utf-8")
-        )
+        content = dumps(body).encode("utf-8")
+        headers = self._create_relay_headers("/submit", "POST", content.decode())
+
+        response = self.client.post(url, headers=headers, content=content)
         response.raise_for_status()
 
         gasless_response = response.json()
@@ -993,13 +983,10 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         print(f"State: {gasless_response.get('state', 'N/A')}")
 
         tx_hash = gasless_response.get("transactionHash")
-        if not tx_hash and gasless_response.get("transactionID"):
-            tx_hash = self._wait_for_relay_transaction_hash(
-                str(gasless_response["transactionID"])
-            )
-
         if tx_hash:
-            receipt_dict = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            receipt_dict = self.w3.eth.wait_for_transaction_receipt(
+                cast("HexStr", tx_hash)
+            )
             receipt = TransactionReceipt.model_validate(receipt_dict)
 
             print(
@@ -1009,8 +996,47 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             )
 
             return receipt
+
+        transaction_id = gasless_response.get("transactionID")
+        if transaction_id:
+            tx_hash = self._wait_for_relay_transaction_hash(str(transaction_id))
+            if tx_hash:
+                receipt_dict = self.w3.eth.wait_for_transaction_receipt(
+                    cast("HexStr", tx_hash)
+                )
+                receipt = TransactionReceipt.model_validate(receipt_dict)
+
+                print(
+                    f"{operation_name} succeeded"
+                    if receipt.status == 1
+                    else f"{operation_name} failed"
+                )
+
+                return receipt
+
         msg = f"No transaction hash in response: {gasless_response}"
         raise ValueError(msg)
+
+    def _create_relay_headers(
+        self, request_path: str, method: Literal["POST"], body: str
+    ) -> dict[str, str]:
+        """Create headers for either relayer_api_key or builder_creds."""
+        if self.relayer_api_key is not None:
+            return create_relayer_headers(
+                self.relayer_api_key,
+                self.get_base_address(),
+            )
+
+        if self.builder_creds is None:
+            msg = "Missing relayer_api_key. Provide relayer_api_key or builder_creds."
+            raise ValueError(msg)
+
+        return create_level_2_headers(
+            self.signer,
+            self.builder_creds,
+            RequestArgs(method=method, request_path=request_path, body=body),
+            builder=True,
+        )
 
     def _wait_for_relay_transaction_hash(self, transaction_id: str) -> str | None:
         """Poll the relayer until it attaches an on-chain transaction hash."""
