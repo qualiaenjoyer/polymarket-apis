@@ -62,6 +62,7 @@ class LastTradePriceEvent(LastTradePrice):
     timestamp: datetime
     event_type: Literal["last_trade_price"]
 
+
 class BestBidAskEvent(BaseModel):
     condition_id: Keccak256 = Field(alias="market")
     token_id: str = Field(alias="asset_id")
@@ -71,12 +72,14 @@ class BestBidAskEvent(BaseModel):
     timestamp: datetime
     event_type: Literal["best_bid_ask"]
 
+
 class RelatedEvent(BaseModel):
     id: int
     ticker: str
     slug: str
     title: str
     description: str
+
 
 class MarketEvent(BaseModel):
     id: int
@@ -90,8 +93,10 @@ class MarketEvent(BaseModel):
     timestamp: datetime
     tags: Optional[list[str]] = None
 
+
 class NewMarketEvent(MarketEvent):
     event_type: Literal["new_market"]
+
 
 class MarketResolvedEvent(MarketEvent):
     winning_asset_id: str
@@ -354,10 +359,13 @@ class SportsGameUpdate(ScoreStateFields):
 
     home_team: Optional[str] = Field(None, alias="homeTeam")
     away_team: Optional[str] = Field(None, alias="awayTeam")
-    status: Optional[str] = None # Literal["InProgress", "Break", "Final", "finished", "running"]
+    status: Optional[str] = (
+        None  # Literal["InProgress", "Break", "Final", "finished", "running"]
+    )
 
     updated_at: Optional[datetime] = Field(None, alias="updatedAt")
     event_state: Optional[SportsEventState] = Field(None, alias="eventState")
+
 
 class ErrorEvent(BaseModel):
     message: str

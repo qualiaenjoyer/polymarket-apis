@@ -63,7 +63,7 @@ class BaseWeb3Client(ABC):
         signature_type: Literal[0, 1, 2],
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://tenderly.rpc.polygon.community",
-        proxy: Optional[str] = None
+        proxy: Optional[str] = None,
     ):
         self.client = httpx.Client(http2=True, timeout=30.0, proxy=proxy)
         self.w3 = Web3(Web3.HTTPProvider(rpc_url))
@@ -163,11 +163,7 @@ class BaseWeb3Client(ABC):
             "0xa238cbeb142c10ef7ad8442c6d1f9e89e07e7761"
         )
         self.multisend_abi = _load_abi("Multisend")
-        self.multisend = self._contract(
-            self.multisend_address, self.multisend_abi
-        )
-
-
+        self.multisend = self._contract(self.multisend_address, self.multisend_abi)
 
     def _setup_address(self) -> None:
         """Setup address based on signature type."""
@@ -188,7 +184,9 @@ class BaseWeb3Client(ABC):
             abi=abi,
         )
 
-    def _encode_erc20_approve(self, address: ChecksumAddress, amount: int | None = None) -> str:
+    def _encode_erc20_approve(
+        self, address: ChecksumAddress, amount: int | None = None
+    ) -> str:
         """Encode ERC-20 approval transaction."""
         abi = self.pusd.encode_abi(
             abi_element_identifier="approve",
@@ -328,7 +326,12 @@ class BaseWeb3Client(ABC):
             - None for other smart contracts / unknown wallet implementations
 
         """
-        code = self.w3.eth.get_code(self.w3.to_checksum_address(address)).hex().removeprefix("0x").lower()
+        code = (
+            self.w3.eth.get_code(self.w3.to_checksum_address(address))
+            .hex()
+            .removeprefix("0x")
+            .lower()
+        )
         return get_signature_type_from_runtime_code(code)
 
     def get_pol_balance(self) -> float:
@@ -691,11 +694,10 @@ class PolymarketWeb3Client(BaseWeb3Client):
         signature_type: Literal[0, 1, 2] = 1,
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://tenderly.rpc.polygon.community",
-        proxy: Optional[str] = None
+        proxy: Optional[str] = None,
     ):
         super().__init__(
-            private_key, signature_type,
-            chain_id=chain_id, rpc_url=rpc_url, proxy=proxy
+            private_key, signature_type, chain_id=chain_id, rpc_url=rpc_url, proxy=proxy
         )
 
     def _execute(
@@ -922,7 +924,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         builder_creds: ApiCreds | None = None,
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://tenderly.rpc.polygon.community",
-        proxy: Optional[str] = None
+        proxy: Optional[str] = None,
     ):
         if signature_type not in {1, 2}:
             msg = "PolymarketGaslessWeb3Client only supports signature_type=1 (Poly proxy wallets) and signature_type=2 (Safe wallets)."
@@ -932,8 +934,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             raise ValueError(msg)
 
         super().__init__(
-            private_key, signature_type,
-            chain_id=chain_id, rpc_url=rpc_url, proxy=proxy
+            private_key, signature_type, chain_id=chain_id, rpc_url=rpc_url, proxy=proxy
         )
 
         # Setup for gasless transactions
@@ -1230,9 +1231,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             "data": "0x",
             "from": self.get_base_address(),
             "proxyWallet": self.get_safe_proxy_address(),
-            "signature": signature
-            if signature.startswith("0x")
-            else f"0x{signature}",
+            "signature": signature if signature.startswith("0x") else f"0x{signature}",
             "signatureParams": {
                 "paymentToken": ADDRESS_ZERO,
                 "payment": "0",

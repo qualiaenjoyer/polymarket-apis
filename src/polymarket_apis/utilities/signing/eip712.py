@@ -1,6 +1,6 @@
 from typing import cast
 
-from ens.ens import HexStr
+from eth_typing import HexStr
 from eth_utils.crypto import keccak
 from poly_eip712_structs import EIP712Struct, make_domain
 
@@ -34,6 +34,4 @@ def sign_clob_auth_message(signer: Signer, timestamp: int, nonce: int) -> HexStr
             keccak(clob_auth_msg.signable_bytes(get_clob_auth_domain(chain_id))).hex(),
         ),
     )
-    return cast(
-        "HexStr", _prepend_zx(signer.sign(auth_struct_hash))
-    )
+    return cast("HexStr", _prepend_zx(signer.sign(auth_struct_hash)))

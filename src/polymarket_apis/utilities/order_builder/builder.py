@@ -1,7 +1,7 @@
 import time
 from typing import Literal
 
-from ens.ens import ChecksumAddress
+from eth_typing import ChecksumAddress
 
 from ...types.clob_types import (
     CreateOrderOptions,

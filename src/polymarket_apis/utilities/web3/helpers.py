@@ -2,10 +2,10 @@ import re
 from collections.abc import Iterable
 from typing import Any, Literal, NotRequired, TypedDict, cast
 
-from ens.ens import ChecksumAddress
 from eth_account import Account
 from eth_account.datastructures import SignedMessage
 from eth_account.messages import encode_defunct
+from eth_typing import ChecksumAddress
 from web3.constants import ADDRESS_ZERO
 from web3.contract import Contract
 
@@ -304,6 +304,7 @@ def create_proxy_struct(
     )
 
     return struct
+
 
 def get_signature_type_from_runtime_code(code: str) -> Literal[0, 1, 2] | None:
     match code:
