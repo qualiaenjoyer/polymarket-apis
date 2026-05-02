@@ -103,7 +103,9 @@ logger = logging.getLogger(__name__)
 
 
 class PolymarketReadOnlyClobClient:
-    def __init__(self, tick_size_ttl: float = 300.0, proxy: Optional[str] = None) -> None:
+    def __init__(
+        self, tick_size_ttl: float = 300.0, proxy: Optional[str] = None
+    ) -> None:
         self.client = httpx.Client(http2=True, timeout=30.0, proxy=proxy)
         self.async_client = httpx.AsyncClient(http2=True, timeout=30.0, proxy=proxy)
         self.base_url: str = "https://clob.polymarket.com"
@@ -175,7 +177,9 @@ class PolymarketReadOnlyClobClient:
         return fee_rate
 
     def get_clob_market_info(self, condition_id: Keccak256) -> ClobMarketInfo:
-        response = self.client.get(self._build_url(f"{GET_CLOB_MARKET_INFO}{condition_id}"))
+        response = self.client.get(
+            self._build_url(f"{GET_CLOB_MARKET_INFO}{condition_id}")
+        )
         response.raise_for_status()
         info = ClobMarketInfo(**response.json())
         for token in info.tokens:
@@ -465,9 +469,10 @@ class PolymarketReadOnlyClobClient:
 
 
 def _detect_wallet_signature_type(
-        address: EthAddress,
+    address: EthAddress,
 ) -> Literal[0, 1, 2] | None:
     from web3 import Web3
+
     w3 = Web3(Web3.HTTPProvider("https://tenderly.rpc.polygon.community"))
     code = (
         w3.eth.get_code(w3.to_checksum_address(address))
@@ -500,7 +505,8 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
         address: EthAddress,
         creds: ApiCreds | None = None,
         chain_id: Literal[137, 80002] = POLYGON,
-        signature_type: Literal[0, 1, 2] | None = None, # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet
+        signature_type: Literal[0, 1, 2]
+        | None = None,  # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet
         proxy: Optional[str] = None,
     ) -> None:
         super().__init__(proxy=proxy)
@@ -790,9 +796,7 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
             return order_responses
 
     def create_and_post_orders(
-            self,
-            args: list[OrderArgs],
-            order_types: list[OrderType] | None = None
+        self, args: list[OrderArgs], order_types: list[OrderType] | None = None
     ) -> list[OrderPostResponse] | None:
         """Utility function to create and publish multiple orders at once."""
         if order_types is None:
@@ -802,13 +806,14 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
             msg = "order_types must have same length as args"
             raise ValueError(msg)
 
-        return self.post_orders([
-            PostOrdersArgs(
-                order=self.create_order(order_args),
-                order_type=order_type
-            )
-            for order_args, order_type in zip(args, order_types, strict=True)
-        ])
+        return self.post_orders(
+            [
+                PostOrdersArgs(
+                    order=self.create_order(order_args), order_type=order_type
+                )
+                for order_args, order_type in zip(args, order_types, strict=True)
+            ]
+        )
 
     def calculate_market_price(
         self, token_id: str, side: str, amount: float, order_type: OrderType

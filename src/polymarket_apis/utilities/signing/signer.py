@@ -1,8 +1,7 @@
 from typing import TYPE_CHECKING
 
-from ens.ens import ChecksumAddress
 from eth_account import Account
-from eth_typing import HexStr
+from eth_typing import ChecksumAddress, HexStr
 
 if TYPE_CHECKING:
     from eth_account.datastructures import SignedMessage

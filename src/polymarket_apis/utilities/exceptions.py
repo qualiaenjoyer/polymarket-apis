@@ -24,4 +24,3 @@ class SafeAlreadyDeployedError(Exception):
 
 class BuilderRateLimitError(Exception):
     """Shared builder credentials have hit their rate limit."""
-

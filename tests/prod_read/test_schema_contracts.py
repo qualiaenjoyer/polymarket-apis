@@ -337,7 +337,9 @@ def leaderboard_user(leaderboard_payload: list[dict[str, Any]]) -> LeaderboardUs
 
 @pytest.mark.prod_read
 def test_gamma_markets_schema(gamma_markets_payload: list[dict[str, Any]]) -> None:
-    markets = assert_api_contract("gamma /markets", list[GammaMarket], gamma_markets_payload)
+    markets = assert_api_contract(
+        "gamma /markets", list[GammaMarket], gamma_markets_payload
+    )
     if not markets:
         fail_contract(
             "endpoint unavailable", "gamma /markets produced no validated markets."

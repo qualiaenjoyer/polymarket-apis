@@ -70,6 +70,7 @@ LIVE_DATA_EVENT_CLASSES: Mapping[str, type[LiveDataEvents]] = {
     "update": AssetPriceUpdateEvent,
 }
 
+
 def parse_json(event: Text) -> object | None:
     if not event.text or event.text.isspace():
         return None
@@ -102,7 +103,11 @@ def parse_event[T: BaseModel](
     typ_obj = message.get(event_type_field)
     typ = typ_obj if isinstance(typ_obj, str) else None
     if typ is None:
-        logger.warning("Missing or invalid event type field '%s' in message: %s", event_type_field, message)
+        logger.warning(
+            "Missing or invalid event type field '%s' in message: %s",
+            event_type_field,
+            message,
+        )
         return None
 
     cls = classes.get(typ)
@@ -137,6 +142,7 @@ def parse_live_data_event(text: Text) -> LiveDataEvents | None:
 
     return parse_event(message, LIVE_DATA_EVENT_CLASSES, "type")
 
+
 def parse_sports_event(text: Text) -> SportsGameUpdate | None:
     message = parse_json(text)
 
@@ -147,6 +153,7 @@ def parse_sports_event(text: Text) -> SportsGameUpdate | None:
         return None
 
     return substitute_cls(SportsGameUpdate, message)
+
 
 def _default_process_market_event(text: Text) -> None:
     ev = parse_market_event(text)
@@ -164,6 +171,7 @@ def _default_process_live_data_event(text: Text) -> None:
     ev = parse_live_data_event(text)
     if ev is not None:
         print(ev, "\n")
+
 
 def _default_process_sports_event(text: Text) -> None:
     ev = parse_sports_event(text)
@@ -253,7 +261,9 @@ class PolymarketWebsocketsClient:
             elif event.name == "text":
                 process_event(cast("Text", event))
 
-    def sports_socket(self, process_event: Callable[[Text], None] = _default_process_sports_event) -> None:
+    def sports_socket(
+        self, process_event: Callable[[Text], None] = _default_process_sports_event
+    ) -> None:
         websocket = WebSocket("wss://sports-api.polymarket.com/ws")
 
         for event in persist(websocket):

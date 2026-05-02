@@ -190,11 +190,15 @@ def _read_known_shape(snapshot_path: Path) -> list[str]:
     return []
 
 
-def _merge_shape_snapshot(snapshot_path: Path, name: str, observed_shape: list[str]) -> None:
+def _merge_shape_snapshot(
+    snapshot_path: Path, name: str, observed_shape: list[str]
+) -> None:
     known_shape = _read_known_shape(snapshot_path)
     merged = sorted(set(known_shape) | set(observed_shape))
     snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-    snapshot_path.write_text(json.dumps({"name": name, "shape": merged}, indent=2) + "\n")
+    snapshot_path.write_text(
+        json.dumps({"name": name, "shape": merged}, indent=2) + "\n"
+    )
 
 
 def _collect_unknown_field_observations(
@@ -476,7 +480,13 @@ def _is_root_model(annotation: Any) -> bool:
 
 
 def _snapshot_slug(name: str) -> str:
-    return name.lower().replace("/", "_").replace("{", "").replace("}", "").replace(" ", "_")
+    return (
+        name.lower()
+        .replace("/", "_")
+        .replace("{", "")
+        .replace("}", "")
+        .replace(" ", "_")
+    )
 
 
 def _format_items(items: list[str]) -> str:

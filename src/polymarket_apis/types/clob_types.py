@@ -280,9 +280,7 @@ class ClobMarketInfoRewards(BaseModel):
     min_size: Optional[float] = Field(default=None, alias="mi", ge=0)
     max_spread: Optional[float] = Field(default=None, alias="ma", ge=0)
     enabled: Optional[bool] = Field(default=None, alias="e")
-    minimum_order_age_seconds: Optional[int] = Field(
-        default=None, alias="moas", ge=0
-    )
+    minimum_order_age_seconds: Optional[int] = Field(default=None, alias="moas", ge=0)
 
 
 class ClobMarketInfo(BaseModel):
@@ -328,6 +326,7 @@ class MakerOrder(BaseModel):
     matched_amount: float
     price: float
     outcome: str
+
 
 class PolygonTrade(BaseModel):  # type: ignore[no-redef] # id is the same as trade_id
     trade_id: str = Field(alias="id")
@@ -377,7 +376,9 @@ class OrderSummary(BaseModel):
 class PriceLevel(OrderSummary):
     side: Literal["BUY", "SELL"]
 
+
 TickSize = Literal["0.1", "0.01", "0.001", "0.0001"]
+
 
 class OrderBookSummary(BaseModel):
     condition_id: Keccak256 = Field(alias="market")
@@ -392,7 +393,9 @@ class OrderBookSummary(BaseModel):
     neg_risk: Optional[bool] = None
 
     @field_validator("last_trade_price", mode="before")
-    def handle_empty_last_trade_price(cls, v: Optional[float] | Literal[""]) -> Optional[float]:
+    def handle_empty_last_trade_price(
+        cls, v: Optional[float] | Literal[""]
+    ) -> Optional[float]:
         if v == "":
             return None
         return v

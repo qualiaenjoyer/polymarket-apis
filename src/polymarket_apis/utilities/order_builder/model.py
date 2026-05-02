@@ -222,7 +222,8 @@ class OrderBuilder:
             or data.maker_amount is None
             or data.taker_amount is None
             or data.side not in [BUY_SIDE, SELL_SIDE]
-            or data.signature_type not in [None, EOA, POLY_PROXY, POLY_GNOSIS_SAFE, POLY_1271]
+            or data.signature_type
+            not in [None, EOA, POLY_PROXY, POLY_GNOSIS_SAFE, POLY_1271]
         ):
             msg = "Invalid order inputs"
             raise ValueError(msg)
