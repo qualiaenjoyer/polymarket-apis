@@ -178,8 +178,9 @@ Blockchain clients for blockchain based Polymarket operations. Both clients supp
   - `PolymarketGaslessWeb3Client`
     - `private_key`
     - `signature_type`
-    - `relayer_api_key` - [get one here](https://polymarket.com/settings?tab=api-keys)
+    - either `relayer_api_key` ([create here](https://polymarket.com/settings?tab=api-keys)) - unlimited rate limit
       - the client derives `RELAYER_API_KEY_ADDRESS` from the wallet automatically
+    - or `builder_creds` ([create here](https://polymarket.com/settings?tab=builder)) as `ApiCreds`
 
 - **Supported wallet types**
   - `PolymarketWeb3Client`
