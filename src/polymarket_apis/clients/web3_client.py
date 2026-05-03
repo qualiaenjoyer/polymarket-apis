@@ -162,7 +162,7 @@ class BaseWeb3Client(ABC):
         self.multisend_address = Web3.to_checksum_address(
             "0xa238cbeb142c10ef7ad8442c6d1f9e89e07e7761"
         )
-        self.multisend_abi = _load_abi("Multisend")
+        self.multisend_abi = _load_abi("MultiSend")
         self.multisend = self._contract(self.multisend_address, self.multisend_abi)
 
     def _setup_address(self) -> None:
