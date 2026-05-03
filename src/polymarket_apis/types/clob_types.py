@@ -169,6 +169,12 @@ class MarketRewards(BaseModel):
     market_competitiveness: float
 
 
+class MarketIDs(BaseModel):
+    condition_id: Keccak256
+    primary_token_id: str
+    secondary_token_id: str
+
+
 class ClobMarket(BaseModel):
     # Core market information
     token_ids: list[Token] = Field(alias="tokens")

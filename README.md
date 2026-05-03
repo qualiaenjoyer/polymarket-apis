@@ -64,12 +64,14 @@ Read-only order book related operations.
   - get one or more order books, best price, spread, midpoint, and last trade price by `token_id`
 - **Miscellaneous**
   - get market microstructure parameters by `condition_id` (`get_clob_market_info`) - tokens, tick size, minimum order size, fees, rewards, RFQ flags, and order-age settings
+  - get `condition_id` and its corresponding `token_id`s for a market by `token_id`
   - get crypto outcomes by `slug` for up/down markets
   - get recent price history by `token_id` in the last 1h, 6h, 1d, 1w, 1m
   - get price history by `token_id` in a start/end interval
   - get all price history by `token_id` in 2-minute increments
   - get `ClobMarket` by `condition_id`
   - get all `ClobMarkets`
+
 
 ### PolymarketClobClient
 Order book related operations.
@@ -85,6 +87,8 @@ Order book related operations.
 - **Orders**
   - create and post limit or market orders
   - cancel one or more orders by `order_id`
+  - cancel all orders for a `condition_id`/`token_id`
+  - cancel all orders
   - get active orders
   - send heartbeat to keep orders alive
 - **Trades**

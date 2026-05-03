@@ -18,6 +18,7 @@ from ..types.clob_types import (
     CryptoOutcome,
     DailyEarnedReward,
     FeeInfo,
+    MarketIDs,
     MarketOrderArgs,
     MarketRewards,
     Midpoint,
@@ -47,6 +48,7 @@ from ..utilities.endpoints import (
     ARE_ORDERS_SCORING,
     CANCEL,
     CANCEL_ALL,
+    CANCEL_MARKET_ORDERS,
     CANCEL_ORDERS,
     CREATE_API_KEY,
     CREATE_READONLY_API_KEY,
@@ -341,6 +343,12 @@ class PolymarketReadOnlyClobClient:
         response = self.client.get(self._build_url(GET_MARKET + condition_id))
         response.raise_for_status()
         return ClobMarket(**response.json())
+
+    def get_market_ids_from_token(self, token_id: str) -> MarketIDs:
+        """Resolve the parent condition and complementary token IDs for a token."""
+        response = self.client.get(self._build_url(f"{GET_MARKET_BY_TOKEN}{token_id}"))
+        response.raise_for_status()
+        return MarketIDs(**response.json())
 
     def get_markets(self, next_cursor: str = "MA==") -> PaginatedResponse[ClobMarket]:
         """Get paginated ClobMarkets."""
@@ -953,6 +961,36 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
         response = self.client.delete(self._build_url(CANCEL_ALL), headers=headers)
         response.raise_for_status()
         return OrderCancelResponse(**response.json())
+
+    def _cancel_orders_for_market(
+        self, body: dict[str, str]
+    ) -> OrderCancelResponse:
+        request_args = RequestArgs(
+            method="DELETE",
+            request_path=CANCEL_MARKET_ORDERS,
+            body=body,
+        )
+        headers = create_level_2_headers(self.signer, self.creds, request_args)
+
+        response = self.client.request(
+            "DELETE",
+            self._build_url(CANCEL_MARKET_ORDERS),
+            headers=headers,
+            content=json.dumps(body).encode("utf-8"),
+        )
+        response.raise_for_status()
+        return OrderCancelResponse(**response.json())
+
+    def cancel_orders_for_condition_id(
+        self,
+        condition_id: Keccak256,
+    ) -> OrderCancelResponse:
+        """Cancels all orders for both token_ids of a specific condition_id."""
+        return self._cancel_orders_for_market({"market": condition_id})
+
+    def cancel_orders_for_token_id(self, token_id: str) -> OrderCancelResponse:
+        """Cancels all orders for a specific token_id."""
+        return self._cancel_orders_for_market({"asset_id": token_id})
 
     def is_order_scoring(self, order_id: Keccak256) -> bool:
         """Check if the order is currently scoring."""
