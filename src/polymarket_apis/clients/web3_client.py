@@ -998,11 +998,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             case 2:
                 body = self._build_safe_relay_transaction(to, data, metadata or "")
             case 3:
-                body = self._build_deposit_wallet_relay_transaction(
-                    to,
-                    data,
-                    metadata or "",
-                )
+                body = self._build_deposit_relay_transaction(to, data, metadata or "")
             case _:
                 msg = f"Invalid signature_type: {self.signature_type}"
                 raise ValueError(msg)
@@ -1135,7 +1131,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
                     operation=1,
                 )
             case 3:
-                body = self._build_deposit_wallet_relay_transactions(
+                body = self._build_deposit_relay_transactions(
                     [
                         {
                             "target": call["to"],
@@ -1166,7 +1162,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
     def _build_deposit_wallet_calls(
         self, calls: list[DepositWalletCall | dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Normalize deposit-wallet calls into relay payload dicts."""
+        """Normalize Deposit wallet calls into relay payload dicts."""
         normalized_calls: list[dict[str, Any]] = []
         for call in calls:
             if isinstance(call, DepositWalletCall):
@@ -1189,7 +1185,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         deadline: str,
         calls: list[dict[str, Any]],
     ) -> str:
-        """Build the deposit-wallet batch signature."""
+        """Build the Deposit wallet batch signature."""
         typed_calls = [
             {
                 "target": call["target"],
@@ -1235,10 +1231,10 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         }
         return self.signer.sign_typed_data(full_message)
 
-    def _build_deposit_wallet_relay_transactions(
+    def _build_deposit_relay_transactions(
         self, calls: list[DepositWalletCall | dict[str, Any]], metadata: str
     ) -> dict[str, Any]:
-        """Build deposit-wallet relay transaction body for one or more calls."""
+        """Build Deposit wallet relay transaction body for one or more calls."""
         wallet_address = self.get_expected_deposit_wallet()
         wallet_nonce = str(self._get_relay_nonce(wallet_type="WALLET"))
         deadline = str(
@@ -1266,11 +1262,11 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             },
         }
 
-    def _build_deposit_wallet_relay_transaction(
+    def _build_deposit_relay_transaction(
         self, to: ChecksumAddress, data: str, metadata: str
     ) -> dict[str, Any]:
-        """Build deposit-wallet relay body for a single call."""
-        return self._build_deposit_wallet_relay_transactions(
+        """Build Deposit wallet relay body for a single call."""
+        return self._build_deposit_relay_transactions(
             [{"target": to, "value": "0", "data": data}],
             metadata,
         )
@@ -1417,8 +1413,24 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         metadata: str = "batch",
     ) -> list[TransactionReceipt]:
         """Execute an arbitrary batch through the deposit-wallet relay."""
-        body = self._build_deposit_wallet_relay_transactions(calls, metadata)
+        body = self._build_deposit_relay_transactions(calls, metadata)
         return [self._submit_relay_transaction(body, "Deposit Wallet Batch")]
+
+    def deploy_safe_wallet(self) -> TransactionReceipt:
+        """Deploy a Safe wallet through the gasless relayer."""
+        if self.signature_type != 2:
+            msg = "Safe deployment is only available for signature_type=2. Proxy wallets auto-deploy on first transaction."
+            raise ValueError(msg)
+
+        safe_address = self.get_safe_proxy_wallet_address()
+        if self.w3.eth.get_code(self.w3.to_checksum_address(safe_address)) != b"":
+            msg = f"Safe already deployed at {safe_address}"
+            raise SafeAlreadyDeployedError(msg)
+
+        return self._submit_relay_transaction(
+            self._build_safe_create_relay_transaction(),
+            "Gnosis Safe Deployment",
+        )
 
     def deploy_deposit_wallet(self) -> TransactionReceipt:
         """Deploy a deposit wallet through the gasless relayer."""
@@ -1440,19 +1452,3 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             "type": "WALLET-CREATE",
         }
         return self._submit_relay_transaction(body, "Deposit Wallet Deployment")
-
-    def deploy_safe_wallet(self) -> TransactionReceipt:
-        """Deploy a Safe wallet through the gasless relayer."""
-        if self.signature_type != 2:
-            msg = "Safe deployment is only available for signature_type=2. Proxy wallets auto-deploy on first transaction."
-            raise ValueError(msg)
-
-        safe_address = self.get_safe_proxy_wallet_address()
-        if self.w3.eth.get_code(self.w3.to_checksum_address(safe_address)) != b"":
-            msg = f"Safe already deployed at {safe_address}"
-            raise SafeAlreadyDeployedError(msg)
-
-        return self._submit_relay_transaction(
-            self._build_safe_create_relay_transaction(),
-            "Gnosis Safe Deployment",
-        )
