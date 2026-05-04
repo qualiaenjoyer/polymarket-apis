@@ -83,6 +83,7 @@ Order book related operations.
     - signature_type=0 for EOAs (Externally Owned Accounts)
     - signature_type=1 for Email/Magic wallets
     - signature_type=2 for Safe/Gnosis wallets
+    - signature_type=3 for Deposit wallets
 - All operations from `PolymarketReadOnlyClobClient`
 - **Orders**
   - create and post limit or market orders
