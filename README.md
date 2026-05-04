@@ -101,6 +101,7 @@ Order book related operations.
 - **Miscellaneous**
   - get pUSD balance
   - get token balance by `token_id`
+  - detect wallet signature type
 
 ### PolymarketGammaClient
 Market and event related operations.
@@ -192,29 +193,30 @@ Blockchain clients for blockchain based Polymarket operations. Both clients supp
     - Email/Magic proxy wallets (`signature_type=1`)
     - Safe/Gnosis wallets (`signature_type=2`)
   - `PolymarketGaslessWeb3Client`
-    - EOA wallets (`signature_type=0`) are not supported for gasless transactions
+    - EOA wallets (`signature_type=0`) are NOT supported for gasless transactions
     - Email/Magic proxy wallets (`signature_type=1`)
     - Safe/Gnosis wallets (`signature_type=2`)
+    - Deposit wallets (`signature_type=3`)
 
 - **Setup and deployment**
   - set approvals/disapprovals for all needed pUSD and conditional token spenders
-    - Safe/Gnosis wallet holders need to run `deploy_safe()` before using Safe transactions if the Safe has not been deployed yet
-
+    - Safe/Gnosis and Deposit wallet holders need to run `deploy_safe_wallet()` or `deploy_deposit_wallet()` respectively before using Safe transactions if the Safe has not been deployed yet
 - **Balances**
   - get POL balance by user address
   - get pUSD balance by user address
   - get token balance by `token_id` and user address
-
 - **Transfers**
   - transfer pUSD to another address with recipient address and amount
   - transfer token to another address with `token_id`, recipient address, and amount
-
 - **Token/pUSD conversions**
   - split pUSD into complementary tokens with `condition_id`, amount, and `neg_risk`
   - merge complementary tokens into pUSD with `condition_id`, amount, and `neg_risk`
   - redeem tokens into pUSD with `condition_id`, amounts array of [`Yes` shares, `No` shares], and `neg_risk`
   - convert one or more `No` tokens in a negative-risk event into pUSD plus `Yes` tokens on the other markets in the event
   - enable/disable auto-redeem
+- **Miscellaneous**
+  - detect wallet signature type
+  - get base/poly proxy/safe proxy/deposit wallet address from `private_key`
 
 
 
