@@ -2,13 +2,18 @@ import re
 from collections.abc import Iterable
 from typing import Any, Literal, NotRequired, TypedDict, cast
 
+from eth_abi.abi import encode
 from eth_account import Account
 from eth_account.datastructures import SignedMessage
 from eth_account.messages import encode_defunct
 from eth_typing import ChecksumAddress
+from eth_utils.address import to_checksum_address
+from eth_utils.conversions import to_bytes
+from eth_utils.crypto import keccak
 from web3.constants import ADDRESS_ZERO
 from web3.contract import Contract
 
+from ...types.common import EthAddress
 from ..web3 import constants
 
 
@@ -21,6 +26,30 @@ def get_index_set(question_ids: list[str]) -> int:
     """Calculate bitwise index set from question IDs."""
     indices = [get_market_index(question_id) for question_id in question_ids]
     return sum(1 << index for index in set(indices))
+
+
+def detect_wallet_signature_type(
+    address: EthAddress,
+    rpc_url: str = "https://tenderly.rpc.polygon.community",
+) -> Literal[0, 1, 2, 3] | None:
+    """Detect the signature type for a wallet address from runtime code."""
+    from web3 import Web3
+
+    w3 = Web3(Web3.HTTPProvider(rpc_url))
+    code = (
+        w3.eth.get_code(w3.to_checksum_address(address))
+        .hex()
+        .removeprefix("0x")
+        .lower()
+    )
+    signature_type = get_signature_type_from_runtime_code(code)
+    if signature_type is None:
+        msg = (
+            f"Could not auto-detect signature_type for funder address {address}. "
+            "The address has an unknown contract runtime; provide signature_type explicitly."
+        )
+        raise ValueError(msg)
+    return signature_type
 
 
 INT_REGEX = re.compile(r"^u?int(\d*)$")
@@ -209,6 +238,58 @@ def create_safe_create_signature(
     return signature.signature.hex()
 
 
+ERC1967_CONST1 = "0xcc3735a920a3ca505d382bbc545af43d6000803e6038573d6000fd5b3d6000f3"
+ERC1967_CONST2 = "0x5155f3363d3d373d3d363d7f360894a13ba1a3210667c828492db98dca3e2076"
+ERC1967_PREFIX = 0x61003D3D8160233D3973
+
+
+def get_create2_address(
+    bytecode_hash: str, from_address: str, salt: bytes
+) -> ChecksumAddress:
+    """Derive a CREATE2 address from init code hash, factory, and salt."""
+    payload = (
+        b"\xff"
+        + to_bytes(hexstr=from_address)
+        + salt
+        + to_bytes(hexstr=bytecode_hash)
+    )
+    return to_checksum_address("0x" + keccak(payload)[12:].hex())
+
+
+def init_code_hash_erc1967(implementation: str, args: bytes) -> str:
+    """Build the init code hash used by the deposit-wallet ERC1967 proxy."""
+    implementation = to_checksum_address(implementation)
+    n = len(args)
+    combined = ERC1967_PREFIX + (n << 56)
+    init_code = (
+        combined.to_bytes(10, "big")
+        + to_bytes(hexstr=implementation)
+        + to_bytes(hexstr="0x6009")
+        + to_bytes(hexstr=ERC1967_CONST2)
+        + to_bytes(hexstr=ERC1967_CONST1)
+        + args
+    )
+    return "0x" + keccak(init_code).hex()
+
+
+def derive_deposit_wallet(owner: str, factory: str, implementation: str) -> ChecksumAddress:
+    """Derive the expected deposit-wallet address from the controlling EOA."""
+    owner = to_checksum_address(owner)
+    factory = to_checksum_address(factory)
+    implementation = to_checksum_address(implementation)
+
+    wallet_id = to_bytes(hexstr=owner).rjust(32, b"\x00")
+    args = encode(["address", "bytes32"], [factory, wallet_id])
+    salt = keccak(args)
+    bytecode_hash = init_code_hash_erc1967(implementation, args)
+    wallet_address = get_create2_address(
+        bytecode_hash=bytecode_hash,
+        from_address=factory,
+        salt=salt,
+    )
+    return wallet_address
+
+
 class SafeTxn(TypedDict):
     to: ChecksumAddress
     value: int
@@ -306,7 +387,7 @@ def create_proxy_struct(
     return struct
 
 
-def get_signature_type_from_runtime_code(code: str) -> Literal[0, 1, 2] | None:
+def get_signature_type_from_runtime_code(code: str) -> Literal[0, 1, 2, 3] | None:
     match code:
         case "":
             return 0
@@ -314,5 +395,7 @@ def get_signature_type_from_runtime_code(code: str) -> Literal[0, 1, 2] | None:
             return 1
         case constants.SAFE_PROXY_RUNTIME_CODE:
             return 2
+        case _ if code.startswith(constants.DEPOSIT_RUNTIME_CODE):
+            return 3
         case _:
             return None

@@ -26,6 +26,7 @@ from .helpers import (
 from .model import (
     BUY_SIDE,
     EOA,
+    POLY_1271,
     SELL_SIDE,
     OrderData,
     SignedOrder,
@@ -54,10 +55,19 @@ class OrderBuilder:
         # Signature type used sign orders, defaults to EOA type
         self.sig_type = sig_type if sig_type is not None else EOA
 
+        if self.sig_type == POLY_1271 and funder is None:
+            msg = "signature type POLY_1271 requires a funder/deposit wallet address"
+            raise ValueError(msg)
+
         # Address which holds funds to be used.
         # Used for Polymarket proxy wallets and other smart contract wallets
         # Defaults to the address of the signer
         self.funder = funder if funder is not None else self.signer.address()
+
+    def _v2_order_signer(self) -> ChecksumAddress:
+        if self.sig_type == POLY_1271:
+            return self.funder
+        return self.signer.address()
 
     def get_order_amounts(
         self,
@@ -154,7 +164,7 @@ class OrderBuilder:
             maker_amount=str(maker_amount),
             taker_amount=str(taker_amount),
             side=side,
-            signer=self.signer.address(),
+            signer=self._v2_order_signer(),
             timestamp=str(time.time_ns() // 1_000_000),
             metadata=order_args.metadata,
             builder=order_args.builder_code,
@@ -194,7 +204,7 @@ class OrderBuilder:
             maker_amount=str(maker_amount),
             taker_amount=str(taker_amount),
             side=side,
-            signer=self.signer.address(),
+            signer=self._v2_order_signer(),
             timestamp=str(time.time_ns() // 1_000_000),
             metadata=order_args.metadata or BYTES32_ZERO,
             builder=order_args.builder_code or BYTES32_ZERO,

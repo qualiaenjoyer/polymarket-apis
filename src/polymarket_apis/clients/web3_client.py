@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from json import dumps, load
 from pathlib import Path
-from time import sleep
-from typing import Literal, Optional, cast
+from time import sleep, time
+from typing import Any, Literal, Optional, cast
 
 import httpx
 from eth_account.messages import encode_defunct
@@ -18,9 +18,15 @@ from web3.types import TxParams, Wei
 
 from ..types.clob_types import ApiCreds, RequestArgs
 from ..types.common import EthAddress, Keccak256
-from ..types.web3_types import TransactionReceipt
+from ..types.web3_types import DepositWalletCall, TransactionReceipt
 from ..utilities.config import get_contract_config
-from ..utilities.constants import ADDRESS_ZERO, HASH_ZERO, POLYGON
+from ..utilities.constants import (
+    ADDRESS_ZERO,
+    DEPOSIT_WALLET_DOMAIN_NAME,
+    DEPOSIT_WALLET_DOMAIN_VERSION,
+    HASH_ZERO,
+    POLYGON,
+)
 from ..utilities.exceptions import SafeAlreadyDeployedError
 from ..utilities.headers import create_level_2_headers, create_relayer_headers
 from ..utilities.signing.signer import Signer
@@ -29,6 +35,7 @@ from ..utilities.web3.helpers import (
     SafeTxn,
     create_proxy_struct,
     create_safe_create_signature,
+    derive_deposit_wallet,
     get_index_set,
     get_packed_signature,
     get_signature_type_from_runtime_code,
@@ -60,7 +67,7 @@ class BaseWeb3Client(ABC):
     def __init__(
         self,
         private_key: HexStr,
-        signature_type: Literal[0, 1, 2],
+        signature_type: Literal[0, 1, 2, 3],
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://tenderly.rpc.polygon.community",
         proxy: Optional[str] = None,
@@ -159,6 +166,13 @@ class BaseWeb3Client(ABC):
             self.safe_proxy_factory_address, self.safe_proxy_factory_abi
         )
 
+        self.deposit_wallet_factory_address = Web3.to_checksum_address(
+            "0x00000000000Fb5C9ADea0298D729A0CB3823Cc07"
+        )
+        self.deposit_wallet_implementation_address = Web3.to_checksum_address(
+            "0x58CA52ebe0DadfdF531Cde7062e76746de4Db1eB"
+        )
+
         self.multisend_address = Web3.to_checksum_address(
             "0xa238cbeb142c10ef7ad8442c6d1f9e89e07e7761"
         )
@@ -171,11 +185,13 @@ class BaseWeb3Client(ABC):
             case 0:
                 self.address = self.account.address
             case 1:
-                self.address = self.get_poly_proxy_address()
+                self.address = self.get_poly_proxy_wallet_address()
             case 2:
-                self.address = self.get_safe_proxy_address()
+                self.address = self.get_safe_proxy_wallet_address()
                 self.safe_abi = _load_abi("Safe")
                 self.safe = self._contract(self.address, self.safe_abi)
+            case 3:
+                self.address = self.get_expected_deposit_wallet()
 
     def _contract(self, address: AnyAddress | str | bytes, abi: ABI) -> Contract:
         """Create contract instance."""
@@ -297,33 +313,50 @@ class BaseWeb3Client(ABC):
         )
         return cast("str", abi)
 
-    def get_base_address(self) -> EthAddress:
+    def get_base_wallet_address(self) -> EthAddress:
         """Get the base EOA address."""
         return cast("EthAddress", self.account.address)
 
-    def get_poly_proxy_address(self, address: EthAddress | None = None) -> EthAddress:
+    def get_base_address(self) -> EthAddress:
+        """Compatibility alias for the base EOA address."""
+        return self.get_base_wallet_address()
+
+    def get_poly_proxy_wallet_address(self, address: EthAddress | None = None) -> EthAddress:
         """Get the Polymarket proxy address."""
         address = address or self.account.address
         result = self.exchange.functions.getProxyWalletAddress(address).call()
         return cast("EthAddress", result)
 
-    def get_safe_proxy_address(self, address: EthAddress | None = None) -> EthAddress:
+    def get_safe_proxy_wallet_address(self, address: EthAddress | None = None) -> EthAddress:
         """Get the Safe proxy address."""
         address = address or self.account.address
         result = self.safe_proxy_factory.functions.computeProxyAddress(address).call()
         return cast("EthAddress", result)
 
+    def get_deposit_wallet_address(self) -> EthAddress:
+        """Get the expected deposit wallet address."""
+        return derive_deposit_wallet(
+            self.account.address,
+            self.deposit_wallet_factory_address,
+            self.deposit_wallet_implementation_address,
+        )
+
+    def get_expected_deposit_wallet(self) -> EthAddress:
+        """Compatibility alias for the expected deposit wallet address."""
+        return self.get_deposit_wallet_address()
+
     def detect_wallet_signature_type(
         self, address: EthAddress
-    ) -> Literal[0, 1, 2] | None:
+    ) -> Literal[0, 1, 2, 3] | None:
         """
         Detect wallet signature type from an address.
 
         Returns:
-            - 0 for EOA
+            - 0 for EOA / undeployed smart contract computed address
             - 1 for Polymarket proxy wallet
             - 2 for Safe/Gnosis proxy wallet
-            - None for other smart contracts / unknown wallet implementations
+            - 3 for Deposit wallet
+
 
         """
         code = (
@@ -691,7 +724,7 @@ class PolymarketWeb3Client(BaseWeb3Client):
     def __init__(
         self,
         private_key: HexStr,
-        signature_type: Literal[0, 1, 2] = 1,
+        signature_type: Literal[0, 1, 2],
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://tenderly.rpc.polygon.community",
         proxy: Optional[str] = None,
@@ -891,9 +924,9 @@ class PolymarketWeb3Client(BaseWeb3Client):
 
         return receipt
 
-    def deploy_safe(self) -> TransactionReceipt:
+    def deploy_safe_wallet(self) -> TransactionReceipt:
         """Deploy a Safe wallet."""
-        safe_address = self.get_safe_proxy_address()
+        safe_address = self.get_safe_proxy_wallet_address()
         if self.w3.eth.get_code(self.w3.to_checksum_address(safe_address)) != b"":
             msg = f"Safe already deployed at {safe_address}"
             raise SafeAlreadyDeployedError(msg)
@@ -915,10 +948,12 @@ class PolymarketWeb3Client(BaseWeb3Client):
 class PolymarketGaslessWeb3Client(BaseWeb3Client):
     """Polymarket Web3 client for gasless transactions via relay."""
 
+    DEFAULT_DEPOSIT_WALLET_DEADLINE_SECONDS = 240
+
     def __init__(
         self,
         private_key: HexStr,
-        signature_type: Literal[1, 2] = 1,
+        signature_type: Literal[1, 2, 3],
         *,
         relayer_api_key: str | None = None,
         builder_creds: ApiCreds | None = None,
@@ -926,8 +961,12 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         rpc_url: str = "https://tenderly.rpc.polygon.community",
         proxy: Optional[str] = None,
     ):
-        if signature_type not in {1, 2}:
-            msg = "PolymarketGaslessWeb3Client only supports signature_type=1 (Poly proxy wallets) and signature_type=2 (Safe wallets)."
+        if signature_type not in {1, 2, 3}:
+            msg = (
+                "PolymarketGaslessWeb3Client only supports signature_type=1 "
+                "(Poly proxy wallets), signature_type=2 (Safe wallets), and "
+                "signature_type=3 (Deposit wallets)."
+            )
             raise ValueError(msg)
         if relayer_api_key is None and builder_creds is None:
             msg = "PolymarketGaslessWeb3Client requires either relayer_api_key or builder_creds."
@@ -958,6 +997,12 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
                 body = self._build_proxy_relay_transaction(to, data, metadata or "")
             case 2:
                 body = self._build_safe_relay_transaction(to, data, metadata or "")
+            case 3:
+                body = self._build_deposit_wallet_relay_transaction(
+                    to,
+                    data,
+                    metadata or "",
+                )
             case _:
                 msg = f"Invalid signature_type: {self.signature_type}"
                 raise ValueError(msg)
@@ -965,7 +1010,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         return self._submit_relay_transaction(body, operation_name)
 
     def _submit_relay_transaction(
-        self, body: dict[str, object], operation_name: str
+        self, body: dict[str, Any], operation_name: str
     ) -> TransactionReceipt:
         """Submit a prepared relay transaction body and wait for a receipt."""
         url = f"{self.relay_url}/submit"
@@ -1025,7 +1070,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         if self.relayer_api_key is not None:
             return create_relayer_headers(
                 self.relayer_api_key,
-                self.get_base_address(),
+                self.get_base_wallet_address(),
             )
 
         if self.builder_creds is None:
@@ -1063,7 +1108,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
 
     def _execute_calls(
         self,
-        calls: list[dict[str, object]],
+        calls: list[dict[str, Any]],
         operation_name: str,
         metadata: str | None = None,
     ) -> list[TransactionReceipt]:
@@ -1089,26 +1134,150 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
                     metadata or "batch",
                     operation=1,
                 )
+            case 3:
+                body = self._build_deposit_wallet_relay_transactions(
+                    [
+                        {
+                            "target": call["to"],
+                            "value": str(call.get("value", 0)),
+                            "data": call["data"],
+                        }
+                        for call in calls
+                    ],
+                    metadata or "batch",
+                )
             case _:
                 msg = f"Invalid signature_type: {self.signature_type}"
                 raise ValueError(msg)
 
         return [self._submit_relay_transaction(body, operation_name)]
 
-    def _get_relay_nonce(self, wallet_type: Literal["PROXY", "SAFE"]) -> int:
+    def _get_relay_nonce(self, wallet_type: Literal["PROXY", "SAFE", "WALLET"]) -> int:
         """Get nonce from relay for Safe wallet."""
         url = f"{self.relay_url}/nonce"
         params = {
-            "address": self.get_base_address(),
+            "address": self.get_base_wallet_address(),
             "type": wallet_type,
         }
         response = self.client.get(url, params=params)
         response.raise_for_status()
         return int(response.json()["nonce"])
 
+    def _build_deposit_wallet_calls(
+        self, calls: list[DepositWalletCall | dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Normalize deposit-wallet calls into relay payload dicts."""
+        normalized_calls: list[dict[str, Any]] = []
+        for call in calls:
+            if isinstance(call, DepositWalletCall):
+                normalized_calls.append(call.to_dict())
+                continue
+
+            normalized_calls.append(
+                {
+                    "target": call["target"],
+                    "value": str(call.get("value", "0")),
+                    "data": call["data"],
+                }
+            )
+        return normalized_calls
+
+    def _build_deposit_wallet_signature(
+        self,
+        wallet_address: str,
+        nonce: str,
+        deadline: str,
+        calls: list[dict[str, Any]],
+    ) -> str:
+        """Build the deposit-wallet batch signature."""
+        typed_calls = [
+            {
+                "target": call["target"],
+                "value": int(call.get("value", 0)),
+                "data": call["data"],
+            }
+            for call in calls
+        ]
+
+        full_message = {
+            "primaryType": "Batch",
+            "types": {
+                "EIP712Domain": [
+                    {"name": "name", "type": "string"},
+                    {"name": "version", "type": "string"},
+                    {"name": "chainId", "type": "uint256"},
+                    {"name": "verifyingContract", "type": "address"},
+                ],
+                "Call": [
+                    {"name": "target", "type": "address"},
+                    {"name": "value", "type": "uint256"},
+                    {"name": "data", "type": "bytes"},
+                ],
+                "Batch": [
+                    {"name": "wallet", "type": "address"},
+                    {"name": "nonce", "type": "uint256"},
+                    {"name": "deadline", "type": "uint256"},
+                    {"name": "calls", "type": "Call[]"},
+                ],
+            },
+            "domain": {
+                "name": DEPOSIT_WALLET_DOMAIN_NAME,
+                "version": DEPOSIT_WALLET_DOMAIN_VERSION,
+                "chainId": self.chain_id,
+                "verifyingContract": wallet_address,
+            },
+            "message": {
+                "wallet": wallet_address,
+                "nonce": int(nonce),
+                "deadline": int(deadline),
+                "calls": typed_calls,
+            },
+        }
+        return self.signer.sign_typed_data(full_message)
+
+    def _build_deposit_wallet_relay_transactions(
+        self, calls: list[DepositWalletCall | dict[str, Any]], metadata: str
+    ) -> dict[str, Any]:
+        """Build deposit-wallet relay transaction body for one or more calls."""
+        wallet_address = self.get_expected_deposit_wallet()
+        wallet_nonce = str(self._get_relay_nonce(wallet_type="WALLET"))
+        deadline = str(
+            int(time()) + self.DEFAULT_DEPOSIT_WALLET_DEADLINE_SECONDS
+        )
+        normalized_calls = self._build_deposit_wallet_calls(calls)
+        signature = self._build_deposit_wallet_signature(
+            wallet_address=str(wallet_address),
+            nonce=wallet_nonce,
+            deadline=deadline,
+            calls=normalized_calls,
+        )
+
+        return {
+            "from": self.get_base_wallet_address(),
+            "metadata": metadata,
+            "nonce": wallet_nonce,
+            "signature": signature,
+            "to": self.deposit_wallet_factory_address,
+            "type": "WALLET",
+            "depositWalletParams": {
+                "depositWallet": wallet_address,
+                "deadline": deadline,
+                "calls": normalized_calls,
+            },
+        }
+
+    def _build_deposit_wallet_relay_transaction(
+        self, to: ChecksumAddress, data: str, metadata: str
+    ) -> dict[str, Any]:
+        """Build deposit-wallet relay body for a single call."""
+        return self._build_deposit_wallet_relay_transactions(
+            [{"target": to, "value": "0", "data": data}],
+            metadata,
+        )
+
     def _build_proxy_relay_transaction(
         self, to: ChecksumAddress, data: str, metadata: str
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """Build Proxy relay transaction body."""
         return self._build_proxy_relay_transactions(
             [{"typeCode": 1, "to": to, "value": 0, "data": data}],
@@ -1117,7 +1286,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
 
     def _build_proxy_relay_transactions(
         self, proxy_txns: list[dict[str, object]], metadata: str
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """Build Proxy relay transaction body for one or more calls."""
         proxy_nonce = self._get_relay_nonce(wallet_type="PROXY")
         gas_price = "0"
@@ -1127,7 +1296,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
 
         try:
             estimation_txn: TxParams = {
-                "from": self.get_base_address(),
+                "from": self.get_base_wallet_address(),
                 "to": self.proxy_factory_address,
                 "data": HexStr(encoded_txn),
             }
@@ -1140,7 +1309,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             gas_limit = str(10_000_000)
 
         struct = create_proxy_struct(
-            from_address=self.get_base_address(),
+            from_address=self.get_base_wallet_address(),
             to=self.proxy_factory_address,
             data=encoded_txn,
             tx_fee=relayer_fee,
@@ -1159,10 +1328,10 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
 
         return {
             "data": encoded_txn,
-            "from": self.get_base_address(),
+            "from": self.get_base_wallet_address(),
             "metadata": metadata,
             "nonce": str(proxy_nonce),
-            "proxyWallet": self.get_poly_proxy_address(),
+            "proxyWallet": self.get_poly_proxy_wallet_address(),
             "signature": "0x" + signature,
             "signatureParams": {
                 "gasPrice": gas_price,
@@ -1177,7 +1346,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
 
     def _build_safe_relay_transaction(
         self, to: ChecksumAddress, data: str, metadata: str, operation: int = 0
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """Build Safe relay transaction body."""
         safe_nonce = self._get_relay_nonce(wallet_type="SAFE")
 
@@ -1203,10 +1372,10 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
 
         return {
             "data": safe_txn["data"],
-            "from": self.get_base_address(),
+            "from": self.get_base_wallet_address(),
             "metadata": metadata,
             "nonce": str(safe_nonce),
-            "proxyWallet": self.get_safe_proxy_address(),
+            "proxyWallet": self.get_safe_proxy_wallet_address(),
             "signature": "0x" + signature,
             "signatureParams": {
                 "baseGas": "0",
@@ -1220,7 +1389,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             "type": "SAFE",
         }
 
-    def _build_safe_create_relay_transaction(self) -> dict[str, object]:
+    def _build_safe_create_relay_transaction(self) -> dict[str, Any]:
         """Build Safe deployment relay transaction body."""
         signature = create_safe_create_signature(
             account=self.account,
@@ -1229,8 +1398,8 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
 
         return {
             "data": "0x",
-            "from": self.get_base_address(),
-            "proxyWallet": self.get_safe_proxy_address(),
+            "from": self.get_base_wallet_address(),
+            "proxyWallet": self.get_safe_proxy_wallet_address(),
             "signature": signature if signature.startswith("0x") else f"0x{signature}",
             "signatureParams": {
                 "paymentToken": ADDRESS_ZERO,
@@ -1241,13 +1410,44 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             "type": "SAFE-CREATE",
         }
 
-    def deploy_safe(self) -> TransactionReceipt:
+    def execute_deposit_wallet_batch(
+        self,
+        calls: list[DepositWalletCall | dict[str, Any]],
+        *,
+        metadata: str = "batch",
+    ) -> list[TransactionReceipt]:
+        """Execute an arbitrary batch through the deposit-wallet relay."""
+        body = self._build_deposit_wallet_relay_transactions(calls, metadata)
+        return [self._submit_relay_transaction(body, "Deposit Wallet Batch")]
+
+    def deploy_deposit_wallet(self) -> TransactionReceipt:
+        """Deploy a deposit wallet through the gasless relayer."""
+        if self.signature_type != 3:
+            msg = (
+                "Deposit wallet deployment is only available for "
+                "signature_type=3."
+            )
+            raise ValueError(msg)
+
+        deposit_wallet_address = self.get_expected_deposit_wallet()
+        if self.w3.eth.get_code(self.w3.to_checksum_address(deposit_wallet_address)) != b"":
+            msg = f"Deposit wallet already deployed at {deposit_wallet_address}"
+            raise ValueError(msg)
+
+        body = {
+            "from": self.get_base_wallet_address(),
+            "to": self.deposit_wallet_factory_address,
+            "type": "WALLET-CREATE",
+        }
+        return self._submit_relay_transaction(body, "Deposit Wallet Deployment")
+
+    def deploy_safe_wallet(self) -> TransactionReceipt:
         """Deploy a Safe wallet through the gasless relayer."""
         if self.signature_type != 2:
             msg = "Safe deployment is only available for signature_type=2. Proxy wallets auto-deploy on first transaction."
             raise ValueError(msg)
 
-        safe_address = self.get_safe_proxy_address()
+        safe_address = self.get_safe_proxy_wallet_address()
         if self.w3.eth.get_code(self.w3.to_checksum_address(safe_address)) != b"":
             msg = f"Safe already deployed at {safe_address}"
             raise SafeAlreadyDeployedError(msg)

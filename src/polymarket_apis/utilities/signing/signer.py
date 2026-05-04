@@ -1,6 +1,7 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from eth_account import Account
+from eth_account.messages import encode_typed_data
 from eth_typing import ChecksumAddress, HexStr
 
 if TYPE_CHECKING:
@@ -33,3 +34,11 @@ class Signer:
             message_hash, self.private_key
         )
         return signed_hash.signature.hex()
+
+    def sign_typed_data(self, full_message: dict[str, Any]) -> str:
+        """Signs EIP-712 typed data."""
+        message = encode_typed_data(full_message=full_message)
+        signed_message: SignedMessage = Account.sign_message(
+            message, self.private_key
+        )
+        return f"0x{signed_message.signature.hex()}"

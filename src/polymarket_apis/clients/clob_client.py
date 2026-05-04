@@ -99,7 +99,9 @@ from ..utilities.order_builder.helpers import (
 )
 from ..utilities.order_builder.model import SignedOrder
 from ..utilities.signing.signer import Signer
-from ..utilities.web3.helpers import get_signature_type_from_runtime_code
+from ..utilities.web3.helpers import (
+    detect_wallet_signature_type as detect_wallet_signature_type_from_runtime,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +129,20 @@ class PolymarketReadOnlyClobClient:
         response = self.client.get(self.base_url)
         response.raise_for_status()
         return cast("str", response.json())
+
+    def detect_wallet_signature_type(self, address: EthAddress) -> Literal[0, 1, 2, 3] | None:
+        """
+        Detect wallet signature type from an address.
+
+        Returns:
+            - 0 for EOA / undeployed smart contract computed address
+            - 1 for Polymarket proxy wallet
+            - 2 for Safe/Gnosis proxy wallet
+            - 3 for Deposit wallet
+
+
+        """
+        return detect_wallet_signature_type_from_runtime(address)
 
     def get_utc_time(self) -> datetime:
         # parse server timestamp into utc datetime
@@ -190,6 +206,10 @@ class PolymarketReadOnlyClobClient:
                 cast("TickSize", str(info.minimum_tick_size)),
                 monotonic(),
             )
+            if info.fee_data is None:
+                self.__fee_infos[token.token_id] = FeeInfo()
+                continue
+
             self.__fee_infos[token.token_id] = FeeInfo(
                 rate=info.fee_data.rate,
                 exponent=float(info.fee_data.exponent),
@@ -476,28 +496,6 @@ class PolymarketReadOnlyClobClient:
         await self.async_client.aclose()
 
 
-def _detect_wallet_signature_type(
-    address: EthAddress,
-) -> Literal[0, 1, 2] | None:
-    from web3 import Web3
-
-    w3 = Web3(Web3.HTTPProvider("https://tenderly.rpc.polygon.community"))
-    code = (
-        w3.eth.get_code(w3.to_checksum_address(address))
-        .hex()
-        .removeprefix("0x")
-        .lower()
-    )
-    signature_type = get_signature_type_from_runtime_code(code)
-    if signature_type is None:
-        msg = (
-            f"Could not auto-detect signature_type for funder address {address}. "
-            "The address has an unknown contract runtime; provide signature_type explicitly."
-        )
-        raise ValueError(msg)
-    return signature_type
-
-
 class PolymarketClobClient(PolymarketReadOnlyClobClient):
     @staticmethod
     def _validate_post_only_order_type(
@@ -513,15 +511,15 @@ class PolymarketClobClient(PolymarketReadOnlyClobClient):
         address: EthAddress,
         creds: ApiCreds | None = None,
         chain_id: Literal[137, 80002] = POLYGON,
-        signature_type: Literal[0, 1, 2]
-        | None = None,  # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet
+        signature_type: Literal[0, 1, 2, 3]
+        | None = None,  # 0 - EOA wallet, 1 - Proxy wallet, 2 - Gnosis Safe wallet, 3 - Deposit wallet
         proxy: Optional[str] = None,
     ) -> None:
         super().__init__(proxy=proxy)
         self.address = address
         self.signer = Signer(private_key=private_key, chain_id=chain_id)
         if signature_type is None:
-            signature_type = _detect_wallet_signature_type(address)
+            signature_type = self.detect_wallet_signature_type(address)
         self.signature_type = signature_type
         self.builder = OrderBuilder(
             signer=self.signer,

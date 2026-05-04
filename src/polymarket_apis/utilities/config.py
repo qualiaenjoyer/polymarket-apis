@@ -34,7 +34,6 @@ NEG_RISK_CONFIG = {
     ),
 }
 
-
 def get_contract_config(chain_id: int, neg_risk: bool = False) -> ContractConfig:
     """Get the contract configuration for the chain."""
     config = NEG_RISK_CONFIG.get(chain_id) if neg_risk else CONFIG.get(chain_id)
@@ -43,7 +42,6 @@ def get_contract_config(chain_id: int, neg_risk: bool = False) -> ContractConfig
         raise ValueError(msg)
 
     return config
-
 
 GRAPHQL_ENDPOINTS = {
     "activity_subgraph": "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/activity-subgraph/0.0.4/gn",

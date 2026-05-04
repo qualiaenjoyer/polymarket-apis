@@ -1,4 +1,5 @@
-from typing import Literal, Optional
+from dataclasses import dataclass
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -43,3 +44,17 @@ class TransactionReceipt(BaseModel):
 
     logs: list[TransactionLog]
     logs_bloom: HexString = Field(alias="logsBloom")
+
+
+@dataclass
+class DepositWalletCall:
+    target: str
+    value: str
+    data: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "target": self.target,
+            "value": self.value,
+            "data": self.data,
+        }

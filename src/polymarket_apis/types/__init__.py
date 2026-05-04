@@ -76,6 +76,7 @@ if TYPE_CHECKING:
         Series,
         Tag,
     )
+    from .web3_types import DepositWalletCall
     from .websockets_types import (
         ActivityOrderMatchEvent,
         ActivityTradeEvent,
@@ -120,6 +121,7 @@ __all__ = [
     "ContractConfig",
     "CreateOrderOptions",
     "DailyEarnedReward",
+    "DepositWalletCall",
     "EmptyString",
     "ErrorEvent",
     "EthAddress",
@@ -203,6 +205,7 @@ _EXPORT_MAP = {
     "ContractConfig": ".clob_types",
     "CreateOrderOptions": ".clob_types",
     "DailyEarnedReward": ".clob_types",
+    "DepositWalletCall": ".web3_types",
     "EmptyString": ".common",
     "ErrorEvent": ".websockets_types",
     "EthAddress": ".common",

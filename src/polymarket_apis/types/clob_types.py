@@ -297,12 +297,12 @@ class ClobMarketInfo(BaseModel):
     tokens: list[ClobMarketInfoToken] = Field(alias="t")
     minimum_order_size: float = Field(alias="mos")
     minimum_tick_size: float = Field(alias="mts")
-    maker_base_fee: int = Field(alias="mbf")
-    taker_base_fee: int = Field(alias="tbf")
+    maker_base_fee: Optional[int] = Field(None, alias="mbf")
+    taker_base_fee: Optional[int] = Field(None, alias="tbf")
     rfq_enabled: Optional[bool] = Field(None, alias="rfqe")
     taker_order_delay_enabled: Optional[bool] = Field(None, alias="itode")
     blockaid_check_enabled: bool = Field(alias="ibce")
-    fee_data: ClobFeeData = Field(alias="fd")
+    fee_data: Optional[ClobFeeData] = Field(None, alias="fd")
     minimum_order_age_seconds: Optional[int] = Field(None, alias="oas")
 
 
