@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import IntEnum, StrEnum
 from typing import Any, Literal, Optional, TypeVar, Union, cast
 
@@ -484,11 +484,21 @@ class OrderArgs(BaseModel):
     Side of the order
     """
 
-    expiration: int = 0
+    expiration: int | datetime = 0
     """
-    Timestamp after which the order is expired. This is posted to the API, but is
-    not part of the CLOB V2 signed EIP-712 order.
+    Timestamp after which the order is expired. Accepts Unix seconds or a
+    timezone-aware datetime. This is posted to the API, but is not part of the
+    CLOB V2 signed EIP-712 order.
     """
+
+    @field_validator("expiration", mode="before")
+    def normalize_expiration(cls, v: float | datetime) -> int:
+        if isinstance(v, datetime):
+            if v.tzinfo is None or v.utcoffset() is None:
+                msg = "expiration datetime must be timezone-aware"
+                raise ValueError(msg)
+            return int(v.astimezone(UTC).timestamp())
+        return int(v)
 
     builder_code: str = BYTES32_ZERO
     """

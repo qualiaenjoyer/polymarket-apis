@@ -1,3 +1,4 @@
+import logging
 from abc import ABC, abstractmethod
 from json import dumps, load
 from pathlib import Path
@@ -11,14 +12,18 @@ from web3 import Web3
 from web3.constants import MAX_INT
 from web3.eth import Contract
 from web3.exceptions import ContractCustomError, TimeExhausted
-from web3.middleware import (
-    ExtraDataToPOAMiddleware,
-)
-from web3.types import TxParams, Wei
+from web3.middleware import ExtraDataToPOAMiddleware
+from web3.types import Nonce, TxParams, Wei
 
 from ..types.clob_types import ApiCreds, RequestArgs
 from ..types.common import EthAddress, Keccak256
 from ..types.web3_types import DepositWalletCall, TransactionReceipt
+from ..utilities._internal_log import (
+    current_or_new_trace_id,
+    emit,
+    get_logger,
+    log_extra,
+)
 from ..utilities.config import get_contract_config
 from ..utilities.constants import (
     ADDRESS_ZERO,
@@ -27,7 +32,11 @@ from ..utilities.constants import (
     HASH_ZERO,
     POLYGON,
 )
-from ..utilities.exceptions import SafeAlreadyDeployedError
+from ..utilities.exceptions import (
+    SafeAlreadyDeployedError,
+    TransactionFailedError,
+    TransactionTimeoutError,
+)
 from ..utilities.headers import create_level_2_headers, create_relayer_headers
 from ..utilities.signing.signer import Signer
 from ..utilities.web3.abis.custom_contract_errors import CUSTOM_ERROR_DICT
@@ -43,6 +52,16 @@ from ..utilities.web3.helpers import (
     split_signature,
 )
 
+logger = get_logger(__name__)
+
+
+def _display_decimal(value: Any, max_decimals: int = 6) -> str:
+    return f"{float(value):.{max_decimals}f}".rstrip("0").rstrip(".")
+
+
+def _web3_action(operation_name: str) -> str:
+    return operation_name.replace(" Position", "").replace(" Positions", "").upper()
+
 
 def _load_abi(contract_name: str) -> ABI:
     abi_path = (
@@ -54,6 +73,26 @@ def _load_abi(contract_name: str) -> ABI:
     )
     with Path.open(abi_path) as f:
         return cast("ABI", load(f))
+
+
+class NonceManager:
+    """Thread-safe in-memory nonce tracker to avoid nonce collisions."""
+
+    def __init__(self, w3: Web3, address: str) -> None:
+        self.w3 = w3
+        self.address = Web3.to_checksum_address(address)
+        self._pending: int | None = None
+
+    def next(self) -> int:
+        chain_nonce = self.w3.eth.get_transaction_count(self.address, "pending")
+        if self._pending is None or chain_nonce > self._pending:
+            self._pending = chain_nonce
+        else:
+            self._pending += 1
+        return self._pending
+
+    def reset(self) -> None:
+        self._pending = None
 
 
 class BaseWeb3Client(ABC):
@@ -71,6 +110,8 @@ class BaseWeb3Client(ABC):
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://tenderly.rpc.polygon.community",
         proxy: Optional[str] = None,
+        *,
+        logger: Optional[Any] = None,
     ):
         self.client = httpx.Client(http2=True, timeout=30.0, proxy=proxy)
         self.w3 = Web3(Web3.HTTPProvider(rpc_url))
@@ -78,10 +119,12 @@ class BaseWeb3Client(ABC):
 
         self.account = self.w3.eth.account.from_key(private_key)
         self.signature_type = signature_type
+        self.logger = logger or get_logger(f"{__name__}.{id(self)}")
 
         self.config = get_contract_config(chain_id, neg_risk=False)
         self.neg_risk_config = get_contract_config(chain_id, neg_risk=True)
         self.chain_id = chain_id
+        self._nonce_manager = NonceManager(self.w3, self.account.address)
         self._setup_contracts()
         self._setup_address()
 
@@ -321,13 +364,17 @@ class BaseWeb3Client(ABC):
         """Compatibility alias for the base EOA address."""
         return self.get_base_wallet_address()
 
-    def get_poly_proxy_wallet_address(self, address: EthAddress | None = None) -> EthAddress:
+    def get_poly_proxy_wallet_address(
+        self, address: EthAddress | None = None
+    ) -> EthAddress:
         """Get the Polymarket proxy address."""
         address = address or self.account.address
         result = self.exchange.functions.getProxyWalletAddress(address).call()
         return cast("EthAddress", result)
 
-    def get_safe_proxy_wallet_address(self, address: EthAddress | None = None) -> EthAddress:
+    def get_safe_proxy_wallet_address(
+        self, address: EthAddress | None = None
+    ) -> EthAddress:
         """Get the Safe proxy address."""
         address = address or self.account.address
         result = self.safe_proxy_factory.functions.computeProxyAddress(address).call()
@@ -356,7 +403,6 @@ class BaseWeb3Client(ABC):
             - 1 for Polymarket proxy wallet
             - 2 for Safe/Gnosis proxy wallet
             - 3 for Deposit wallet
-
 
         """
         code = (
@@ -422,7 +468,6 @@ class BaseWeb3Client(ABC):
             "0x"
             + self.neg_risk_adapter.functions.getConditionId(question_id).call().hex()
         )
-
         return cast("Keccak256", keccak)
 
     @abstractmethod
@@ -454,6 +499,24 @@ class BaseWeb3Client(ABC):
         self, condition_id: Keccak256, amount: float, neg_risk: bool
     ) -> TransactionReceipt:
         """Split pUSD into two complementary positions."""
+        trace_id = current_or_new_trace_id()
+        emit(
+            self.logger,
+            logging.INFO,
+            "web3.position.split.requested",
+            "SPLIT %s pUSD condition_id=%s neg_risk=%s",
+            _display_decimal(amount),
+            condition_id,
+            neg_risk,
+            operation="split_position",
+            web3_action="SPLIT",
+            phase="requested",
+            condition_id=condition_id,
+            amount=amount,
+            atomic_amount=int(amount * 1e6),
+            neg_risk=neg_risk,
+            trace_id=trace_id,
+        )
         amount_int = int(amount * 1e6)
 
         to = (
@@ -469,6 +532,24 @@ class BaseWeb3Client(ABC):
         self, condition_id: Keccak256, amount: float, neg_risk: bool
     ) -> TransactionReceipt:
         """Merge two complementary positions into pUSD."""
+        trace_id = current_or_new_trace_id()
+        emit(
+            self.logger,
+            logging.INFO,
+            "web3.position.merge.requested",
+            "MERGE %s shares condition_id=%s neg_risk=%s",
+            _display_decimal(amount),
+            condition_id,
+            neg_risk,
+            operation="merge_position",
+            web3_action="MERGE",
+            phase="requested",
+            condition_id=condition_id,
+            amount=amount,
+            atomic_amount=int(amount * 1e6),
+            neg_risk=neg_risk,
+            trace_id=trace_id,
+        )
         amount_int = int(amount * 1e6)
 
         to = (
@@ -493,6 +574,24 @@ class BaseWeb3Client(ABC):
             neg_risk: Whether this is a neg risk market
 
         """
+        trace_id = current_or_new_trace_id()
+        emit(
+            self.logger,
+            logging.INFO,
+            "web3.position.redeem.requested",
+            "REDEEM amounts=%s condition_id=%s neg_risk=%s",
+            [_display_decimal(amount) for amount in amounts],
+            condition_id,
+            neg_risk,
+            operation="redeem_position",
+            web3_action="REDEEM",
+            phase="requested",
+            condition_id=condition_id,
+            amounts=amounts,
+            atomic_amounts=[int(amount * 1e6) for amount in amounts],
+            neg_risk=neg_risk,
+            trace_id=trace_id,
+        )
         int_amounts = [int(amount * 1e6) for amount in amounts]
 
         to = (
@@ -521,6 +620,22 @@ class BaseWeb3Client(ABC):
             amount: Number of shares to convert
 
         """
+        trace_id = current_or_new_trace_id()
+        emit(
+            self.logger,
+            logging.INFO,
+            "web3.position.convert.requested",
+            "CONVERT %s shares question_ids=%s",
+            _display_decimal(amount),
+            question_ids,
+            operation="convert_positions",
+            web3_action="CONVERT",
+            phase="requested",
+            question_ids=question_ids,
+            amount=amount,
+            atomic_amount=int(amount * 1e6),
+            trace_id=trace_id,
+        )
         amount_int = int(amount * 1e6)
         neg_risk_market_id = question_ids[0][:-2] + "00"
 
@@ -533,6 +648,11 @@ class BaseWeb3Client(ABC):
 
     def auto_redeem_enable(self) -> TransactionReceipt:
         """Enable CTF auto-redeem as a ConditionalTokens operator."""
+        trace_id = current_or_new_trace_id()
+        self.logger.info(
+            "Enabling auto-redeem",
+            extra=log_extra(trace_id=trace_id),
+        )
         data = self._encode_condition_tokens_approve(
             address=self.ctf_auto_redeem_address,
             approved=True,
@@ -546,6 +666,11 @@ class BaseWeb3Client(ABC):
 
     def auto_redeem_disable(self) -> TransactionReceipt:
         """Disable CTF auto-redeem as a ConditionalTokens operator."""
+        trace_id = current_or_new_trace_id()
+        self.logger.info(
+            "Disabling auto-redeem",
+            extra=log_extra(trace_id=trace_id),
+        )
         data = self._encode_condition_tokens_approve(
             address=self.ctf_auto_redeem_address,
             approved=False,
@@ -559,6 +684,12 @@ class BaseWeb3Client(ABC):
 
     def set_collateral_approval(self, spender: ChecksumAddress) -> TransactionReceipt:
         """Set approval for spender on pUSD collateral."""
+        trace_id = current_or_new_trace_id()
+        self.logger.info(
+            "Setting collateral approval: spender=%s",
+            spender,
+            extra=log_extra(spender=spender, trace_id=trace_id),
+        )
         data = self._encode_erc20_approve(address=spender)
         return self._execute(
             self.pusd_address,
@@ -571,6 +702,12 @@ class BaseWeb3Client(ABC):
         self, spender: ChecksumAddress
     ) -> TransactionReceipt:
         """Set approval for spender on conditional tokens."""
+        trace_id = current_or_new_trace_id()
+        self.logger.info(
+            "Setting conditional tokens approval: spender=%s",
+            spender,
+            extra=log_extra(spender=spender, trace_id=trace_id),
+        )
         data = self._encode_condition_tokens_approve(address=spender)
         return self._execute(
             self.conditional_tokens_address,
@@ -600,7 +737,7 @@ class BaseWeb3Client(ABC):
 
         calls: list[dict[str, object]] = []
         for spender, name in pusd_spenders.items():
-            print(f"{action} {name} as spender on pUSD")
+            self.logger.debug("%s %s as spender on pUSD", action, name)
             calls.append(
                 {
                     "to": self.pusd_address,
@@ -611,7 +748,7 @@ class BaseWeb3Client(ABC):
                 }
             )
 
-        print(f"{action} CollateralOnramp as spender on USDC.e")
+        self.logger.debug("%s CollateralOnramp as spender on USDC.e", action)
         calls.append(
             {
                 "to": self.usdc_e_address,
@@ -623,7 +760,7 @@ class BaseWeb3Client(ABC):
         )
 
         for spender, name in ctf_spenders.items():
-            print(f"{action} {name} as spender on ConditionalTokens")
+            self.logger.debug("%s %s as spender on ConditionalTokens", action, name)
             calls.append(
                 {
                     "to": self.conditional_tokens_address,
@@ -654,32 +791,63 @@ class BaseWeb3Client(ABC):
 
     def set_all_approvals(self) -> list[TransactionReceipt]:
         """Set all necessary approvals."""
+        trace_id = current_or_new_trace_id()
+        self.logger.info(
+            "Setting all approvals",
+            extra=log_extra(trace_id=trace_id),
+        )
         receipts = self._execute_calls(
             self._approval_calls(),
             "Set All Approvals",
             metadata="set_all_approvals",
         )
-        print("All approvals set!")
+        self.logger.info(
+            "All approvals set successfully: %d transactions",
+            len(receipts),
+            extra=log_extra(receipt_count=len(receipts), trace_id=trace_id),
+        )
         return receipts
 
     def set_all_disapprovals(self) -> list[TransactionReceipt]:
         """Revoke all approvals managed by set_all_approvals."""
+        trace_id = current_or_new_trace_id()
+        self.logger.info(
+            "Revoking all approvals",
+            extra=log_extra(trace_id=trace_id),
+        )
         receipts = self._execute_calls(
             self._approval_calls(approving=False),
             "Set All Disapprovals",
             metadata="set_all_disapprovals",
         )
-        print("All approvals revoked!")
+        self.logger.info(
+            "All approvals revoked successfully: %d transactions",
+            len(receipts),
+            extra=log_extra(receipt_count=len(receipts), trace_id=trace_id),
+        )
         return receipts
 
     def transfer_pusd(self, recipient: EthAddress, amount: float) -> TransactionReceipt:
         """Transfer pUSD to recipient."""
+        trace_id = current_or_new_trace_id()
         balance = self.get_pusd_balance(address=self.address)
         if balance < amount:
+            self.logger.error(
+                "Insufficient pUSD balance: %.6f < %.6f",
+                balance,
+                amount,
+                extra=log_extra(balance=balance, amount=amount, trace_id=trace_id),
+            )
             msg = f"Insufficient pUSD balance: {balance} < {amount}"
             raise ValueError(msg)
 
         amount_int = int(amount * 1e6)
+        self.logger.info(
+            "Transferring %.6f pUSD to %s",
+            amount,
+            recipient,
+            extra=log_extra(amount=amount, recipient=recipient, trace_id=trace_id),
+        )
         data = self._encode_transfer_pusd(
             self.w3.to_checksum_address(recipient), amount_int
         )
@@ -694,12 +862,26 @@ class BaseWeb3Client(ABC):
         self, token_id: str, recipient: EthAddress, amount: float
     ) -> TransactionReceipt:
         """Transfer conditional token to recipient."""
+        trace_id = current_or_new_trace_id()
         balance = self.get_token_balance(token_id=token_id, address=self.address)
         if balance < amount:
+            self.logger.error(
+                "Insufficient token balance: %.6f < %.6f",
+                balance,
+                amount,
+                extra=log_extra(balance=balance, amount=amount, token_id=token_id, trace_id=trace_id),
+            )
             msg = f"Insufficient token balance: {balance} < {amount}"
             raise ValueError(msg)
 
         amount_int = int(amount * 1e6)
+        self.logger.info(
+            "Transferring %.6f of token %s to %s",
+            amount,
+            token_id,
+            recipient,
+            extra=log_extra(amount=amount, token_id=token_id, recipient=recipient, trace_id=trace_id),
+        )
         data = self._encode_transfer_token(
             token_id, self.w3.to_checksum_address(recipient), amount_int
         )
@@ -728,9 +910,11 @@ class PolymarketWeb3Client(BaseWeb3Client):
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://tenderly.rpc.polygon.community",
         proxy: Optional[str] = None,
+        *,
+        logger: Optional[Any] = None,
     ):
         super().__init__(
-            private_key, signature_type, chain_id=chain_id, rpc_url=rpc_url, proxy=proxy
+            private_key, signature_type, chain_id=chain_id, rpc_url=rpc_url, proxy=proxy, logger=logger
         )
 
     def _execute(
@@ -738,9 +922,13 @@ class PolymarketWeb3Client(BaseWeb3Client):
         to: ChecksumAddress,
         data: str,
         operation_name: str,
-        metadata: str | None = None,  # noqa: ARG002
+        metadata: str | None = None,
     ) -> TransactionReceipt:
         """Execute transaction on-chain with gas."""
+        trace_id = current_or_new_trace_id()
+        start = time()
+        tx_hash_hex = "unknown"
+
         base_transaction = self._build_base_transaction()
 
         match self.signature_type:
@@ -754,16 +942,163 @@ class PolymarketWeb3Client(BaseWeb3Client):
                 msg = f"Invalid signature_type: {self.signature_type}"
                 raise ValueError(msg)
 
-        return self._execute_transaction(txn_data, operation_name)
+        try:
+            signed_txn = self.account.sign_transaction(txn_data)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+            tx_hash_hex = f"0x{tx_hash.hex()}"
+
+            emit(
+                self.logger,
+                logging.INFO,
+                "web3.tx.submitted",
+                "Transaction submitted: tx_hash=%s operation=%s nonce=%s gas_price=%s",
+                tx_hash_hex,
+                operation_name,
+                txn_data.get("nonce"),
+                txn_data.get("gasPrice"),
+                phase="submitted",
+                tx_hash=tx_hash_hex,
+                operation=operation_name,
+                nonce=txn_data.get("nonce"),
+                gas_price=txn_data.get("gasPrice"),
+                metadata=metadata,
+                trace_id=trace_id,
+                chain_id=self.chain_id,
+                wallet_address=self.address,
+                wallet_type=self.signature_type,
+                contract_address=to,
+            )
+
+            receipt_dict = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+        except TimeExhausted as exc:
+            latency_ms = round((time() - start) * 1000, 3)
+            emit(
+                self.logger,
+                logging.ERROR,
+                "web3.tx.timeout",
+                "Transaction timed out: tx_hash=%s operation=%s latency_ms=%.3f",
+                tx_hash_hex,
+                operation_name,
+                latency_ms,
+                phase="timeout",
+                success=False,
+                tx_hash=tx_hash_hex,
+                operation=operation_name,
+                latency_ms=latency_ms,
+                error_type=type(exc).__name__,
+                error_detail=str(exc),
+                metadata=metadata,
+                trace_id=trace_id,
+                chain_id=self.chain_id,
+                wallet_address=self.address,
+                wallet_type=self.signature_type,
+                contract_address=to,
+            )
+            msg = f"{operation_name} timed out waiting for confirmation"
+            raise TransactionTimeoutError(
+                msg,
+                tx_hash=tx_hash_hex,
+            ) from exc
+
+        except Exception as exc:
+            latency_ms = round((time() - start) * 1000, 3)
+            emit(
+                self.logger,
+                logging.ERROR,
+                "web3.tx.error",
+                "Transaction error: tx_hash=%s operation=%s error=%s latency_ms=%.3f",
+                tx_hash_hex,
+                operation_name,
+                type(exc).__name__,
+                latency_ms,
+                phase="error",
+                success=False,
+                tx_hash=tx_hash_hex,
+                operation=operation_name,
+                error_type=type(exc).__name__,
+                error_detail=str(exc),
+                latency_ms=latency_ms,
+                metadata=metadata,
+                trace_id=trace_id,
+                chain_id=self.chain_id,
+                wallet_address=self.address,
+                wallet_type=self.signature_type,
+                contract_address=to,
+            )
+            raise
+        else:
+            receipt = TransactionReceipt.model_validate(receipt_dict)
+            latency_ms = round((time() - start) * 1000, 3)
+            gas_cost_pol = round(
+                (receipt.gas_used * receipt.effective_gas_price) / 10**18, 6
+            )
+
+            if receipt.status == 1:
+                emit(
+                    self.logger,
+                    logging.INFO,
+                    "web3.tx.confirmed",
+                    "Transaction confirmed: tx_hash=%s block=%d gas_used=%d gas_cost=%.6f latency_ms=%.3f",
+                    tx_hash_hex,
+                    receipt.block_number,
+                    receipt.gas_used,
+                    gas_cost_pol,
+                    latency_ms,
+                    phase="confirmed",
+                    success=True,
+                    tx_hash=tx_hash_hex,
+                    operation=operation_name,
+                    block_number=receipt.block_number,
+                    gas_used=receipt.gas_used,
+                    gas_cost_pol=gas_cost_pol,
+                    latency_ms=latency_ms,
+                    status="success",
+                    metadata=metadata,
+                    trace_id=trace_id,
+                    chain_id=self.chain_id,
+                    wallet_address=self.address,
+                    wallet_type=self.signature_type,
+                    contract_address=to,
+                )
+            else:
+                emit(
+                    self.logger,
+                    logging.ERROR,
+                    "web3.tx.failed",
+                    "Transaction failed on-chain: tx_hash=%s block=%d status=%d",
+                    tx_hash_hex,
+                    receipt.block_number,
+                    receipt.status,
+                    phase="failed",
+                    success=False,
+                    tx_hash=tx_hash_hex,
+                    operation=operation_name,
+                    block_number=receipt.block_number,
+                    status="failed",
+                    metadata=metadata,
+                    trace_id=trace_id,
+                    chain_id=self.chain_id,
+                    wallet_address=self.address,
+                    wallet_type=self.signature_type,
+                    contract_address=to,
+                )
+                msg = f"{operation_name} failed on-chain"
+                raise TransactionFailedError(
+                    msg,
+                    tx_hash=tx_hash_hex,
+                    nonce=txn_data.get("nonce"),
+                )
+
+            return receipt
 
     def _build_base_transaction(self) -> TxParams:
-        """Build base transaction parameters."""
-        nonce = self.w3.eth.get_transaction_count(self.account.address)
+        """Build base transaction parameters with managed nonce."""
+        nonce = self._nonce_manager.next()
         current_gas_price: int = self.w3.eth.gas_price
         adjusted_gas_price = Wei(int(current_gas_price * 1.05))
 
         return {
-            "nonce": nonce,
+            "nonce": cast("Nonce", nonce),
             "gasPrice": adjusted_gas_price,
             "gas": 1000000,
             "from": self.account.address,
@@ -903,26 +1238,12 @@ class PolymarketWeb3Client(BaseWeb3Client):
     def _execute_transaction(
         self, txn_data: TxParams, operation_name: str
     ) -> TransactionReceipt:
-        """Execute transaction and wait for receipt."""
-        signed_txn = self.account.sign_transaction(txn_data)
-        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        tx_hash_hex = tx_hash.hex()
-
-        print(f"Txn hash: 0x{tx_hash_hex}")
-
-        receipt_dict = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-        receipt = TransactionReceipt.model_validate(receipt_dict)
-
-        print(
-            f"{operation_name} succeeded"
-            if receipt.status == 1
-            else f"{operation_name} failed"
+        """Execute transaction and wait for receipt — DEPRECATED, use _execute instead."""
+        return self._execute(
+            cast("ChecksumAddress", txn_data.get("to")),
+            cast("str", txn_data.get("data")),
+            operation_name,
         )
-        print(
-            f"Paid {round((receipt.gas_used * receipt.effective_gas_price) / 10**18, 3)} POL for gas"
-        )
-
-        return receipt
 
     def deploy_safe_wallet(self) -> TransactionReceipt:
         """Deploy a Safe wallet."""
@@ -960,6 +1281,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         chain_id: Literal[137, 80002] = POLYGON,
         rpc_url: str = "https://tenderly.rpc.polygon.community",
         proxy: Optional[str] = None,
+        logger: Optional[Any] = None,
     ):
         if signature_type not in {1, 2, 3}:
             msg = (
@@ -973,7 +1295,7 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             raise ValueError(msg)
 
         super().__init__(
-            private_key, signature_type, chain_id=chain_id, rpc_url=rpc_url, proxy=proxy
+            private_key, signature_type, chain_id=chain_id, rpc_url=rpc_url, proxy=proxy, logger=logger
         )
 
         # Setup for gasless transactions
@@ -992,6 +1314,10 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         metadata: str | None = None,
     ) -> TransactionReceipt:
         """Execute transaction via gasless relay."""
+        trace_id = current_or_new_trace_id()
+        start = time()
+        web3_action = _web3_action(operation_name)
+
         match self.signature_type:
             case 1:
                 body = self._build_proxy_relay_transaction(to, data, metadata or "")
@@ -1003,12 +1329,51 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
                 msg = f"Invalid signature_type: {self.signature_type}"
                 raise ValueError(msg)
 
-        return self._submit_relay_transaction(body, operation_name)
+        try:
+            return self._submit_relay_transaction(
+                body,
+                operation_name,
+                trace_id,
+                start,
+                web3_action=web3_action,
+            )
+        except Exception as exc:
+            latency_ms = round((time() - start) * 1000, 3)
+            emit(
+                self.logger,
+                logging.ERROR,
+                "web3.relay_tx.error",
+                "%s relay error=%s in %.2fms",
+                web3_action,
+                type(exc).__name__,
+                latency_ms,
+                phase="error",
+                success=False,
+                operation=operation_name,
+                web3_action=web3_action,
+                error_type=type(exc).__name__,
+                error_detail=str(exc),
+                latency_ms=latency_ms,
+                metadata=metadata,
+                trace_id=trace_id,
+                chain_id=self.chain_id,
+                wallet_address=self.address,
+                wallet_type=self.signature_type,
+                contract_address=to,
+            )
+            raise
 
     def _submit_relay_transaction(
-        self, body: dict[str, Any], operation_name: str
+        self,
+        body: dict[str, Any],
+        operation_name: str,
+        trace_id: str,
+        start: float,
+        *,
+        web3_action: str | None = None,
     ) -> TransactionReceipt:
         """Submit a prepared relay transaction body and wait for a receipt."""
+        web3_action = web3_action or _web3_action(operation_name)
         url = f"{self.relay_url}/submit"
         content = dumps(body).encode("utf-8")
         headers = self._create_relay_headers("/submit", "POST", content.decode())
@@ -1017,43 +1382,150 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
         response.raise_for_status()
 
         gasless_response = response.json()
-
-        print(
-            f"Gasless txn submitted: {gasless_response.get('transactionHash', 'N/A')}"
-        )
-        print(f"Transaction ID: {gasless_response.get('transactionID', 'N/A')}")
-        print(f"State: {gasless_response.get('state', 'N/A')}")
-
         tx_hash = gasless_response.get("transactionHash")
+        transaction_id = gasless_response.get("transactionID")
+
+        emit(
+            self.logger,
+            logging.INFO,
+            "web3.relay_tx.submitted",
+            "%s submitted tx_hash=%s tx_id=%s state=%s",
+            web3_action,
+            tx_hash or "N/A",
+            transaction_id or "N/A",
+            gasless_response.get("state", "N/A"),
+            phase="submitted",
+            tx_hash=tx_hash,
+            transaction_id=transaction_id,
+            state=gasless_response.get("state"),
+            operation=operation_name,
+            web3_action=web3_action,
+            trace_id=trace_id,
+            chain_id=self.chain_id,
+            wallet_address=self.address,
+            wallet_type=self.signature_type,
+        )
+
         if tx_hash:
             receipt_dict = self.w3.eth.wait_for_transaction_receipt(
-                cast("HexStr", tx_hash)
+                cast("HexStr", tx_hash), timeout=120
             )
             receipt = TransactionReceipt.model_validate(receipt_dict)
+            latency_ms = round((time() - start) * 1000, 3)
 
-            print(
-                f"{operation_name} succeeded"
-                if receipt.status == 1
-                else f"{operation_name} failed"
-            )
-
+            if receipt.status == 1:
+                emit(
+                    self.logger,
+                    logging.INFO,
+                    "web3.relay_tx.confirmed",
+                    "%s confirmed tx_hash=%s block=%d in %.2fms",
+                    web3_action,
+                    tx_hash,
+                    receipt.block_number,
+                    latency_ms,
+                    phase="confirmed",
+                    success=True,
+                    tx_hash=tx_hash,
+                    block_number=receipt.block_number,
+                    gas_used=receipt.gas_used,
+                    latency_ms=latency_ms,
+                    operation=operation_name,
+                    web3_action=web3_action,
+                    status="success",
+                    trace_id=trace_id,
+                    chain_id=self.chain_id,
+                    wallet_address=self.address,
+                    wallet_type=self.signature_type,
+                )
+            else:
+                emit(
+                    self.logger,
+                    logging.ERROR,
+                    "web3.relay_tx.failed",
+                    "%s failed tx_hash=%s block=%d",
+                    web3_action,
+                    tx_hash,
+                    receipt.block_number,
+                    phase="failed",
+                    success=False,
+                    tx_hash=tx_hash,
+                    block_number=receipt.block_number,
+                    operation=operation_name,
+                    web3_action=web3_action,
+                    status="failed",
+                    trace_id=trace_id,
+                    chain_id=self.chain_id,
+                    wallet_address=self.address,
+                    wallet_type=self.signature_type,
+                )
+                msg = f"{operation_name} failed on-chain (gasless)"
+                raise TransactionFailedError(
+                    msg,
+                    tx_hash=tx_hash,
+                )
             return receipt
 
-        transaction_id = gasless_response.get("transactionID")
         if transaction_id:
-            tx_hash = self._wait_for_relay_transaction_hash(str(transaction_id))
+            tx_hash = self._wait_for_relay_transaction_hash(
+                str(transaction_id), trace_id, start
+            )
             if tx_hash:
                 receipt_dict = self.w3.eth.wait_for_transaction_receipt(
-                    cast("HexStr", tx_hash)
+                    cast("HexStr", tx_hash), timeout=120
                 )
                 receipt = TransactionReceipt.model_validate(receipt_dict)
+                latency_ms = round((time() - start) * 1000, 3)
 
-                print(
-                    f"{operation_name} succeeded"
-                    if receipt.status == 1
-                    else f"{operation_name} failed"
-                )
-
+                if receipt.status == 1:
+                    emit(
+                        self.logger,
+                    logging.INFO,
+                    "web3.relay_tx.confirmed",
+                    "%s confirmed tx_hash=%s block=%d in %.2fms",
+                    web3_action,
+                    tx_hash,
+                    receipt.block_number,
+                        latency_ms,
+                        phase="confirmed",
+                        success=True,
+                        tx_hash=tx_hash,
+                        block_number=receipt.block_number,
+                        gas_used=receipt.gas_used,
+                        latency_ms=latency_ms,
+                        operation=operation_name,
+                        web3_action=web3_action,
+                        status="success",
+                        trace_id=trace_id,
+                        chain_id=self.chain_id,
+                        wallet_address=self.address,
+                        wallet_type=self.signature_type,
+                    )
+                else:
+                    emit(
+                        self.logger,
+                    logging.ERROR,
+                    "web3.relay_tx.failed",
+                    "%s failed tx_hash=%s block=%d",
+                    web3_action,
+                    tx_hash,
+                        receipt.block_number,
+                        phase="failed",
+                        success=False,
+                        tx_hash=tx_hash,
+                        block_number=receipt.block_number,
+                        operation=operation_name,
+                        web3_action=web3_action,
+                        status="failed",
+                        trace_id=trace_id,
+                        chain_id=self.chain_id,
+                        wallet_address=self.address,
+                        wallet_type=self.signature_type,
+                    )
+                    msg = f"{operation_name} failed on-chain (gasless)"
+                    raise TransactionFailedError(
+                        msg,
+                        tx_hash=tx_hash,
+                    )
                 return receipt
 
         msg = f"No transaction hash in response: {gasless_response}"
@@ -1080,10 +1552,12 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             builder=True,
         )
 
-    def _wait_for_relay_transaction_hash(self, transaction_id: str) -> str | None:
+    def _wait_for_relay_transaction_hash(
+        self, transaction_id: str, trace_id: str, start: float
+    ) -> str | None:
         """Poll the relayer until it attaches an on-chain transaction hash."""
         url = f"{self.relay_url}/transaction"
-        for _ in range(100):
+        for attempt in range(100):
             response = self.client.get(url, params={"id": transaction_id})
             response.raise_for_status()
             transactions = response.json()
@@ -1091,15 +1565,56 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             state = transaction.get("state")
 
             if state == "STATE_FAILED":
+                emit(
+                    self.logger,
+                    logging.ERROR,
+                    "web3.relay_tx.failed",
+                    "Gasless transaction failed in relayer: tx_id=%s state=%s attempt=%d",
+                    transaction_id,
+                    state,
+                    attempt,
+                    phase="failed",
+                    success=False,
+                    transaction_id=transaction_id,
+                    state=state,
+                    attempt=attempt,
+                    trace_id=trace_id,
+                )
                 msg = f"Gasless transaction failed in relayer: {transaction}"
                 raise ValueError(msg)
 
             tx_hash = transaction.get("transactionHash")
             if tx_hash:
+                latency_ms = round((time() - start) * 1000, 3)
+                emit(
+                    self.logger,
+                    logging.INFO,
+                    "web3.relay_tx.hash_attached",
+                    "Relayer attached tx hash: tx_id=%s tx_hash=%s latency_ms=%.3f",
+                    transaction_id,
+                    tx_hash,
+                    latency_ms,
+                    phase="hash_attached",
+                    transaction_id=transaction_id,
+                    tx_hash=tx_hash,
+                    latency_ms=latency_ms,
+                    trace_id=trace_id,
+                )
                 return cast("str", tx_hash)
 
             sleep(2)
 
+        emit(
+            self.logger,
+            logging.WARNING,
+            "web3.relay_tx.hash_timeout",
+            "Timed out waiting for relayer tx hash: tx_id=%s",
+            transaction_id,
+            phase="timeout",
+            success=False,
+            transaction_id=transaction_id,
+            trace_id=trace_id,
+        )
         return None
 
     def _execute_calls(
@@ -1146,7 +1661,15 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
                 msg = f"Invalid signature_type: {self.signature_type}"
                 raise ValueError(msg)
 
-        return [self._submit_relay_transaction(body, operation_name)]
+        return [
+            self._submit_relay_transaction(
+                body,
+                operation_name,
+                current_or_new_trace_id(),
+                time(),
+                web3_action=_web3_action(operation_name),
+            )
+        ]
 
     def _get_relay_nonce(self, wallet_type: Literal["PROXY", "SAFE", "WALLET"]) -> int:
         """Get nonce from relay for Safe wallet."""
@@ -1299,8 +1822,10 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
             estimated_gas = self.w3.eth.estimate_gas(estimation_txn)
             gas_limit = str(int(estimated_gas * 1.3))
         except TimeExhausted as e:
-            print(
-                f"Timeout during gas estimation for proxy transaction, using default: {e}"
+            self.logger.warning(
+                "Timeout during gas estimation for proxy transaction, using default: %s",
+                e,
+                extra=log_extra(error=str(e)),
             )
             gas_limit = str(10_000_000)
 
@@ -1388,67 +1913,41 @@ class PolymarketGaslessWeb3Client(BaseWeb3Client):
     def _build_safe_create_relay_transaction(self) -> dict[str, Any]:
         """Build Safe deployment relay transaction body."""
         signature = create_safe_create_signature(
-            account=self.account,
-            chain_id=self.chain_id,
+            account=self.account, chain_id=self.chain_id
         )
+
+        match signature[-2:]:
+            case "00" | "1b":
+                signature = signature[:-2] + "1f"
+            case "01" | "1c":
+                signature = signature[:-2] + "20"
 
         return {
             "data": "0x",
             "from": self.get_base_wallet_address(),
+            "metadata": "safe-create",
+            "nonce": str(self._get_relay_nonce(wallet_type="SAFE")),
             "proxyWallet": self.get_safe_proxy_wallet_address(),
-            "signature": signature if signature.startswith("0x") else f"0x{signature}",
+            "signature": "0x" + signature,
             "signatureParams": {
-                "paymentToken": ADDRESS_ZERO,
-                "payment": "0",
-                "paymentReceiver": ADDRESS_ZERO,
+                "baseGas": "0",
+                "gasPrice": "0",
+                "gasToken": ADDRESS_ZERO,
+                "operation": "0",
+                "refundReceiver": ADDRESS_ZERO,
+                "safeTxnGas": "0",
             },
-            "to": self.safe_proxy_factory_address,
-            "type": "SAFE-CREATE",
+            "to": ADDRESS_ZERO,
+            "type": "SAFE",
         }
-
-    def execute_deposit_wallet_batch(
-        self,
-        calls: list[DepositWalletCall | dict[str, Any]],
-        *,
-        metadata: str = "batch",
-    ) -> list[TransactionReceipt]:
-        """Execute an arbitrary batch through the deposit-wallet relay."""
-        body = self._build_deposit_relay_transactions(calls, metadata)
-        return [self._submit_relay_transaction(body, "Deposit Wallet Batch")]
 
     def deploy_safe_wallet(self) -> TransactionReceipt:
-        """Deploy a Safe wallet through the gasless relayer."""
-        if self.signature_type != 2:
-            msg = "Safe deployment is only available for signature_type=2. Proxy wallets auto-deploy on first transaction."
-            raise ValueError(msg)
-
-        safe_address = self.get_safe_proxy_wallet_address()
-        if self.w3.eth.get_code(self.w3.to_checksum_address(safe_address)) != b"":
-            msg = f"Safe already deployed at {safe_address}"
-            raise SafeAlreadyDeployedError(msg)
-
+        """Deploy a Safe wallet via gasless relay."""
+        body = self._build_safe_create_relay_transaction()
         return self._submit_relay_transaction(
-            self._build_safe_create_relay_transaction(),
-            "Gnosis Safe Deployment",
+            body,
+            "Safe Deployment",
+            current_or_new_trace_id(),
+            time(),
+            web3_action="DEPLOY_SAFE",
         )
-
-    def deploy_deposit_wallet(self) -> TransactionReceipt:
-        """Deploy a deposit wallet through the gasless relayer."""
-        if self.signature_type != 3:
-            msg = (
-                "Deposit wallet deployment is only available for "
-                "signature_type=3."
-            )
-            raise ValueError(msg)
-
-        deposit_wallet_address = self.get_expected_deposit_wallet()
-        if self.w3.eth.get_code(self.w3.to_checksum_address(deposit_wallet_address)) != b"":
-            msg = f"Deposit wallet already deployed at {deposit_wallet_address}"
-            raise ValueError(msg)
-
-        body = {
-            "from": self.get_base_wallet_address(),
-            "to": self.deposit_wallet_factory_address,
-            "type": "WALLET-CREATE",
-        }
-        return self._submit_relay_transaction(body, "Deposit Wallet Deployment")
