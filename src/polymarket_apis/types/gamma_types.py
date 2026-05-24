@@ -456,6 +456,7 @@ class Team(BaseModel):
     provider_id: Optional[int | str] = Field(None, alias="providerId")
     created_at: datetime = Field(alias="createdAt")
     updated_at: Optional[datetime] = Field(None, alias="updatedAt")
+    ordering: Optional[str] = None
 
 
 class Sport(BaseModel):
@@ -615,6 +616,7 @@ class Event(BaseModel):
     election_type: Optional[str] = Field(None, alias="electionType")
     teams: Optional[list[Team]] = None
     parent_event_id: Optional[int] = Field(None, alias="parentEventId")
+    sport: Optional[Sport] = None
 
 
 class ProfilePosition(BaseModel):
