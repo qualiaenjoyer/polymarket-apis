@@ -616,7 +616,7 @@ class Event(BaseModel):
     election_type: Optional[str] = Field(None, alias="electionType")
     teams: Optional[list[Team]] = None
     parent_event_id: Optional[int] = Field(None, alias="parentEventId")
-    sport: Optional[dict[str, object]] = None
+    sport: Optional[Sport] = None
 
 
 class ProfilePosition(BaseModel):
