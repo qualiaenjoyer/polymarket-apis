@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import IntEnum, StrEnum
 from typing import Any, Literal, Optional, TypeVar, Union, cast
@@ -30,7 +31,8 @@ class ApiCreds(BaseModel):
     passphrase: str
 
 
-class RequestArgs(BaseModel):
+@dataclass(slots=True)
+class RequestArgs:
     method: Literal["GET", "POST", "DELETE"]
     request_path: str
     body: Any = None
@@ -447,17 +449,68 @@ class SignatureType(IntEnum):
     POLY_1271 = 3
 
 
-class CreateOrderOptions(BaseModel):
+_VALID_TICK_SIZES: set[str] = {"0.1", "0.01", "0.001", "0.0001"}
+
+
+def _coerce_tick_size(value: object, *, optional: bool) -> TickSize | None:
+    if value is None:
+        if optional:
+            return None
+        msg = "tick_size is required"
+        raise ValueError(msg)
+
+    if value not in _VALID_TICK_SIZES:
+        msg = f"Invalid tick_size: {value!r}"
+        raise ValueError(msg)
+    return cast("TickSize", value)
+
+
+@dataclass(slots=True)
+class CreateOrderOptions:
     tick_size: TickSize
     neg_risk: bool
 
+    @classmethod
+    def model_validate(cls, data: object) -> "CreateOrderOptions":
+        if isinstance(data, cls):
+            return data
+        if not isinstance(data, dict):
+            msg = f"Invalid CreateOrderOptions payload: {data!r}"
+            raise TypeError(msg)
+        neg_risk_obj = data.get("neg_risk")
+        if not isinstance(neg_risk_obj, bool):
+            msg = f"Invalid neg_risk: {neg_risk_obj!r}"
+            raise TypeError(msg)
+        return cls(
+            tick_size=cast("TickSize", _coerce_tick_size(data.get("tick_size"), optional=False)),
+            neg_risk=neg_risk_obj,
+        )
 
-class PartialCreateOrderOptions(BaseModel):
+
+@dataclass(slots=True)
+class PartialCreateOrderOptions:
     tick_size: Optional[TickSize] = None
     neg_risk: Optional[bool] = None
 
+    @classmethod
+    def model_validate(cls, data: object) -> "PartialCreateOrderOptions":
+        if isinstance(data, cls):
+            return data
+        if not isinstance(data, dict):
+            msg = f"Invalid PartialCreateOrderOptions payload: {data!r}"
+            raise TypeError(msg)
+        neg_risk_obj = data.get("neg_risk")
+        if neg_risk_obj is not None and not isinstance(neg_risk_obj, bool):
+            msg = f"Invalid neg_risk: {neg_risk_obj!r}"
+            raise TypeError(msg)
+        return cls(
+            tick_size=_coerce_tick_size(data.get("tick_size"), optional=True),
+            neg_risk=neg_risk_obj,
+        )
 
-class RoundConfig(BaseModel):
+
+@dataclass(frozen=True, slots=True)
+class RoundConfig:
     price: int
     size: int
     amount: int
@@ -558,7 +611,8 @@ class PostOrdersArgs(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-class ContractConfig(BaseModel):
+@dataclass(frozen=True, slots=True)
+class ContractConfig:
     """Contract Configuration."""
 
     exchange: EthAddress

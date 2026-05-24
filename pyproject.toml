@@ -1,6 +1,6 @@
 [project]
 name = "polymarket-apis"
-version = "2.1.0"
+version = "2.2.0"
 description = "Unified Polymarket v2 APIs with Pydantic data validation - Clob, Gamma, Data, Web3, Websockets, GraphQL clients."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -15,9 +15,8 @@ dependencies = [
     "poly-eip712-structs>=0.0.1",
     "httpx[http2,socks]>=0.28.1",
     "web3>=7.0",
-    "lomond>=0.3.3",
+    "websockets>=15.0.1",
     "gql[httpx]>=4.0.0",
-    "structlog>=24.1.0",
 ]
 
 [dependency-groups]

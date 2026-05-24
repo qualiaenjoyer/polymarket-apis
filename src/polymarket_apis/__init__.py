@@ -15,13 +15,14 @@ from __future__ import annotations
 from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 __author__ = "Razvan Gheorghe"
 __email__ = "razvan@gheorghe.me"
 
 if TYPE_CHECKING:
     from .clients import (
         AsyncPolymarketGraphQLClient,
+        AsyncPolymarketWebsocketsClient,
         PolymarketClobClient,
         PolymarketDataClient,
         PolymarketGammaClient,
@@ -30,6 +31,9 @@ if TYPE_CHECKING:
         PolymarketReadOnlyClobClient,
         PolymarketWeb3Client,
         PolymarketWebsocketsClient,
+        WebsocketCallbackConfig,
+        WebsocketQueueConfig,
+        WebsocketReconnectConfig,
     )
     from .types import FeeSchedule
     from .types.clob_types import (
@@ -43,6 +47,7 @@ if TYPE_CHECKING:
 __all__ = [
     "ApiCreds",
     "AsyncPolymarketGraphQLClient",
+    "AsyncPolymarketWebsocketsClient",
     "FeeSchedule",
     "MarketIDs",
     "MarketOrderArgs",
@@ -56,6 +61,9 @@ __all__ = [
     "PolymarketReadOnlyClobClient",
     "PolymarketWeb3Client",
     "PolymarketWebsocketsClient",
+    "WebsocketCallbackConfig",
+    "WebsocketQueueConfig",
+    "WebsocketReconnectConfig",
     "__author__",
     "__email__",
     "__version__",
@@ -63,6 +71,7 @@ __all__ = [
 
 _EXPORT_MAP = {
     "ApiCreds": ".types.clob_types",
+    "AsyncPolymarketWebsocketsClient": ".clients",
     "AsyncPolymarketGraphQLClient": ".clients",
     "FeeSchedule": ".types",
     "MarketOrderArgs": ".types.clob_types",
@@ -77,6 +86,9 @@ _EXPORT_MAP = {
     "PolymarketReadOnlyClobClient": ".clients",
     "PolymarketWeb3Client": ".clients",
     "PolymarketWebsocketsClient": ".clients",
+    "WebsocketCallbackConfig": ".clients",
+    "WebsocketQueueConfig": ".clients",
+    "WebsocketReconnectConfig": ".clients",
 }
 
 

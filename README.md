@@ -221,24 +221,70 @@ Blockchain clients for blockchain based Polymarket operations. Both clients supp
 
 
 
-### PolymarketWebsocketsClient
-Real-time data subscriptions.
+### AsyncPolymarketWebsocketsClient / PolymarketWebsocketsClient
+
+Market data, authenticated user events, crypto/equity prices, comments/reactions, activity, sports
+
+Use `AsyncPolymarketWebsocketsClient` for production services, bots, and multi-stream workflows. Use `PolymarketWebsocketsClient` when you need a blocking wrapper around the same async implementation.
+
+- **Connection model**
+  - `open_*_connection()` starts a stream and returns a handle for health checks, dynamic subscription management, and explicit shutdown
+  - `run_*_stream()` starts a stream and waits until it closes
+  - callbacks may be synchronous or async
+  - default callback payloads are parsed Pydantic events
+  - set `parse_messages=False` to receive `RawMessage`
 
 - **Market socket**
-  - subscribe with a `token_ids` list
-  - receive order book summary, price change, tick size change, last trade price, best bid/ask price change, market created, and market resolved events
+  - subscribe by `token_ids`
+  - receive book snapshots, price changes, tick-size changes, last-trade prices, best bid/ask updates, new-market events, and market-resolution events
+  - tracks whether the local market book state is synchronized after a full snapshot
+
 - **User socket**
-  - subscribe with `ApiCreds`
+  - subscribe with `ApiCreds`, optionally restricted by `condition_ids`
   - receive order events (`live`, `canceled`, `matched`)
   - receive trade events (`matched`, `mined`, `confirmed`, `retrying`, `failed`)
-- **Live data socket**
-  - subscribe with any combination described [here](https://github.com/Polymarket/real-time-data-client?tab=readme-ov-file#subscribe)
-  - receive comment/reaction events (`created`, `removed`)
+  - defaults to disconnecting on queue overflow to avoid silently dropping user activity
+
+- **Real-time data socket**
+  - subscribe with RTDS subscription objects or dictionaries
+  - dynamically `subscribe()` and `unsubscribe()` without reconnecting
   - receive `trades` / `orders_matched` events filtered by event `slug` or market `slug`
   - receive crypto/equity prices
-  - receive RFQ events (`created`, `edited`, `canceled`, `expired`)
+  - receive comment/reaction events (`created`, `removed`)
 - **Sports socket**
-  - receive sports game snapshots for game start, score change, period change, and game end
+  - receive sports game state updates (game start, score change, period change, game end)
+
+- **Reliability**
+  - automatic reconnect with configurable backoff
+  - heartbeats and pong tracking
+  - structured lifecycle, parse, subscription, stale-feed, and queue-overflow logs
+  - bounded message queues with configurable overflow policy
+  - health snapshots via `connection.health` / `get_health()`
+
+Notebook quick start:
+```python
+from polymarket_apis import AsyncPolymarketWebsocketsClient
+
+async def on_event(event: object) -> None:
+    print(event)
+
+client = AsyncPolymarketWebsocketsClient()
+
+connection = await client.open_market_connection(
+    token_ids=["...", "..."],
+    process_event=on_event,
+)
+```
+check health at:
+```python
+connection.health() # or get bool at connection.is_healthy()
+```
+close:
+```python
+await connection.close()
+await client.close()
+```
+
 
 ### PolymarketGraphQLClient / AsyncPolymarketGraphQLClient
 Goldsky-hosted subgraph queries.

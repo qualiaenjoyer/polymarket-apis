@@ -1,7 +1,15 @@
+import json
 from datetime import datetime
 from typing import Literal, Optional, cast
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+)
 
 from ..types.clob_types import MakerOrder, OrderBookSummary, TickSize
 from ..types.common import EthAddress, Keccak256, TimeseriesPoint
@@ -199,64 +207,6 @@ class ActivityTrade(BaseModel):
     profile_image_optimized: Optional[str] = Field(None, alias="profileImageOptimized")
 
 
-class Request(BaseModel):
-    request_id: str = Field(alias="requestId")  # Unique identifier for the request
-    proxy_address: str = Field(alias="proxyAddress")  # Proxy address
-    user_address: str = Field(alias="userAddress")  # User address
-    condition_id: Keccak256 = Field(
-        alias="market"
-    )  # Id of market which is also the CTF condition ID
-    token_id: str = Field(
-        alias="token"
-    )  # ERC1155 token ID of conditional token being traded
-    complement_token_id: str = Field(
-        alias="complement"
-    )  # Complement ERC1155 token ID of conditional token being traded
-    state: Literal[
-        "STATE_REQUEST_EXPIRED",
-        "STATE_USER_CANCELED",
-        "STATE_REQUEST_CANCELED",
-        "STATE_MAKER_CANCELED",
-        "STATE_ACCEPTING_QUOTES",
-        "STATE_REQUEST_QUOTED",
-        "STATE_QUOTE_IMPROVED",
-    ]  # Current state of the request
-    side: Literal["BUY", "SELL"]  # Indicates buy or sell side
-    price: float  # Price from in/out sizes
-    size_in: float = Field(alias="sizeIn")  # Input size of the request
-    size_out: float = Field(alias="sizeOut")  # Output size of the request
-    expiry: Optional[datetime] = None
-
-
-class Quote(BaseModel):
-    quote_id: str = Field(alias="quoteId")  # Unique identifier for the quote
-    request_id: str = Field(alias="requestId")  # Associated request identifier
-    proxy_address: str = Field(alias="proxyAddress")  # Proxy address
-    user_address: str = Field(alias="userAddress")  # User address
-    condition_id: Keccak256 = Field(
-        alias="condition"
-    )  # Id of market which is also the CTF condition ID
-    token_id: str = Field(
-        alias="token"
-    )  # ERC1155 token ID of conditional token being traded
-    complement_token_id: str = Field(
-        alias="complement"
-    )  # Complement ERC1155 token ID of conditional token being traded
-    state: Literal[
-        "STATE_REQUEST_EXPIRED",
-        "STATE_USER_CANCELED",
-        "STATE_REQUEST_CANCELED",
-        "STATE_MAKER_CANCELED",
-        "STATE_ACCEPTING_QUOTES",
-        "STATE_REQUEST_QUOTED",
-        "STATE_QUOTE_IMPROVED",
-    ]  # Current state of the quote
-    side: Literal["BUY", "SELL"]  # Indicates buy or sell side
-    size_in: float = Field(alias="sizeIn")  # Input size of the quote
-    size_out: float = Field(alias="sizeOut")  # Output size of the quote
-    expiry: Optional[datetime] = None
-
-
 class AssetPriceSubscribe(BaseModel):
     data: list[TimeseriesPoint]
     symbol: str
@@ -267,12 +217,101 @@ class AssetPriceUpdate(TimeseriesPoint):
     full_accuracy_value: str
 
 
-class LiveDataClobMarket(BaseModel):
+class RealTimeDataClobMarket(BaseModel):
     token_ids: list[str] = Field(alias="asset_ids")
     condition_id: Keccak256 = Field(alias="market")
     min_order_size: float
     tick_size: TickSize
     neg_risk: bool
+
+
+REAL_TIME_DATA_SUBSCRIPTION_TYPES: dict[str, set[str]] = {
+    "comments": {
+        "*",
+        "comment_created",
+        "comment_removed",
+        "reaction_created",
+        "reaction_removed",
+    },
+    "crypto_prices": {"*", "update"},
+    "crypto_prices_chainlink": {"*", "update"},
+    "equity_prices": {"*", "update"},
+    "activity": {"*", "trades", "orders_matched"},
+}
+
+
+class RealTimeDataGammaAuth(BaseModel):
+    address: str
+
+
+class RealTimeDataSubscription(BaseModel):
+    topic: Literal[
+        "comments",
+        "crypto_prices",
+        "crypto_prices_chainlink",
+        "equity_prices",
+        "activity",
+    ]
+    type: str
+    filters: Optional[str] = None
+    gamma_auth: Optional[RealTimeDataGammaAuth] = None
+
+    @field_validator("type")
+    def validate_topic_type_pair(
+        cls, subscription_type: str, info: ValidationInfo
+    ) -> str:
+        topic_obj = info.data.get("topic")
+        topic = topic_obj if isinstance(topic_obj, str) else None
+
+        if topic is None:
+            return subscription_type
+
+        allowed_types = REAL_TIME_DATA_SUBSCRIPTION_TYPES.get(topic)
+        if allowed_types is None or subscription_type not in allowed_types:
+            msg = (
+                "Invalid live data subscription: "
+                f"{{'topic': {topic!r}, 'type': {subscription_type!r}}}"
+            )
+            raise ValueError(msg)
+        return subscription_type
+
+    def expand(self) -> list["RealTimeDataSubscription"]:
+        if self.type != "*":
+            return [self]
+
+        concrete_types = sorted(
+            subscription_type
+            for subscription_type in REAL_TIME_DATA_SUBSCRIPTION_TYPES[self.topic]
+            if subscription_type != "*"
+        )
+        if not concrete_types:
+            return [self]
+
+        return [
+            self.model_copy(update={"type": subscription_type})
+            for subscription_type in concrete_types
+        ]
+
+    def matches_unsubscribe_request(
+        self, unsubscribe_request: "RealTimeDataSubscription"
+    ) -> bool:
+        if self.topic != unsubscribe_request.topic:
+            return False
+        if unsubscribe_request.type not in {"*", self.type}:
+            return False
+        if unsubscribe_request.filters is None:
+            return True
+        return self.filters == unsubscribe_request.filters
+
+    def cache_key(self) -> str:
+        payload = self.model_dump(mode="json", by_alias=True, exclude_none=True)
+        return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+    def to_wire_dict(self) -> dict[str, object]:
+        return cast(
+            "dict[str, object]",
+            self.model_dump(mode="json", by_alias=True, exclude_none=True),
+        )
 
 
 # Event models
@@ -302,22 +341,6 @@ class ReactionEvent(BaseModel):
     timestamp: datetime
     type: Literal["reaction_created", "reaction_removed"]
     topic: Literal["comments"]
-
-
-class RequestEvent(BaseModel):
-    payload: Request
-    timestamp: datetime
-    type: Literal[
-        "request_created", "request_edited", "request_canceled", "request_expired"
-    ]
-    topic: Literal["rfq"]
-
-
-class QuoteEvent(BaseModel):
-    payload: Quote
-    timestamp: datetime
-    type: Literal["quote_created", "quote_edited", "quote_canceled", "quote_expired"]
-    topic: Literal["rfq"]
 
 
 class AssetPriceUpdateEvent(BaseModel):
@@ -386,13 +409,11 @@ type MarketEvents = (
 
 type UserEvents = OrderEvent | TradeEvent
 
-type LiveDataEvents = (
+type RealTimeDataEvents = (
     ActivityTradeEvent
     | ActivityOrderMatchEvent
     | CommentEvent
     | ReactionEvent
-    | RequestEvent
-    | QuoteEvent
     | AssetPriceSubscribeEvent
     | AssetPriceUpdateEvent
 )

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal, Optional, cast
 
@@ -11,7 +12,8 @@ type ActivityType = Literal[
 ]
 
 
-class AccountingSnapshotCSVs(BaseModel):
+@dataclass(slots=True)
+class AccountingSnapshotCSVs:
     """Parsed contents of the accounting snapshot ZIP."""
 
     positions_csv: str
