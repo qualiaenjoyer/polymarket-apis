@@ -233,6 +233,8 @@ Use `AsyncPolymarketWebsocketsClient` for production services, bots, and multi-s
   - callbacks may be synchronous or async
   - default callback payloads are parsed Pydantic events
   - set `parse_messages=False` to receive raw websocket text
+  - `connection.close()` is the default shutdown path: market, real-time-data, and sports sockets stop quickly and may drop queued callback events; user sockets close gracefully
+  - `connection.graceful_close()` stops reading new messages and drains queued callback events before returning, useful for recorders/audit pipelines that need to process pending events
 
 - **Market socket**
   - subscribe by `token_ids`
@@ -283,6 +285,12 @@ connection.health() # or get bool at connection.is_healthy()
 close:
 ```python
 await connection.close()
+await client.close()
+```
+
+Use `graceful_close()` when queued callback delivery matters more than fast shutdown:
+```python
+await connection.graceful_close()
 await client.close()
 ```
 
