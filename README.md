@@ -232,12 +232,13 @@ Use `AsyncPolymarketWebsocketsClient` for production services, bots, and multi-s
   - `run_*_stream()` starts a stream and waits until it closes
   - callbacks may be synchronous or async
   - default callback payloads are parsed Pydantic events
-  - set `parse_messages=False` to receive `RawMessage`
+  - set `parse_messages=False` to receive raw websocket text
 
 - **Market socket**
   - subscribe by `token_ids`
   - receive book snapshots, price changes, tick-size changes, last-trade prices, best bid/ask updates, new-market events, and market-resolution events
   - tracks whether the local market book state is synchronized after a full snapshot
+  - pass `local_order_books=LocalOrderBookStore()` to update local order books directly in the socket reader before callback queue processing
 
 - **User socket**
   - subscribe with `ApiCreds`, optionally restricted by `condition_ids`

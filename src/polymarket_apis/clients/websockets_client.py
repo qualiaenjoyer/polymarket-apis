@@ -13,6 +13,7 @@ from concurrent.futures import Future
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from heapq import nlargest, nsmallest
 from json import JSONDecodeError
 from typing import Any, Literal, cast, get_args, get_origin, get_type_hints
 
@@ -100,7 +101,9 @@ ParsedMarketMessage = MarketEvents | list[OrderBookSummaryEvent]
 ProcessEventCallback = Callable[[Any], Any]
 ProcessEventErrorPolicy = Literal["disconnect", "log"]
 ParseErrorPolicy = Literal["drop", "raw"]
+MessageMode = Literal["parsed", "raw"]
 MessageQueueOverflowPolicy = Literal["drop_oldest", "disconnect", "reconnect"]
+LocalOrderBookUpdateKind = Literal["snapshot", "delta", "ignored"]
 type RealTimeDataSubscriptionInput = RealTimeDataSubscription | dict[str, Any]
 _MESSAGE_QUEUE_SENTINEL = object()
 
@@ -199,9 +202,10 @@ class WebsocketReconnectConfig:
 
 
 @dataclass(slots=True)
-class RawMessage:
+class _WebsocketMessage:
     channel: str
     text: str
+    parse_json: bool = True
     trace_id: str = field(default_factory=current_or_new_trace_id)
     received_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     message_size: int = field(init=False)
@@ -209,6 +213,9 @@ class RawMessage:
 
     def __post_init__(self) -> None:
         self.message_size = len(self.text.encode("utf-8"))
+        if not self.parse_json:
+            self.json_data = None
+            return
         if not self.text or self.text.isspace():
             self.json_data = None
             return
@@ -231,7 +238,402 @@ class RawMessage:
             self.json_data = None
 
 
-def parse_json(message: RawMessage) -> object | None:
+@dataclass(frozen=True, slots=True)
+class LocalOrderBookSnapshot:
+    token_id: str
+    bids: dict[float, float]
+    asks: dict[float, float]
+    top_bids: tuple[tuple[float, float], ...]
+    top_asks: tuple[tuple[float, float], ...]
+    tick_size: float | None
+    last_trade_price: float | None
+    last_trade_size: float | None
+    last_trade_side: str | None
+    last_trade_time: datetime | None
+    valid: bool
+    last_snapshot_time: datetime | None
+    last_update_time: datetime | None
+
+    @property
+    def best_bid(self) -> float | None:
+        return self.top_bids[0][0] if self.top_bids else None
+
+    @property
+    def best_bid_size(self) -> float | None:
+        return self.top_bids[0][1] if self.top_bids else None
+
+    @property
+    def best_ask(self) -> float | None:
+        return self.top_asks[0][0] if self.top_asks else None
+
+    @property
+    def best_ask_size(self) -> float | None:
+        return self.top_asks[0][1] if self.top_asks else None
+
+    @property
+    def second_best_bid(self) -> float | None:
+        if len(self.top_bids) < 2:
+            return None
+        return self.top_bids[1][0]
+
+    @property
+    def second_best_bid_size(self) -> float | None:
+        if len(self.top_bids) < 2:
+            return None
+        return self.top_bids[1][1]
+
+    @property
+    def second_best_ask(self) -> float | None:
+        if len(self.top_asks) < 2:
+            return None
+        return self.top_asks[1][0]
+
+    @property
+    def second_best_ask_size(self) -> float | None:
+        if len(self.top_asks) < 2:
+            return None
+        return self.top_asks[1][1]
+
+    @property
+    def spread(self) -> float | None:
+        if self.best_bid is None or self.best_ask is None:
+            return None
+        return round(self.best_ask - self.best_bid, 3)
+
+    @property
+    def mid_price(self) -> float | None:
+        if self.best_bid is None or self.best_ask is None:
+            return None
+        return round((self.best_bid + self.best_ask) / 2, 3)
+
+    def sorted_bids(self) -> list[tuple[float, float]]:
+        return [(price, self.bids[price]) for price in sorted(self.bids, reverse=True)]
+
+    def sorted_asks(self) -> list[tuple[float, float]]:
+        return [(price, self.asks[price]) for price in sorted(self.asks)]
+
+    def book_summary(self) -> dict[str, list[tuple[float, float]]]:
+        return {
+            "bids": self.sorted_bids(),
+            "asks": self.sorted_asks(),
+        }
+
+
+class LocalOrderBookStore:
+    """Low-latency local market book maintained from raw websocket text frames."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._bids_by_token: dict[str, dict[float, float]] = {}
+        self._asks_by_token: dict[str, dict[float, float]] = {}
+        self._best_bid_by_token: dict[str, float | None] = {}
+        self._best_ask_by_token: dict[str, float | None] = {}
+        self._top_bids_by_token: dict[str, tuple[tuple[float, float], ...]] = {}
+        self._top_asks_by_token: dict[str, tuple[tuple[float, float], ...]] = {}
+        self._tick_size_by_token: dict[str, float | None] = {}
+        self._last_trade_price_by_token: dict[str, float | None] = {}
+        self._last_trade_size_by_token: dict[str, float | None] = {}
+        self._last_trade_side_by_token: dict[str, str | None] = {}
+        self._last_trade_time_by_token: dict[str, datetime | None] = {}
+        self._valid_tokens: set[str] = set()
+        self._last_snapshot_time_by_token: dict[str, datetime] = {}
+        self._last_update_time_by_token: dict[str, datetime] = {}
+        self._update_count = 0
+        self._invalid_reason: str | None = "awaiting_initial_snapshot"
+
+    @property
+    def valid(self) -> bool:
+        with self._lock:
+            return self._invalid_reason is None and bool(self._valid_tokens)
+
+    @property
+    def invalid_reason(self) -> str | None:
+        with self._lock:
+            return self._invalid_reason
+
+    @property
+    def update_count(self) -> int:
+        with self._lock:
+            return self._update_count
+
+    @property
+    def token_ids(self) -> tuple[str, ...]:
+        with self._lock:
+            return tuple(self._valid_tokens)
+
+    @property
+    def last_snapshot_time(self) -> datetime | None:
+        with self._lock:
+            if not self._last_snapshot_time_by_token:
+                return None
+            return max(self._last_snapshot_time_by_token.values())
+
+    @property
+    def last_update_time(self) -> datetime | None:
+        with self._lock:
+            if not self._last_update_time_by_token:
+                return None
+            return max(self._last_update_time_by_token.values())
+
+    def invalidate(self, reason: str) -> None:
+        with self._lock:
+            self._bids_by_token.clear()
+            self._asks_by_token.clear()
+            self._best_bid_by_token.clear()
+            self._best_ask_by_token.clear()
+            self._top_bids_by_token.clear()
+            self._top_asks_by_token.clear()
+            self._tick_size_by_token.clear()
+            self._last_trade_price_by_token.clear()
+            self._last_trade_size_by_token.clear()
+            self._last_trade_side_by_token.clear()
+            self._last_trade_time_by_token.clear()
+            self._valid_tokens.clear()
+            self._last_snapshot_time_by_token.clear()
+            self._last_update_time_by_token.clear()
+            self._invalid_reason = reason
+
+    def bids(self, token_id: str) -> dict[float, float]:
+        with self._lock:
+            return dict(self._bids_by_token.get(token_id, {}))
+
+    def asks(self, token_id: str) -> dict[float, float]:
+        with self._lock:
+            return dict(self._asks_by_token.get(token_id, {}))
+
+    def best_bid(self, token_id: str) -> float | None:
+        with self._lock:
+            return self._best_bid_by_token.get(token_id)
+
+    def best_ask(self, token_id: str) -> float | None:
+        with self._lock:
+            return self._best_ask_by_token.get(token_id)
+
+    def tick_size(self, token_id: str) -> float | None:
+        with self._lock:
+            return self._tick_size_by_token.get(token_id)
+
+    def last_trade_price(self, token_id: str) -> float | None:
+        with self._lock:
+            return self._last_trade_price_by_token.get(token_id)
+
+    def snapshot(self, token_id: str) -> LocalOrderBookSnapshot:
+        with self._lock:
+            return LocalOrderBookSnapshot(
+                token_id=token_id,
+                bids=dict(self._bids_by_token.get(token_id, {})),
+                asks=dict(self._asks_by_token.get(token_id, {})),
+                top_bids=self._top_bids_by_token.get(token_id, ()),
+                top_asks=self._top_asks_by_token.get(token_id, ()),
+                tick_size=self._tick_size_by_token.get(token_id),
+                last_trade_price=self._last_trade_price_by_token.get(token_id),
+                last_trade_size=self._last_trade_size_by_token.get(token_id),
+                last_trade_side=self._last_trade_side_by_token.get(token_id),
+                last_trade_time=self._last_trade_time_by_token.get(token_id),
+                valid=token_id in self._valid_tokens and self._invalid_reason is None,
+                last_snapshot_time=self._last_snapshot_time_by_token.get(token_id),
+                last_update_time=self._last_update_time_by_token.get(token_id),
+            )
+
+    def apply_message_text(
+        self,
+        text: str,
+        *,
+        observed_at: datetime | None = None,
+    ) -> LocalOrderBookUpdateKind | None:
+        payload = json.loads(text)
+        return self.apply_payload(payload, observed_at=observed_at)
+
+    def apply_payload(
+        self,
+        payload: object,
+        *,
+        observed_at: datetime | None = None,
+    ) -> LocalOrderBookUpdateKind | None:
+        observed_at = observed_at or datetime.now(UTC)
+        if isinstance(payload, list):
+            applied_snapshot = False
+            for item in payload:
+                if isinstance(item, dict) and self._apply_snapshot(item, observed_at):
+                    applied_snapshot = True
+            return "snapshot" if applied_snapshot else "ignored"
+
+        if not isinstance(payload, dict):
+            return None
+
+        event_type = payload.get("event_type")
+        if event_type == "book":
+            return "snapshot" if self._apply_snapshot(payload, observed_at) else "ignored"
+        if event_type == "price_change":
+            return "delta" if self._apply_delta(payload, observed_at) else "ignored"
+        if event_type == "last_trade_price":
+            return "delta" if self._apply_last_trade_price(payload, observed_at) else "ignored"
+        if event_type == "tick_size_change":
+            return "delta" if self._apply_tick_size_change(payload, observed_at) else "ignored"
+        return None
+
+    def _apply_snapshot(self, payload: dict[str, Any], observed_at: datetime) -> bool:
+        token_id_obj = payload.get("asset_id")
+        token_id = token_id_obj if isinstance(token_id_obj, str) else None
+        if token_id is None:
+            return False
+
+        bids = self._levels_from_payload(payload.get("bids"))
+        asks = self._levels_from_payload(payload.get("asks"))
+        tick_size = self._float_from_payload(payload.get("tick_size"))
+        last_trade_price = self._float_from_payload(payload.get("last_trade_price"))
+        with self._lock:
+            self._bids_by_token[token_id] = bids
+            self._asks_by_token[token_id] = asks
+            self._refresh_top_levels(token_id)
+            if tick_size is not None:
+                self._tick_size_by_token[token_id] = tick_size
+            if last_trade_price is not None:
+                self._last_trade_price_by_token[token_id] = last_trade_price
+            self._valid_tokens.add(token_id)
+            self._last_snapshot_time_by_token[token_id] = observed_at
+            self._last_update_time_by_token[token_id] = observed_at
+            self._update_count += 1
+            self._invalid_reason = None
+        return True
+
+    def _apply_delta(self, payload: dict[str, Any], observed_at: datetime) -> bool:
+        price_changes = payload.get("price_changes")
+        if not isinstance(price_changes, list):
+            return False
+
+        applied = False
+        with self._lock:
+            for item in price_changes:
+                if not isinstance(item, dict):
+                    continue
+                token_id_obj = item.get("asset_id")
+                token_id = token_id_obj if isinstance(token_id_obj, str) else None
+                if token_id is None or token_id not in self._valid_tokens:
+                    continue
+
+                price = self._float_from_payload(item.get("price"))
+                size = self._float_from_payload(item.get("size"))
+                side_obj = item.get("side")
+                side = side_obj.upper() if isinstance(side_obj, str) else None
+                if price is None or size is None or side not in {"BUY", "SELL"}:
+                    continue
+
+                if size > 0:
+                    if side == "BUY":
+                        best_ask = self._best_ask_by_token.get(token_id)
+                        if best_ask is not None and price > best_ask:
+                            asks = self._asks_by_token.setdefault(token_id, {})
+                            for ask_price in list(asks):
+                                if best_ask <= ask_price < price:
+                                    asks.pop(ask_price, None)
+                    else:
+                        best_bid = self._best_bid_by_token.get(token_id)
+                        if best_bid is not None and price < best_bid:
+                            bids = self._bids_by_token.setdefault(token_id, {})
+                            for bid_price in list(bids):
+                                if price < bid_price <= best_bid:
+                                    bids.pop(bid_price, None)
+
+                levels = (
+                    self._bids_by_token.setdefault(token_id, {})
+                    if side == "BUY"
+                    else self._asks_by_token.setdefault(token_id, {})
+                )
+                if size == 0:
+                    levels.pop(price, None)
+                else:
+                    levels[price] = size
+
+                self._refresh_top_levels(token_id)
+                self._last_update_time_by_token[token_id] = observed_at
+                applied = True
+
+            if applied:
+                self._update_count += 1
+        return applied
+
+    def _apply_last_trade_price(
+        self,
+        payload: dict[str, Any],
+        observed_at: datetime,
+    ) -> bool:
+        token_id_obj = payload.get("asset_id")
+        token_id = token_id_obj if isinstance(token_id_obj, str) else None
+        price = self._float_from_payload(payload.get("price"))
+        if token_id is None or price is None:
+            return False
+
+        size = self._float_from_payload(payload.get("size"))
+        side_obj = payload.get("side")
+        side = side_obj if isinstance(side_obj, str) and side_obj in {"BUY", "SELL"} else None
+        with self._lock:
+            self._last_trade_price_by_token[token_id] = price
+            self._last_trade_size_by_token[token_id] = size
+            self._last_trade_side_by_token[token_id] = side
+            self._last_trade_time_by_token[token_id] = observed_at
+            self._last_update_time_by_token[token_id] = observed_at
+            self._update_count += 1
+        return True
+
+    def _apply_tick_size_change(
+        self,
+        payload: dict[str, Any],
+        observed_at: datetime,
+    ) -> bool:
+        token_id_obj = payload.get("asset_id")
+        token_id = token_id_obj if isinstance(token_id_obj, str) else None
+        tick_size = self._float_from_payload(payload.get("new_tick_size"))
+        if token_id is None or tick_size is None:
+            return False
+
+        with self._lock:
+            self._tick_size_by_token[token_id] = tick_size
+            self._last_update_time_by_token[token_id] = observed_at
+            self._update_count += 1
+        return True
+
+    @classmethod
+    def _levels_from_payload(cls, payload: object) -> dict[float, float]:
+        if not isinstance(payload, list):
+            return {}
+
+        levels: dict[float, float] = {}
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            price = cls._float_from_payload(item.get("price"))
+            size = cls._float_from_payload(item.get("size"))
+            if price is None or size is None:
+                continue
+            if size == 0:
+                continue
+            levels[price] = size
+        return levels
+
+    def _refresh_top_levels(self, token_id: str) -> None:
+        bids = self._bids_by_token.get(token_id, {})
+        asks = self._asks_by_token.get(token_id, {})
+        top_bids = tuple(nlargest(2, bids.items()))
+        top_asks = tuple(nsmallest(2, asks.items()))
+        self._top_bids_by_token[token_id] = top_bids
+        self._top_asks_by_token[token_id] = top_asks
+        self._best_bid_by_token[token_id] = top_bids[0][0] if top_bids else None
+        self._best_ask_by_token[token_id] = top_asks[0][0] if top_asks else None
+
+    @staticmethod
+    def _float_from_payload(value: object) -> float | None:
+        if isinstance(value, bool) or value is None:
+            return None
+        if isinstance(value, (int, float, str)):
+            try:
+                return float(value)
+            except ValueError:
+                return None
+        return None
+
+
+def parse_json(message: _WebsocketMessage) -> object | None:
     return message.json_data
 
 
@@ -240,7 +642,7 @@ def substitute_cls[T: BaseModel](
     data: dict[str, Any],
     *,
     channel: str,
-    raw_message: RawMessage | None = None,
+    raw_message: _WebsocketMessage | None = None,
 ) -> T | None:
     try:
         return cls(**data)
@@ -277,7 +679,7 @@ def parse_event[T: BaseModel](
     event_type_field: str,
     *,
     channel: str,
-    raw_message: RawMessage | None = None,
+    raw_message: _WebsocketMessage | None = None,
 ) -> T | None:
     if message is None:
         return None
@@ -344,7 +746,7 @@ def parse_event[T: BaseModel](
 
 
 def parse_market_event(
-    message: RawMessage,
+    message: _WebsocketMessage,
 ) -> ParsedMarketMessage | None:
     payload = parse_json(message)
     if isinstance(payload, list):
@@ -370,7 +772,7 @@ def parse_market_event(
     )
 
 
-def parse_user_event(message: RawMessage) -> UserEvents | None:
+def parse_user_event(message: _WebsocketMessage) -> UserEvents | None:
     return parse_event(
         parse_json(message),
         USER_EVENT_CLASSES,
@@ -380,7 +782,7 @@ def parse_user_event(message: RawMessage) -> UserEvents | None:
     )
 
 
-def parse_real_time_data_event(message: RawMessage) -> RealTimeDataEvents | None:
+def parse_real_time_data_event(message: _WebsocketMessage) -> RealTimeDataEvents | None:
     return parse_event(
         parse_json(message),
         REAL_TIME_DATA_EVENT_CLASSES,
@@ -390,7 +792,7 @@ def parse_real_time_data_event(message: RawMessage) -> RealTimeDataEvents | None
     )
 
 
-def parse_sports_event(message: RawMessage) -> SportsGameUpdate | None:
+def parse_sports_event(message: _WebsocketMessage) -> SportsGameUpdate | None:
     payload = parse_json(message)
 
     if payload is None:
@@ -492,7 +894,7 @@ async def _invoke_lifecycle_callback(
 
 
 def _type_allows_raw_message(annotation: object) -> bool:
-    if annotation in (Any, object, RawMessage):
+    if annotation in (Any, object, _WebsocketMessage):
         return True
 
     origin = get_origin(annotation)
@@ -624,6 +1026,24 @@ def _subscription_ack_key_from_payload(
     )
 
 
+def _subscription_ack_key_matches(
+    expected_key: tuple[str, str | None],
+    ack_key: tuple[str, str | None],
+) -> bool:
+    expected_topic, expected_symbol = expected_key
+    ack_topic, ack_symbol = ack_key
+    if expected_symbol is not None and ack_symbol is not None and expected_symbol != ack_symbol:
+        return False
+
+    if expected_topic == ack_topic:
+        return expected_symbol is None or ack_symbol in {None, expected_symbol}
+
+    if expected_topic == "crypto_prices_chainlink" and ack_topic == "crypto_prices":
+        return expected_symbol is None or ack_symbol in {None, expected_symbol}
+
+    return False
+
+
 def _is_stale_real_time_data_connection_error(exc: ValueError) -> bool:
     return "connection_id_fk" in str(exc)
 
@@ -652,16 +1072,26 @@ async def _wait_for_predicate(
         await done
 
 
+def _message_mode_from_parse_messages(
+    parse_messages: bool,
+    message_mode: MessageMode | None,
+) -> MessageMode:
+    if message_mode is not None:
+        return message_mode
+    return "parsed" if parse_messages else "raw"
+
+
 class _ManagedConnection:
     def __init__(
         self,
         *,
         channel: str,
         url: str,
-        parser: Callable[[RawMessage], Any],
+        parser: Callable[[_WebsocketMessage], Any],
         process_event: ProcessEventCallback | None,
         parse_messages: bool,
         process_event_error_policy: ProcessEventErrorPolicy,
+        message_mode: MessageMode | None = None,
         parse_error_policy: ParseErrorPolicy = "raw",
         on_connect: LifecycleCallback | None,
         on_disconnect: LifecycleCallback | None,
@@ -672,6 +1102,7 @@ class _ManagedConnection:
         client_closed_event: asyncio.Event,
         message_queue_maxsize: int,
         message_queue_overflow_policy: MessageQueueOverflowPolicy,
+        local_order_books: LocalOrderBookStore | None = None,
         stale_after_seconds: float | None = None,
         reconnect_on_stale: bool = False,
     ) -> None:
@@ -679,7 +1110,11 @@ class _ManagedConnection:
         self.url = url
         self.parser = parser
         self.process_event = process_event
-        self.parse_messages = parse_messages
+        self.message_mode = _message_mode_from_parse_messages(
+            parse_messages,
+            message_mode,
+        )
+        self.parse_messages = self.message_mode == "parsed"
         self.process_event_error_policy = process_event_error_policy
         self.parse_error_policy = parse_error_policy
         self.on_connect = on_connect
@@ -690,6 +1125,7 @@ class _ManagedConnection:
         self.close_timeout_seconds = close_timeout_seconds
         self._client_closed_event = client_closed_event
         self.message_queue_overflow_policy = message_queue_overflow_policy
+        self.local_order_books = local_order_books
         self._stop_event = asyncio.Event()
         self._started_event = asyncio.Event()
         self._closed_event = asyncio.Event()
@@ -705,7 +1141,7 @@ class _ManagedConnection:
         self._last_process_event_error: str | None = None
         self._consecutive_failures = 0
         self._message_queue_maxsize = message_queue_maxsize
-        self._message_queue: asyncio.Queue[RawMessage | object] = asyncio.Queue(
+        self._message_queue: asyncio.Queue[_WebsocketMessage | str | object] = asyncio.Queue(
             maxsize=message_queue_maxsize
         )
         self.stale_after_seconds = stale_after_seconds
@@ -743,7 +1179,11 @@ class _ManagedConnection:
                             url=self.url,
                             consecutive_failures=self._consecutive_failures,
                         )
-                    async with connect(self.url, ping_interval=None) as websocket:
+                    async with connect(
+                        self.url,
+                        ping_interval=None,
+                        close_timeout=self.close_timeout_seconds,
+                    ) as websocket:
                         self._websocket = websocket
                         self._connected = True
                         self._reconnecting = False
@@ -757,6 +1197,10 @@ class _ManagedConnection:
                             self._market_book_invalid_reason = (
                                 "awaiting_initial_snapshot"
                             )
+                            if self.local_order_books is not None:
+                                self.local_order_books.invalidate(
+                                    "awaiting_initial_snapshot"
+                                )
                         self._consecutive_failures = 0
                         self._last_process_event_error = None
                         emit(
@@ -860,6 +1304,8 @@ class _ManagedConnection:
                             "connection_closed",
                             log_event=False,
                         )
+                        if self.local_order_books is not None:
+                            self.local_order_books.invalidate("connection_closed")
                     self._websocket = None
 
                 if self._should_stop():
@@ -918,12 +1364,31 @@ class _ManagedConnection:
     def bind_run_task(self, task: asyncio.Task[None]) -> None:
         self._run_task = task
 
-    async def close(self) -> None:
+    async def graceful_close(self) -> None:
         self._stop_event.set()
         websocket = self._websocket
         if websocket is not None:
-            with contextlib.suppress(ConnectionClosed):
-                await websocket.close()
+            with contextlib.suppress(ConnectionClosed, TimeoutError):
+                await asyncio.wait_for(
+                    websocket.close(),
+                    timeout=self.close_timeout_seconds,
+                )
+        await self._wait_for_run_task(timeout_seconds=self.close_timeout_seconds)
+
+    async def close(self) -> None:
+        if self.channel == "user":
+            await self.graceful_close()
+            return
+        await self._force_close()
+
+    async def abort(self) -> None:
+        await self._force_close()
+
+    async def _force_close(self) -> None:
+        self._stop_event.set()
+        await self._wait_for_run_task(timeout_seconds=0.0)
+
+    async def _wait_for_run_task(self, *, timeout_seconds: float) -> None:
         run_task = self._run_task
         if run_task is None or run_task is asyncio.current_task():
             return
@@ -931,7 +1396,7 @@ class _ManagedConnection:
         try:
             await asyncio.wait_for(
                 asyncio.shield(run_task),
-                timeout=self.close_timeout_seconds,
+                timeout=timeout_seconds,
             )
         except TimeoutError:
             run_task.cancel()
@@ -1060,11 +1525,20 @@ class _ManagedConnection:
                 continue
 
             self._last_message_time = datetime.now(UTC)
+            if not incoming or incoming.isspace():
+                continue
             if await self._handle_control_message(websocket, incoming):
                 continue
 
-            raw_message = RawMessage(channel=self.channel, text=incoming)
-            await self._enqueue_message(raw_message)
+            self._observe_raw_market_message(incoming)
+            if self.message_mode == "raw":
+                await self._enqueue_message(incoming)
+            else:
+                raw_message = _WebsocketMessage(
+                    channel=self.channel,
+                    text=incoming,
+                )
+                await self._enqueue_message(raw_message)
             if self._should_stop():
                 break
 
@@ -1074,17 +1548,22 @@ class _ManagedConnection:
             try:
                 if item is _MESSAGE_QUEUE_SENTINEL:
                     return
-                await self._dispatch_message(cast("RawMessage", item))
+                await self._dispatch_message(cast("_WebsocketMessage | str", item))
                 if self._should_stop():
                     return
             finally:
                 self._message_queue.task_done()
 
-    async def _enqueue_message(self, raw_message: RawMessage) -> None:
+    async def _enqueue_message(self, message: _WebsocketMessage | str) -> None:
         if self._message_queue.full():
             overflow_policy = self._effective_message_queue_overflow_policy()
             if self.channel == "market":
                 self._invalidate_market_book("queue_overflow")
+            trace_id = (
+                message.trace_id
+                if isinstance(message, _WebsocketMessage)
+                else current_or_new_trace_id()
+            )
             if overflow_policy == "disconnect":
                 emit(
                     logger,
@@ -1092,7 +1571,7 @@ class _ManagedConnection:
                     "ws.queue.overflow",
                     "Websocket queue overflow detected",
                     channel=self.channel,
-                    trace_id=raw_message.trace_id,
+                    trace_id=trace_id,
                     queue_maxsize=self._message_queue.maxsize,
                     queue_size=self._message_queue.qsize(),
                     overflow_policy=overflow_policy,
@@ -1108,7 +1587,7 @@ class _ManagedConnection:
                     "ws.queue.overflow",
                     "Websocket queue overflow detected",
                     channel=self.channel,
-                    trace_id=raw_message.trace_id,
+                    trace_id=trace_id,
                     queue_maxsize=self._message_queue.maxsize,
                     queue_size=self._message_queue.qsize(),
                     overflow_policy=overflow_policy,
@@ -1122,24 +1601,59 @@ class _ManagedConnection:
                 self._message_queue.task_done()
                 if dropped is not _MESSAGE_QUEUE_SENTINEL:
                     self._dropped_message_count += 1
-                    dropped_message = cast("RawMessage", dropped)
+                    dropped_age_ms = None
+                    if isinstance(dropped, _WebsocketMessage):
+                        dropped_age_ms = round(
+                            (datetime.now(UTC) - dropped.received_at).total_seconds()
+                            * 1000,
+                            3,
+                        )
                     emit(
                         logger,
                         logging.WARNING,
                         "ws.queue.drop_oldest",
                         "Dropped oldest pending websocket message",
                         channel=self.channel,
-                        trace_id=raw_message.trace_id,
+                        trace_id=trace_id,
                         queue_maxsize=self._message_queue.maxsize,
                         queue_size=self._message_queue.qsize(),
                         dropped_message_count=self._dropped_message_count,
-                        dropped_message_age_ms=round(
-                            (datetime.now(UTC) - dropped_message.received_at).total_seconds()
-                            * 1000,
-                            3,
-                        ),
+                        dropped_message_age_ms=dropped_age_ms,
                     )
-        await self._message_queue.put(raw_message)
+        await self._message_queue.put(message)
+
+    def _observe_raw_market_message(self, message: str) -> None:
+        if self.channel != "market" or self.local_order_books is None:
+            return
+
+        observed_at = self._last_message_time or datetime.now(UTC)
+        try:
+            update_kind = self.local_order_books.apply_message_text(
+                message,
+                observed_at=observed_at,
+            )
+        except (JSONDecodeError, TypeError, ValueError) as exc:
+            self.local_order_books.invalidate("parse_failure")
+            self._invalidate_market_book("parse_failure")
+            emit(
+                logger,
+                logging.WARNING,
+                "ws.market.local_order_books.parse_failed",
+                "Failed to apply websocket message to local order book",
+                channel=self.channel,
+                trace_id=current_or_new_trace_id(),
+                error_type=type(exc).__name__,
+                error_detail=str(exc),
+                raw_preview=message[:RAW_MESSAGE_PREVIEW_LIMIT],
+            )
+            return
+
+        if update_kind == "snapshot":
+            self._mark_market_book_resynchronized(observed_at)
+            self._mark_feed_fresh(observed_at)
+            return
+        if update_kind == "delta":
+            self._mark_feed_fresh(observed_at)
 
     async def _enqueue_queue_sentinel(self) -> None:
         while True:
@@ -1151,14 +1665,18 @@ class _ManagedConnection:
                     self._message_queue.task_done()
                     if dropped is not _MESSAGE_QUEUE_SENTINEL:
                         self._dropped_message_count += 1
-                        dropped_message = cast("RawMessage", dropped)
+                        trace_id = (
+                            dropped.trace_id
+                            if isinstance(dropped, _WebsocketMessage)
+                            else current_or_new_trace_id()
+                        )
                         emit(
                             logger,
                             logging.WARNING,
                             "ws.queue.drop_oldest_shutdown",
                             "Dropped pending websocket message during shutdown",
                             channel=self.channel,
-                            trace_id=dropped_message.trace_id,
+                            trace_id=trace_id,
                             queue_maxsize=self._message_queue.maxsize,
                             queue_size=self._message_queue.qsize(),
                             dropped_message_count=self._dropped_message_count,
@@ -1166,7 +1684,18 @@ class _ManagedConnection:
             else:
                 return
 
-    async def _dispatch_message(self, raw_message: RawMessage) -> None:
+    async def _dispatch_message(self, message: _WebsocketMessage | str) -> None:
+        if isinstance(message, str):
+            await _invoke_process_event(
+                self.process_event,
+                message,
+                error_policy=self.process_event_error_policy,
+                channel=self.channel,
+                trace_id=current_or_new_trace_id(),
+            )
+            return
+
+        raw_message = message
         if self.parse_messages:
             parsed = self.parser(raw_message)
             if parsed is None:
@@ -1187,7 +1716,7 @@ class _ManagedConnection:
                         logger,
                         logging.WARNING,
                         "ws.message.unparsed_dropped",
-                        "Dropping unparsed websocket message because callback does not accept RawMessage",
+                        "Dropping unparsed websocket message because callback does not accept internal websocket messages",
                         channel=self.channel,
                         trace_id=raw_message.trace_id,
                         raw_preview=raw_message.text[:RAW_MESSAGE_PREVIEW_LIMIT],
@@ -1302,6 +1831,8 @@ class _ManagedConnection:
             self._stale_warning_active = True
             if self.channel == "market":
                 self._invalidate_market_book("snapshot_stale")
+                if self.local_order_books is not None:
+                    self.local_order_books.invalidate("snapshot_stale")
             emit(
                 logger,
                 logging.WARNING,
@@ -1365,7 +1896,7 @@ class _ManagedConnection:
         self._message_queue = asyncio.Queue(maxsize=self._message_queue_maxsize)
         self._dropped_message_count = 0
 
-    def _observe_parsed_event(self, parsed: Any, raw_message: RawMessage) -> None:
+    def _observe_parsed_event(self, parsed: Any, raw_message: _WebsocketMessage) -> None:
         if self.channel == "user":
             self._emit_user_event_log(parsed, raw_message)
             self._mark_feed_fresh(raw_message.received_at)
@@ -1389,7 +1920,7 @@ class _ManagedConnection:
         if self.channel == "real_time_data" and isinstance(parsed, AssetPriceUpdateEvent):
             self._mark_feed_fresh(raw_message.received_at, price_update=True)
 
-    def _emit_user_event_log(self, parsed: Any, raw_message: RawMessage) -> None:
+    def _emit_user_event_log(self, parsed: Any, raw_message: _WebsocketMessage) -> None:
         if isinstance(parsed, OrderEvent):
             emit(
                 logger,
@@ -1543,10 +2074,11 @@ class _FixedSubscriptionConnection(_ManagedConnection):
         *,
         channel: str,
         url: str,
-        parser: Callable[[RawMessage], Any],
+        parser: Callable[[_WebsocketMessage], Any],
         process_event: ProcessEventCallback | None,
         parse_messages: bool,
         process_event_error_policy: ProcessEventErrorPolicy,
+        message_mode: MessageMode | None = None,
         parse_error_policy: ParseErrorPolicy = "raw",
         on_connect: LifecycleCallback | None,
         on_disconnect: LifecycleCallback | None,
@@ -1557,6 +2089,7 @@ class _FixedSubscriptionConnection(_ManagedConnection):
         client_closed_event: asyncio.Event,
         message_queue_maxsize: int,
         message_queue_overflow_policy: MessageQueueOverflowPolicy,
+        local_order_books: LocalOrderBookStore | None = None,
         stale_after_seconds: float | None = None,
         reconnect_on_stale: bool = False,
         initial_payload: dict[str, Any] | None = None,
@@ -1571,6 +2104,7 @@ class _FixedSubscriptionConnection(_ManagedConnection):
             process_event=process_event,
             parse_messages=parse_messages,
             process_event_error_policy=process_event_error_policy,
+            message_mode=message_mode,
             parse_error_policy=parse_error_policy,
             on_connect=on_connect,
             on_disconnect=on_disconnect,
@@ -1581,6 +2115,7 @@ class _FixedSubscriptionConnection(_ManagedConnection):
             client_closed_event=client_closed_event,
             message_queue_maxsize=message_queue_maxsize,
             message_queue_overflow_policy=message_queue_overflow_policy,
+            local_order_books=local_order_books,
             stale_after_seconds=stale_after_seconds,
             reconnect_on_stale=reconnect_on_stale,
         )
@@ -1629,6 +2164,7 @@ class _DynamicSubscriptionConnection(_ManagedConnection):
         process_event: ProcessEventCallback | None,
         parse_messages: bool,
         process_event_error_policy: ProcessEventErrorPolicy,
+        message_mode: MessageMode | None = None,
         parse_error_policy: ParseErrorPolicy = "raw",
         on_connect: LifecycleCallback | None,
         on_disconnect: LifecycleCallback | None,
@@ -1649,6 +2185,7 @@ class _DynamicSubscriptionConnection(_ManagedConnection):
             process_event=process_event,
             parse_messages=parse_messages,
             process_event_error_policy=process_event_error_policy,
+            message_mode=message_mode,
             parse_error_policy=parse_error_policy,
             on_connect=on_connect,
             on_disconnect=on_disconnect,
@@ -1790,8 +2327,20 @@ class AsyncRealTimeDataConnection(_DynamicSubscriptionConnection):
                 for subscription in self._current_subscriptions
             }
 
+    async def graceful_close(self) -> None:
+        await super().graceful_close()
+        if self._task is not None:
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+
     async def close(self) -> None:
         await super().close()
+        if self._task is not None:
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+
+    async def abort(self) -> None:
+        await super().abort()
         if self._task is not None:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._task
@@ -1831,8 +2380,19 @@ class AsyncRealTimeDataConnection(_DynamicSubscriptionConnection):
 
         return False
 
-    async def _dispatch_message(self, raw_message: RawMessage) -> None:
-        payload = raw_message.json_data
+    async def _dispatch_message(self, message: _WebsocketMessage | str) -> None:
+        payload: object | None = None
+        if isinstance(message, str):
+            trace_id = current_or_new_trace_id()
+            with contextlib.suppress(JSONDecodeError):
+                payload = json.loads(message)
+        else:
+            trace_id = message.trace_id
+            payload = message.json_data
+            if payload is None and not message.parse_json:
+                with contextlib.suppress(JSONDecodeError):
+                    payload = json.loads(message.text)
+
         error_message = _extract_real_time_data_error_message(payload)
         if error_message is not None:
             pending_error = self._pending_subscription_error
@@ -1847,7 +2407,7 @@ class AsyncRealTimeDataConnection(_DynamicSubscriptionConnection):
                 "ws.subscription.error",
                 "Real-time data subscription error from server",
                 channel=self.channel,
-                trace_id=raw_message.trace_id,
+                trace_id=trace_id,
                 error_detail=error_message,
                 payload_preview=str(payload)[:RAW_MESSAGE_PREVIEW_LIMIT],
                 metadata={"subscriptions": self.current_subscriptions},
@@ -1858,15 +2418,17 @@ class AsyncRealTimeDataConnection(_DynamicSubscriptionConnection):
         if ack_key is not None:
             pending_ack = self._pending_subscription_ack
             if pending_ack is not None and not pending_ack.done():
-                exact_match = ack_key in self._pending_subscription_ack_keys
-                wildcard_match = (ack_key[0], None) in self._pending_subscription_ack_keys
-                if exact_match or wildcard_match:
-                    self._pending_subscription_ack_keys.discard(ack_key)
-                    self._pending_subscription_ack_keys.discard((ack_key[0], None))
+                matched_keys = {
+                    pending_key
+                    for pending_key in self._pending_subscription_ack_keys
+                    if _subscription_ack_key_matches(pending_key, ack_key)
+                }
+                if matched_keys:
+                    self._pending_subscription_ack_keys.difference_update(matched_keys)
                     if not self._pending_subscription_ack_keys:
                         pending_ack.set_result(None)
 
-        await super()._dispatch_message(raw_message)
+        await super()._dispatch_message(message)
 
     async def _send_subscription_request(
         self,
@@ -2180,6 +2742,8 @@ class AsyncPolymarketWebsocketsClient:
         custom_feature_enabled: bool = True,
         process_event: ProcessEventCallback = _default_process_market_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
+        local_order_books: LocalOrderBookStore | None = None,
     ) -> None:
         """
         Convenience API: run the market stream until it closes.
@@ -2192,6 +2756,8 @@ class AsyncPolymarketWebsocketsClient:
             custom_feature_enabled=custom_feature_enabled,
             process_event=process_event,
             parse_messages=parse_messages,
+            message_mode=message_mode,
+            local_order_books=local_order_books,
         )
         await connection.wait_closed()
 
@@ -2201,6 +2767,8 @@ class AsyncPolymarketWebsocketsClient:
         custom_feature_enabled: bool = True,
         process_event: ProcessEventCallback = _default_process_market_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
+        local_order_books: LocalOrderBookStore | None = None,
     ) -> AsyncChannelConnection:
         """Primary API: open a market stream and return a connection handle."""
         await self._ensure_open()
@@ -2211,6 +2779,7 @@ class AsyncPolymarketWebsocketsClient:
             process_event=process_event,
             parse_messages=parse_messages,
             process_event_error_policy=self.process_event_error_policy,
+            message_mode=message_mode,
             parse_error_policy=self.parse_error_policy,
             on_connect=self.on_connect,
             on_disconnect=self.on_disconnect,
@@ -2221,6 +2790,7 @@ class AsyncPolymarketWebsocketsClient:
             client_closed_event=self._closed,
             message_queue_maxsize=self.message_queue_maxsize,
             message_queue_overflow_policy=self.message_queue_overflow_policy,
+            local_order_books=local_order_books,
             stale_after_seconds=(
                 self.market_stale_after_seconds
             ),
@@ -2241,6 +2811,7 @@ class AsyncPolymarketWebsocketsClient:
         condition_ids: list[str] | None = None,
         process_event: ProcessEventCallback = _default_process_user_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
     ) -> None:
         """
         Convenience API: run the user stream until it closes.
@@ -2260,6 +2831,7 @@ class AsyncPolymarketWebsocketsClient:
             condition_ids=condition_ids,
             process_event=process_event,
             parse_messages=parse_messages,
+            message_mode=message_mode,
         )
         await connection.wait_closed()
 
@@ -2269,6 +2841,7 @@ class AsyncPolymarketWebsocketsClient:
         condition_ids: list[str] | None = None,
         process_event: ProcessEventCallback = _default_process_user_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
     ) -> AsyncChannelConnection:
         """Primary API: open a user stream and return a connection handle."""
         await self._ensure_open()
@@ -2286,6 +2859,7 @@ class AsyncPolymarketWebsocketsClient:
             process_event=process_event,
             parse_messages=parse_messages,
             process_event_error_policy=self.process_event_error_policy,
+            message_mode=message_mode,
             parse_error_policy=self.parse_error_policy,
             on_connect=self.on_connect,
             on_disconnect=self.on_disconnect,
@@ -2312,6 +2886,7 @@ class AsyncPolymarketWebsocketsClient:
         subscriptions: list[RealTimeDataSubscriptionInput],
         process_event: ProcessEventCallback = _default_process_real_time_data_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
     ) -> AsyncRealTimeDataConnection:
         """
         Primary API: open a real-time data stream and return a connection handle.
@@ -2326,6 +2901,7 @@ class AsyncPolymarketWebsocketsClient:
             process_event=process_event,
             parse_messages=parse_messages,
             process_event_error_policy=self.process_event_error_policy,
+            message_mode=message_mode,
             parse_error_policy=self.parse_error_policy,
             on_connect=self.on_connect,
             on_disconnect=self.on_disconnect,
@@ -2350,6 +2926,7 @@ class AsyncPolymarketWebsocketsClient:
         subscriptions: list[RealTimeDataSubscriptionInput],
         process_event: ProcessEventCallback = _default_process_real_time_data_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
     ) -> None:
         """
         Convenience API: run the real-time data stream until it closes.
@@ -2361,6 +2938,7 @@ class AsyncPolymarketWebsocketsClient:
             subscriptions=subscriptions,
             process_event=process_event,
             parse_messages=parse_messages,
+            message_mode=message_mode,
         )
         await connection.wait_closed()
 
@@ -2368,6 +2946,7 @@ class AsyncPolymarketWebsocketsClient:
         self,
         process_event: ProcessEventCallback = _default_process_sports_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
     ) -> None:
         """
         Convenience API: run the sports stream until it closes.
@@ -2378,6 +2957,7 @@ class AsyncPolymarketWebsocketsClient:
         connection = await self.open_sports_connection(
             process_event=process_event,
             parse_messages=parse_messages,
+            message_mode=message_mode,
         )
         await connection.wait_closed()
 
@@ -2385,6 +2965,7 @@ class AsyncPolymarketWebsocketsClient:
         self,
         process_event: ProcessEventCallback = _default_process_sports_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
     ) -> AsyncChannelConnection:
         """Primary API: open a sports stream and return a connection handle."""
         await self._ensure_open()
@@ -2395,6 +2976,7 @@ class AsyncPolymarketWebsocketsClient:
             process_event=process_event,
             parse_messages=parse_messages,
             process_event_error_policy=self.process_event_error_policy,
+            message_mode=message_mode,
             parse_error_policy=self.parse_error_policy,
             on_connect=self.on_connect,
             on_disconnect=self.on_disconnect,
@@ -2563,6 +3145,14 @@ class SyncRealTimeDataConnection:
         future = self._loop_thread.submit(self._handle.close())
         future.result(timeout=self._close_timeout_seconds)
 
+    def graceful_close(self) -> None:
+        future = self._loop_thread.submit(self._handle.graceful_close())
+        future.result(timeout=self._close_timeout_seconds)
+
+    def abort(self) -> None:
+        future = self._loop_thread.submit(self._handle.abort())
+        future.result(timeout=self._close_timeout_seconds)
+
 
 class SyncChannelConnection:
     def __init__(
@@ -2607,8 +3197,20 @@ class SyncChannelConnection:
         future = self._loop_thread.submit(self._handle.get_market_book_invalid_reason())
         return future.result()
 
+    @property
+    def local_order_books(self) -> LocalOrderBookStore | None:
+        return self._handle.local_order_books
+
     def close(self) -> None:
         future = self._loop_thread.submit(self._handle.close())
+        future.result(timeout=self._close_timeout_seconds)
+
+    def graceful_close(self) -> None:
+        future = self._loop_thread.submit(self._handle.graceful_close())
+        future.result(timeout=self._close_timeout_seconds)
+
+    def abort(self) -> None:
+        future = self._loop_thread.submit(self._handle.abort())
         future.result(timeout=self._close_timeout_seconds)
 
     def wait_closed(self) -> None:
@@ -2681,6 +3283,8 @@ class PolymarketWebsocketsClient:
         custom_feature_enabled: bool = True,
         process_event: ProcessEventCallback = _default_process_market_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
+        local_order_books: LocalOrderBookStore | None = None,
     ) -> None:
         future = self._loop_thread.submit(
             self._async_client.run_market_stream(
@@ -2688,6 +3292,8 @@ class PolymarketWebsocketsClient:
                 custom_feature_enabled=custom_feature_enabled,
                 process_event=process_event,
                 parse_messages=parse_messages,
+                message_mode=message_mode,
+                local_order_books=local_order_books,
             )
         )
         future.result()
@@ -2698,6 +3304,8 @@ class PolymarketWebsocketsClient:
         custom_feature_enabled: bool = True,
         process_event: ProcessEventCallback = _default_process_market_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
+        local_order_books: LocalOrderBookStore | None = None,
     ) -> SyncChannelConnection:
         future = self._loop_thread.submit(
             self._async_client.open_market_connection(
@@ -2705,6 +3313,8 @@ class PolymarketWebsocketsClient:
                 custom_feature_enabled=custom_feature_enabled,
                 process_event=process_event,
                 parse_messages=parse_messages,
+                message_mode=message_mode,
+                local_order_books=local_order_books,
             )
         )
         handle = future.result()
@@ -2720,6 +3330,7 @@ class PolymarketWebsocketsClient:
         condition_ids: list[str] | None = None,
         process_event: ProcessEventCallback = _default_process_user_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
     ) -> None:
         future = self._loop_thread.submit(
             self._async_client.run_user_stream(
@@ -2727,6 +3338,7 @@ class PolymarketWebsocketsClient:
                 condition_ids=condition_ids,
                 process_event=process_event,
                 parse_messages=parse_messages,
+                message_mode=message_mode,
             )
         )
         future.result()
@@ -2737,6 +3349,7 @@ class PolymarketWebsocketsClient:
         condition_ids: list[str] | None = None,
         process_event: ProcessEventCallback = _default_process_user_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
     ) -> SyncChannelConnection:
         future = self._loop_thread.submit(
             self._async_client.open_user_connection(
@@ -2744,6 +3357,7 @@ class PolymarketWebsocketsClient:
                 condition_ids=condition_ids,
                 process_event=process_event,
                 parse_messages=parse_messages,
+                message_mode=message_mode,
             )
         )
         handle = future.result()
@@ -2758,12 +3372,14 @@ class PolymarketWebsocketsClient:
         subscriptions: list[RealTimeDataSubscriptionInput],
         process_event: ProcessEventCallback = _default_process_real_time_data_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
     ) -> SyncRealTimeDataConnection:
         future = self._loop_thread.submit(
             self._async_client.open_real_time_data_connection(
                 subscriptions=subscriptions,
                 process_event=process_event,
                 parse_messages=parse_messages,
+                message_mode=message_mode,
             )
         )
         handle = future.result()
@@ -2778,12 +3394,14 @@ class PolymarketWebsocketsClient:
         subscriptions: list[RealTimeDataSubscriptionInput],
         process_event: ProcessEventCallback = _default_process_real_time_data_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
     ) -> None:
         future = self._loop_thread.submit(
             self._async_client.run_real_time_data_stream(
                 subscriptions=subscriptions,
                 process_event=process_event,
                 parse_messages=parse_messages,
+                message_mode=message_mode,
             )
         )
         future.result()
@@ -2792,11 +3410,13 @@ class PolymarketWebsocketsClient:
         self,
         process_event: ProcessEventCallback = _default_process_sports_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
     ) -> None:
         future = self._loop_thread.submit(
             self._async_client.run_sports_stream(
                 process_event=process_event,
                 parse_messages=parse_messages,
+                message_mode=message_mode,
             )
         )
         future.result()
@@ -2805,11 +3425,13 @@ class PolymarketWebsocketsClient:
         self,
         process_event: ProcessEventCallback = _default_process_sports_event,
         parse_messages: bool = True,
+        message_mode: MessageMode | None = None,
     ) -> SyncChannelConnection:
         future = self._loop_thread.submit(
             self._async_client.open_sports_connection(
                 process_event=process_event,
                 parse_messages=parse_messages,
+                message_mode=message_mode,
             )
         )
         handle = future.result()
