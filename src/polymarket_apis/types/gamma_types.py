@@ -328,7 +328,9 @@ class Tag(BaseModel):
     force_hide: Optional[bool] = Field(None, alias="forceHide")
     is_carousel: Optional[bool] = Field(None, alias="isCarousel")
     requires_translation: Optional[bool] = Field(None, alias="requiresTranslation")
-    schema: Optional[str] = Field(None, alias="$schema")
+    schema_: Optional[str] = Field(None, alias="$schema")
+    active_events_count: Optional[int] = Field(None, alias="activeEventsCount")
+    templates: Optional[list[Template]] = Field(None, alias="templates")
 
 
 class TagRelation(BaseModel):
@@ -694,5 +696,6 @@ class SearchResult(BaseModel):
 
 Event.model_rebuild()
 Series.model_rebuild()
+Tag.model_rebuild()
 GammaMarket.model_rebuild()
 SearchResult.model_rebuild()
