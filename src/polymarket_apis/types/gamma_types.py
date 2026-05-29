@@ -328,6 +328,7 @@ class Tag(BaseModel):
     force_hide: Optional[bool] = Field(None, alias="forceHide")
     is_carousel: Optional[bool] = Field(None, alias="isCarousel")
     requires_translation: Optional[bool] = Field(None, alias="requiresTranslation")
+    schema: Optional[str] = Field(None, alias="$schema")
 
 
 class TagRelation(BaseModel):

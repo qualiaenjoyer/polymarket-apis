@@ -1,6 +1,7 @@
 {
   "name": "gamma /tags/{id}",
   "shape": [
+    "$.$schema:str",
     "$.createdAt:str",
     "$.createdBy:number",
     "$.forceHide:bool",
