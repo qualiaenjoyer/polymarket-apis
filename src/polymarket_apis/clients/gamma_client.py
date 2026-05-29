@@ -462,7 +462,7 @@ class PolymarketGammaClient:
 
     def get_tags(
         self,
-        limit: int = 300,
+        limit: int = 100,
         offset: int = 0,
         order: Optional[
             Literal[
@@ -530,10 +530,10 @@ class PolymarketGammaClient:
             )
             tags.extend(part)
 
-            if len(part) < 300:
+            if len(part) < 100:
                 break
 
-            offset += 300
+            offset += 100
 
         return tags
 
