@@ -81,6 +81,7 @@
     "$[].events[].negRiskMarketID:str",
     "$[].events[].new:bool",
     "$[].events[].openInterest:number",
+    "$[].events[].parentEventId:number",
     "$[].events[].pendingDeployment:bool",
     "$[].events[].requiresTranslation:bool",
     "$[].events[].resolutionSource:str",
