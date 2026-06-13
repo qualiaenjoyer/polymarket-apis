@@ -148,6 +148,7 @@
     "$[].feeType:str",
     "$[].feesEnabled:bool",
     "$[].funded:bool",
+    "$[].gameId:str",
     "$[].gameStartTime:str",
     "$[].groupItemThreshold:str",
     "$[].groupItemTitle:str",
