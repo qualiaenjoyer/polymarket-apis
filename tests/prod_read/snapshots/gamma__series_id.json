@@ -1,6 +1,7 @@
 {
   "name": "gamma /series/{id}",
   "shape": [
+    "$.$schema:str",
     "$.active:bool",
     "$.archived:bool",
     "$.closed:bool",

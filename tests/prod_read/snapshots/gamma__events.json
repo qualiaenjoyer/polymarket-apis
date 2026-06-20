@@ -82,6 +82,7 @@
     "$[].markets[].clobTokenIds:str",
     "$[].markets[].closed:bool",
     "$[].markets[].closedTime:str",
+    "$[].markets[].comboStatus:str",
     "$[].markets[].competitive:number",
     "$[].markets[].conditionId:str",
     "$[].markets[].createdAt:str",

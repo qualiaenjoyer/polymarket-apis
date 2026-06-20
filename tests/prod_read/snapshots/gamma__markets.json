@@ -22,6 +22,7 @@
     "$[].clobRewards[]:object",
     "$[].clobTokenIds:str",
     "$[].closed:bool",
+    "$[].comboStatus:str",
     "$[].competitive:number",
     "$[].conditionId:str",
     "$[].createdAt:str",
