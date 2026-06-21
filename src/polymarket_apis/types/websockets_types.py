@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Literal, Optional, cast
+from typing import Annotated, Literal, Optional, cast
 
 from pydantic import (
     AliasChoices,
@@ -135,7 +135,7 @@ class OrderEvent(BaseModel):  # type: ignore[no-redef] # event_owner is the same
     expiration: Optional[datetime] = None
     timestamp: Optional[datetime] = None  # time of event
 
-    event_type: Optional[Literal["order"]] = None
+    event_type: Literal["order"]
     exchange_version: Optional[str] = None
     type: Literal["PLACEMENT", "UPDATE", "CANCELLATION"]
 
@@ -170,7 +170,7 @@ class TradeEvent(BaseModel):  # type: ignore[no-redef] # event_owner is the same
     matchtime: Optional[datetime] = None  # time trade was matched
     timestamp: Optional[datetime] = None  # time of event
 
-    event_type: Optional[Literal["trade"]] = None
+    event_type: Literal["trade"]
     exchange_version: Optional[str] = None
     type: Optional[Literal["TRADE"]] = None
 
@@ -397,17 +397,20 @@ class ErrorEvent(BaseModel):
 
 
 # event type unions
-type MarketEvents = (
-    OrderBookSummaryEvent
-    | PriceChangeEvent
-    | TickSizeChangeEvent
-    | LastTradePriceEvent
-    | BestBidAskEvent
-    | NewMarketEvent
-    | MarketResolvedEvent
-)
+type MarketEvents = Annotated[
+    (
+        OrderBookSummaryEvent
+        | PriceChangeEvent
+        | TickSizeChangeEvent
+        | LastTradePriceEvent
+        | BestBidAskEvent
+        | NewMarketEvent
+        | MarketResolvedEvent
+    ),
+    Field(discriminator="event_type"),
+]
 
-type UserEvents = OrderEvent | TradeEvent
+type UserEvents = Annotated[OrderEvent | TradeEvent, Field(discriminator="event_type")]
 
 type RealTimeDataEvents = (
     ActivityTradeEvent

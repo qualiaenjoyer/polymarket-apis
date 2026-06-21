@@ -17,7 +17,7 @@ from heapq import nlargest, nsmallest
 from json import JSONDecodeError
 from typing import Any, Literal, cast, get_args, get_origin, get_type_hints
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed
 
@@ -27,12 +27,8 @@ from ..types.websockets_types import (
     ActivityTradeEvent,
     AssetPriceSubscribeEvent,
     AssetPriceUpdateEvent,
-    BestBidAskEvent,
     CommentEvent,
-    LastTradePriceEvent,
     MarketEvents,
-    MarketResolvedEvent,
-    NewMarketEvent,
     OrderBookSummaryEvent,
     OrderEvent,
     PriceChangeEvent,
@@ -40,7 +36,6 @@ from ..types.websockets_types import (
     RealTimeDataEvents,
     RealTimeDataSubscription,
     SportsGameUpdate,
-    TickSizeChangeEvent,
     TradeEvent,
     UserEvents,
 )
@@ -71,20 +66,8 @@ def _default_real_time_data_stale_after_seconds() -> float:
     return max(REAL_TIME_DATA_HEARTBEAT_SECONDS * 6, 30.0)
 
 
-MARKET_EVENT_CLASSES: Mapping[str, type[MarketEvents]] = {
-    "book": OrderBookSummaryEvent,
-    "price_change": PriceChangeEvent,
-    "tick_size_change": TickSizeChangeEvent,
-    "last_trade_price": LastTradePriceEvent,
-    "best_bid_ask": BestBidAskEvent,
-    "new_market": NewMarketEvent,
-    "market_resolved": MarketResolvedEvent,
-}
-
-USER_EVENT_CLASSES: Mapping[str, type[UserEvents]] = {
-    "order": OrderEvent,
-    "trade": TradeEvent,
-}
+MARKET_EVENT_ADAPTER: TypeAdapter[MarketEvents] = TypeAdapter(MarketEvents)
+USER_EVENT_ADAPTER: TypeAdapter[UserEvents] = TypeAdapter(UserEvents)
 
 REAL_TIME_DATA_EVENT_CLASSES: Mapping[str, type[RealTimeDataEvents]] = {
     "trades": ActivityTradeEvent,
@@ -749,6 +732,8 @@ def parse_market_event(
     message: _WebsocketMessage,
 ) -> ParsedMarketMessage | None:
     payload = parse_json(message)
+    if payload is None:
+        return None
     if isinstance(payload, list):
         result: list[OrderBookSummaryEvent] = []
         for item in payload:
@@ -763,23 +748,46 @@ def parse_market_event(
                     result.append(obj)
         return result
 
-    return parse_event(
-        payload,
-        MARKET_EVENT_CLASSES,
-        "event_type",
-        channel=message.channel,
-        raw_message=message,
-    )
+    try:
+        return MARKET_EVENT_ADAPTER.validate_python(payload)
+    except ValidationError as exc:
+        emit(
+            logger,
+            logging.WARNING,
+            "ws.message.parse.validation_failed",
+            "Websocket payload failed model validation",
+            channel=message.channel,
+            trace_id=message.trace_id,
+            model="MarketEvents",
+            error_type="ValidationError",
+            error_detail=str(exc),
+            payload_preview=str(payload)[:RAW_MESSAGE_PREVIEW_LIMIT],
+            raw_preview=message.text[:RAW_MESSAGE_PREVIEW_LIMIT],
+        )
+        return None
 
 
 def parse_user_event(message: _WebsocketMessage) -> UserEvents | None:
-    return parse_event(
-        parse_json(message),
-        USER_EVENT_CLASSES,
-        "event_type",
-        channel=message.channel,
-        raw_message=message,
-    )
+    payload = parse_json(message)
+    if payload is None:
+        return None
+    try:
+        return USER_EVENT_ADAPTER.validate_python(payload)
+    except ValidationError as exc:
+        emit(
+            logger,
+            logging.WARNING,
+            "ws.message.parse.validation_failed",
+            "Websocket payload failed model validation",
+            channel=message.channel,
+            trace_id=message.trace_id,
+            model="UserEvents",
+            error_type="ValidationError",
+            error_detail=str(exc),
+            payload_preview=str(payload)[:RAW_MESSAGE_PREVIEW_LIMIT],
+            raw_preview=message.text[:RAW_MESSAGE_PREVIEW_LIMIT],
+        )
+        return None
 
 
 def parse_real_time_data_event(message: _WebsocketMessage) -> RealTimeDataEvents | None:
@@ -1911,9 +1919,7 @@ class _ManagedConnection:
                 self._mark_market_book_resynchronized(raw_message.received_at)
                 self._mark_feed_fresh(raw_message.received_at)
                 return
-            if isinstance(parsed, tuple(MARKET_EVENT_CLASSES.values())) and isinstance(
-                parsed, PriceChangeEvent
-            ):
+            if isinstance(parsed, PriceChangeEvent):
                 self._mark_feed_fresh(raw_message.received_at)
                 return
             return
