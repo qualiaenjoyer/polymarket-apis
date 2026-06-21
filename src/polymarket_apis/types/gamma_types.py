@@ -48,6 +48,23 @@ class FeeSchedule(BaseModel):
     rebate_rate: float = Field(alias="rebateRate")
 
 
+class MarketMetadata(BaseModel):
+    """Provider metadata associated with a market."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    optic_odds_fixture_id: Optional[str] = Field(None, alias="opticOddsFixtureId")
+    optic_odds_market_id: Optional[str] = Field(None, alias="opticOddsMarketId")
+    optic_odds_market_name: Optional[str] = Field(None, alias="opticOddsMarketName")
+    optic_odds_player_id: Optional[str] = Field(None, alias="opticOddsPlayerId")
+    optic_odds_points: Optional[float] = Field(None, alias="opticOddsPoints")
+    optic_odds_selection: Optional[str] = Field(None, alias="opticOddsSelection")
+    optic_odds_selection_line: Optional[str] = Field(
+        None, alias="opticOddsSelectionLine"
+    )
+    optic_odds_team_id: Optional[str] = Field(None, alias="opticOddsTeamId")
+
+
 class GammaMarket(BaseModel):
     """Market model."""
 
@@ -226,6 +243,7 @@ class GammaMarket(BaseModel):
         None, alias="makerRebatesFeeShareBps"
     )
     combo_status: Optional[str] = Field(None, alias="comboStatus")
+    market_metadata: Optional[MarketMetadata] = Field(None, alias="marketMetadata")
 
     @field_validator("condition_id", mode="wrap")
     @classmethod
