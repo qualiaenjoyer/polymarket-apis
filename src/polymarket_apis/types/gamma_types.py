@@ -312,7 +312,7 @@ class Series(BaseModel):
     tags: Optional[list[Tag]] = Field(None, alias="tags")
     comment_count: Optional[int] = Field(None, alias="commentCount")
     chats: Optional[list[Chat]] = Field(None, alias="chats")
-    schema: Optional[str] = Field(None, alias="$schema")
+    schema_: Optional[str] = Field(None, alias="$schema")
 
 
 class Category(BaseModel):
