@@ -196,6 +196,8 @@
     "$[].outcomes:str",
     "$[].pagerDutyNotificationEnabled:bool",
     "$[].pendingDeployment:bool",
+    "$[].positionIds:array",
+    "$[].positionIds[]:str",
     "$[].question:str",
     "$[].questionID:str",
     "$[].ready:bool",

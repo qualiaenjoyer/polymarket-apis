@@ -244,6 +244,7 @@ class GammaMarket(BaseModel):
     )
     combo_status: Optional[str] = Field(None, alias="comboStatus")
     market_metadata: Optional[MarketMetadata] = Field(None, alias="marketMetadata")
+    position_ids: Optional[list[object]] = Field(None, alias="positionIds")
 
     @field_validator("condition_id", mode="wrap")
     @classmethod
