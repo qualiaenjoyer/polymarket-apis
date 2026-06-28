@@ -153,8 +153,8 @@ def gamma_events_payload(http_client: httpx.Client) -> list[dict[str, Any]]:
             "offset": 0,
             "active": "true",
             "archived": "false",
-            "start_date_min": int(
-                (datetime.now(tz=UTC) - timedelta(days=1)).timestamp()
+            "start_date_min": (datetime.now(tz=UTC) - timedelta(days=1)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
             ),
         },
     )
