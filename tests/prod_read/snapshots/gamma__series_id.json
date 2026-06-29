@@ -35,6 +35,7 @@
     "$.events[].eventMetadata.finalPrice:number",
     "$.events[].eventMetadata.priceToBeat:number",
     "$.events[].eventMetadata:object",
+    "$.events[].eventWeek:number",
     "$.events[].featured:bool",
     "$.events[].gameId:number",
     "$.events[].gmpChartMode:str",
